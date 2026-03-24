@@ -42,6 +42,7 @@ from app.schemas.transaction import (
 )
 from app.services.input_sanitization_service import input_sanitization_service
 from app.services.nlp_search_service import parse_natural_query
+from app.utils.csv_sanitize import sanitize_csv_row
 from app.utils.datetime_utils import utc_now
 
 router = APIRouter()
@@ -942,7 +943,7 @@ async def export_transactions_csv(
                 category_str = txn.category.name if txn.category else (txn.category_primary or "")
 
                 writer.writerow(
-                    [
+                    sanitize_csv_row([
                         txn.date.isoformat(),
                         txn.merchant_name or "",
                         txn.description or "",
@@ -954,7 +955,7 @@ async def export_transactions_csv(
                         "Yes" if txn.is_pending else "No",
                         "Yes" if txn.is_transfer else "No",
                         str(txn.id),
-                    ]
+                    ])
                 )
 
             total_exported += len(transactions)

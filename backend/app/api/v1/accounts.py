@@ -60,6 +60,7 @@ from app.services.valuation_service import (
     get_vehicle_value,
 )
 from app.utils.account_type_groups import MANUAL_EXCLUDE_CASH_FLOW_TYPES, TAX_TREATMENT_DEFAULTS
+from app.utils.csv_sanitize import sanitize_csv_row
 
 logger = logging.getLogger(__name__)
 
@@ -274,7 +275,7 @@ async def export_accounts_csv(
     # Write rows
     for acc in accounts:
         writer.writerow(
-            [
+            sanitize_csv_row([
                 acc.name,
                 acc.account_type.value if acc.account_type else "",
                 acc.institution_name or "",
@@ -286,7 +287,7 @@ async def export_accounts_csv(
                 f"****{acc.mask}" if acc.mask else "",
                 "Yes" if acc.is_active else "No",
                 str(acc.id),
-            ]
+            ])
         )
 
     return StreamingResponse(

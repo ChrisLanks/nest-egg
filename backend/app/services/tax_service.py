@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.transaction import Transaction, TransactionLabel, Label
 from app.models.account import Account
+from app.utils.csv_sanitize import sanitize_csv_row
 
 
 class TaxDeductibleSummary:
@@ -307,7 +308,7 @@ class TaxService:
         for summary in summaries:
             for transaction in summary.transactions:
                 writer.writerow(
-                    [
+                    sanitize_csv_row([
                         transaction["date"],
                         transaction["merchant_name"],
                         transaction["description"],
@@ -316,7 +317,7 @@ class TaxService:
                         f"${transaction['amount']:.2f}",
                         transaction["account_name"],
                         "",  # Notes column for user's manual entries
-                    ]
+                    ])
                 )
 
         return output.getvalue()

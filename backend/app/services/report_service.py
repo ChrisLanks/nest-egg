@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.transaction import Transaction
 from app.models.account import Account
 from app.models.report_template import ReportTemplate
+from app.utils.csv_sanitize import sanitize_csv_row
 
 
 class ReportService:
@@ -385,6 +386,6 @@ class ReportService:
 
             # Data rows
             for row in data:
-                writer.writerow([row.get(header, "") for header in headers])
+                writer.writerow(sanitize_csv_row([row.get(header, "") for header in headers]))
 
         return output.getvalue()
