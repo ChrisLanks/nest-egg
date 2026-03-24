@@ -113,11 +113,12 @@ async def invite_member(
     Invite a user to join the household. Only admins can invite.
     Rate limited to 5 invitations per hour to prevent spam.
     """
-    # Rate limit: 5 invitations per hour per IP
+    # Rate limit: 5 invitations per hour per user (not per-IP so IP rotation can't bypass)
     await rate_limit_service.check_rate_limit(
         request=http_request,
         max_requests=5,
         window_seconds=3600,  # 1 hour
+        identifier=str(current_user.id),
     )
 
     # Check household size limit
