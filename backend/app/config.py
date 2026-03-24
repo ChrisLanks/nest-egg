@@ -269,14 +269,44 @@ class Settings(BaseSettings):
     @field_validator("METRICS_PASSWORD")
     @classmethod
     def validate_metrics_password(cls, v: str) -> str:
-        """Require a non-default metrics password in non-development environments."""
+        """Require a strong metrics password in non-development environments.
+
+        Blocks the exact default, any known-weak value, and passwords shorter
+        than 16 characters — consistent with the SECRET_KEY validator which
+        requires >= 32 chars.  16 chars is the minimum for a Basic-Auth
+        credential that protects an admin endpoint.
+        """
         import os
 
         environment = os.getenv("ENVIRONMENT", "development")
-        if environment not in ("development", "test") and v == "metrics_admin":
+        if environment not in ("development", "test"):
+            weak_defaults = {
+                "metrics_admin", "admin", "password", "metrics",
+                "changeme", "secret", "123456", "qwerty",
+            }
+            if v in weak_defaults or len(v) < 16:
+                raise ValueError(
+                    "Insecure METRICS_PASSWORD detected in non-development environment. "
+                    "Use a randomly generated password of at least 16 characters "
+                    "(e.g. openssl rand -hex 16)."
+                )
+        return v
+
+    @field_validator("METRICS_USERNAME")
+    @classmethod
+    def validate_metrics_username(cls, v: str) -> str:
+        """Require a non-default metrics username in non-development environments.
+
+        The default 'admin' username is trivially guessable and effectively
+        halves the entropy of the credential pair.
+        """
+        import os
+
+        environment = os.getenv("ENVIRONMENT", "development")
+        if environment not in ("development", "test") and v in ("admin", "metrics", "prometheus"):
             raise ValueError(
-                "Insecure default METRICS_PASSWORD detected. "
-                "Set a strong password via the METRICS_PASSWORD environment variable."
+                "Insecure default METRICS_USERNAME detected. "
+                "Set a non-obvious username via the METRICS_USERNAME environment variable."
             )
         return v
 
@@ -303,12 +333,23 @@ class Settings(BaseSettings):
     @field_validator("CORS_ORIGINS")
     @classmethod
     def validate_cors_origins(cls, v: list[str]) -> list[str]:
-        """Reject localhost CORS origins in non-dev environments."""
+        """Reject wildcard and localhost CORS origins in non-dev environments.
+
+        A wildcard CORS origin ('*') allows any website to make credentialed
+        cross-origin requests — equivalent to disabling the same-origin policy.
+        Staging is included for the same reason as ALLOWED_HOSTS: staging
+        exploits are identical in impact to production exploits.
+        """
         import os
 
         environment = os.getenv("ENVIRONMENT", "development")
 
         if environment not in ("development", "test"):
+            if "*" in v:
+                raise ValueError(
+                    f"CORS_ORIGINS=['*'] is insecure in {environment} environment! "
+                    "Set specific origins like ['https://app.nestegg.com']"
+                )
             localhost_origins = [o for o in v if "localhost" in o or "127.0.0.1" in o]
             if localhost_origins:
                 raise ValueError(

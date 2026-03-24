@@ -71,3 +71,35 @@ class TestValidateCorsOrigins:
         with patch.dict(os.environ, env, clear=True):
             result = Settings.validate_cors_origins(["http://localhost:3000"])
         assert result == ["http://localhost:3000"]
+
+    # --- Wildcard rejection tests ---
+
+    def test_rejects_wildcard_in_production(self):
+        """Production must reject CORS_ORIGINS=['*'] — allows any site to make requests."""
+        with patch.dict(os.environ, {"ENVIRONMENT": "production"}):
+            with pytest.raises(ValueError, match=r"\*"):
+                Settings.validate_cors_origins(["*"])
+
+    def test_rejects_wildcard_in_staging(self):
+        """Staging should also reject wildcard — staging exploits == production exploits."""
+        with patch.dict(os.environ, {"ENVIRONMENT": "staging"}):
+            with pytest.raises(ValueError, match=r"\*"):
+                Settings.validate_cors_origins(["*"])
+
+    def test_rejects_wildcard_mixed_with_valid_origins_in_production(self):
+        """Wildcard in a list with otherwise-valid origins must still be rejected."""
+        with patch.dict(os.environ, {"ENVIRONMENT": "production"}):
+            with pytest.raises(ValueError, match=r"\*"):
+                Settings.validate_cors_origins(["https://app.nestegg.com", "*"])
+
+    def test_allows_wildcard_in_development(self):
+        """Development may use wildcard for convenience (no production risk)."""
+        with patch.dict(os.environ, {"ENVIRONMENT": "development"}):
+            result = Settings.validate_cors_origins(["*"])
+        assert result == ["*"]
+
+    def test_allows_wildcard_in_test(self):
+        """Test environment may use wildcard."""
+        with patch.dict(os.environ, {"ENVIRONMENT": "test"}):
+            result = Settings.validate_cors_origins(["*"])
+        assert result == ["*"]
