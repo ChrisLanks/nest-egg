@@ -380,7 +380,7 @@ async def create_manual_account(
         tax_treatment=tax_treatment,
         property_type=account_data.property_type,
         account_source=account_data.account_source,
-        institution_name=account_data.institution,
+        institution_name=input_sanitization_service.sanitize_html(account_data.institution) if account_data.institution else account_data.institution,
         mask=account_data.account_number_last4,
         # Debt accounts always carry negative balances in this system.
         # Negate if the user entered a positive value (e.g. "200000" for a mortgage).
