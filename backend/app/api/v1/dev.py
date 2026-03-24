@@ -43,8 +43,8 @@ async def debug_transactions(
     db: AsyncSession = Depends(get_db),
 ):
     """Debug endpoint to see transactions and accounts."""
-    # Only allow in development/staging environments
-    if settings.ENVIRONMENT == "production":
+    # Only allow in development/test environments
+    if settings.ENVIRONMENT not in ("development", "test"):
         raise HTTPException(status_code=404, detail="Not found")
 
     from sqlalchemy import func, select
@@ -238,8 +238,8 @@ async def seed_mock_data(
     db: AsyncSession = Depends(get_db),
 ):
     """Seed mock transaction data for the current user."""
-    # Only allow in development/staging environments
-    if settings.ENVIRONMENT == "production":
+    # Only allow in development/test environments
+    if settings.ENVIRONMENT not in ("development", "test"):
         raise HTTPException(status_code=404, detail="Not found")
 
     result = await seed_mock_data_internal(db, current_user)
