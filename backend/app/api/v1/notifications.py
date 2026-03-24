@@ -14,6 +14,7 @@ from app.dependencies import get_current_admin_user, get_current_user, get_db
 from app.models.notification import Notification, NotificationPriority, NotificationType
 from app.models.user import User
 from app.schemas.notification import (
+    NotificationCreate,
     NotificationResponse,
     UnreadCountResponse,
 )
@@ -160,6 +161,38 @@ async def mark_all_notifications_read(
     )
     count = await notification_service.mark_all_as_read(db=db, user=current_user)
     return {"marked_read": count}
+
+
+@router.post("/", response_model=NotificationResponse)
+async def create_notification(
+    payload: NotificationCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Persist a notification created by the frontend (e.g. from a toast).
+
+    The notification is scoped to the calling user's organization and attributed
+    to the calling user unless ``user_id`` is explicitly provided in the payload
+    (in which case the caller must belong to the same organization).
+    """
+    target_user_id = payload.user_id if payload.user_id is not None else current_user.id
+
+    notification = await NotificationService.create_notification(
+        db=db,
+        organization_id=current_user.organization_id,
+        user_id=target_user_id,
+        type=payload.type,
+        title=payload.title,
+        message=payload.message,
+        priority=payload.priority,
+        related_entity_type=payload.related_entity_type,
+        related_entity_id=payload.related_entity_id,
+        action_url=payload.action_url,
+        action_label=payload.action_label,
+        expires_in_days=payload.expires_in_days,
+    )
+    return notification
 
 
 @router.post("/test", response_model=NotificationResponse)

@@ -8,6 +8,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.api.v1.notifications import (
+    create_notification,
     create_test_notification,
     dismiss_notification,
     get_household_digest,
@@ -16,6 +17,8 @@ from app.api.v1.notifications import (
     mark_all_notifications_read,
     mark_notification_read,
 )
+from app.models.notification import NotificationPriority, NotificationType
+from app.schemas.notification import NotificationCreate
 from app.models.user import User
 
 
@@ -139,6 +142,81 @@ class TestMarkNotificationRead:
             )
 
         assert result == notification
+
+
+@pytest.mark.unit
+class TestCreateNotification:
+    """Tests for POST /notifications/ — frontend-driven bell persistence."""
+
+    def _make_payload(self, **overrides):
+        defaults = dict(
+            type=NotificationType.BUDGET_ALERT,
+            priority=NotificationPriority.MEDIUM,
+            title="You hit your budget",
+            message="Your groceries budget is 90% spent.",
+            action_url="/budgets",
+            action_label="View budgets",
+            expires_in_days=30,
+        )
+        defaults.update(overrides)
+        return NotificationCreate(**defaults)
+
+    @pytest.mark.asyncio
+    async def test_creates_notification_scoped_to_calling_user(self):
+        """When no user_id in payload, notification is scoped to the calling user."""
+        mock_db = AsyncMock()
+        user = _mock_user()
+        payload = self._make_payload()
+        created = Mock()
+
+        with patch("app.api.v1.notifications.NotificationService") as MockNS:
+            MockNS.create_notification = AsyncMock(return_value=created)
+            result = await create_notification(payload=payload, current_user=user, db=mock_db)
+
+        assert result == created
+        call_kwargs = MockNS.create_notification.call_args[1]
+        assert call_kwargs["user_id"] == user.id
+        assert call_kwargs["organization_id"] == user.organization_id
+        assert call_kwargs["type"] == NotificationType.BUDGET_ALERT
+        assert call_kwargs["title"] == "You hit your budget"
+        assert call_kwargs["priority"] == NotificationPriority.MEDIUM
+
+    @pytest.mark.asyncio
+    async def test_explicit_user_id_in_payload_is_used(self):
+        """When payload.user_id is set, that ID is forwarded (household member support)."""
+        mock_db = AsyncMock()
+        user = _mock_user()
+        other_user_id = uuid4()
+        payload = self._make_payload(user_id=other_user_id)
+        created = Mock()
+
+        with patch("app.api.v1.notifications.NotificationService") as MockNS:
+            MockNS.create_notification = AsyncMock(return_value=created)
+            await create_notification(payload=payload, current_user=user, db=mock_db)
+
+        call_kwargs = MockNS.create_notification.call_args[1]
+        assert call_kwargs["user_id"] == other_user_id
+
+    @pytest.mark.asyncio
+    async def test_optional_fields_forwarded(self):
+        """related_entity_type / action_url and expires_in_days are passed through."""
+        mock_db = AsyncMock()
+        user = _mock_user()
+        entity_id = uuid4()
+        payload = self._make_payload(
+            related_entity_type="account",
+            related_entity_id=entity_id,
+            expires_in_days=7,
+        )
+
+        with patch("app.api.v1.notifications.NotificationService") as MockNS:
+            MockNS.create_notification = AsyncMock(return_value=Mock())
+            await create_notification(payload=payload, current_user=user, db=mock_db)
+
+        call_kwargs = MockNS.create_notification.call_args[1]
+        assert call_kwargs["related_entity_type"] == "account"
+        assert call_kwargs["related_entity_id"] == entity_id
+        assert call_kwargs["expires_in_days"] == 7
 
     @pytest.mark.asyncio
     async def test_not_found_raises_404(self):

@@ -48,4 +48,13 @@ export const notificationsApi = {
     const { data } = await api.post<{ marked_read: number }>('/notifications/mark-all-read');
     return data;
   },
+
+  /**
+   * Persist a notification to the bell (called alongside showing a toast so
+   * the user can review it later from the notification dropdown).
+   */
+  createNotification: async (payload: import('../types/notification').NotificationCreate): Promise<Notification> => {
+    const { data } = await api.post<Notification>('/notifications/', payload);
+    return data;
+  },
 };
