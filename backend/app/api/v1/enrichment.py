@@ -1,6 +1,6 @@
 """API endpoints for enriching holdings with external data."""
 
-from fastapi import APIRouter, Depends, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +10,7 @@ from app.dependencies import get_current_user
 from app.models.holding import Holding
 from app.models.user import User
 from app.services.financial_data_service import financial_data_service
+from app.services.rate_limit_service import rate_limit_service
 
 router = APIRouter()
 
@@ -31,6 +32,7 @@ class EnrichmentRequest(BaseModel):
 @router.post("/holdings/enrich", response_model=EnrichmentResponse)
 async def enrich_holdings(
     request: EnrichmentRequest,
+    http_request: Request,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -52,6 +54,14 @@ async def enrich_holdings(
     Note: This runs synchronously with delays to respect rate limits.
           For large portfolios, expect ~4 minutes per 20 holdings.
     """
+    # Rate-limit: calls external APIs and takes minutes to run (3/hr per user)
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=3,
+        window_seconds=3600,
+        identifier=str(current_user.id),
+    )
+
     enriched_count = await financial_data_service.enrich_holdings_batch(
         db=db,
         organization_id=str(current_user.organization_id),
