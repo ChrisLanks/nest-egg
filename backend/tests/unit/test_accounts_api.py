@@ -16,6 +16,7 @@ from app.api.v1.accounts import (
     get_account,
     list_accounts,
     refresh_account_valuation,
+    refresh_equity_price,
     update_account,
 )
 from app.models.account import Account, AccountSource, AccountType
@@ -2316,3 +2317,91 @@ class TestBulkSizeLimits:
 
         assert exc_info.value.status_code == 400
         assert str(_BULK_DELETE_MAX) in exc_info.value.detail
+
+
+# ---------------------------------------------------------------------------
+# refresh_equity_price — information-disclosure prevention
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestRefreshEquityPriceInfoDisclosure:
+    """Verify that market-data provider errors do not leak internal details."""
+
+    def _make_equity_account(self, account_type=None, ticker="AAPL"):
+        from app.models.account import AccountType, CompanyStatus
+
+        account = Mock(spec=Account)
+        account.id = uuid4()
+        account.user_id = uuid4()
+        account.account_type = account_type or AccountType.STOCK_OPTIONS
+        account.institution_name = ticker
+        account.name = ticker
+        account.company_status = CompanyStatus.PUBLIC
+        account.quantity = 10
+        return account
+
+    @pytest.mark.asyncio
+    async def test_market_data_value_error_returns_generic_message(self):
+        """ValueError from market data provider must not leak internal error details."""
+        account = self._make_equity_account()
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        db = AsyncMock()
+
+        internal_error = "CoinGecko API rate limit exceeded — retry after 60s"
+
+        with patch(
+            "app.api.v1.accounts.get_market_data_provider"
+        ) as mock_factory:
+            mock_provider = Mock()
+            mock_provider.get_quote = AsyncMock(side_effect=ValueError(internal_error))
+            mock_factory.return_value = mock_provider
+
+            with pytest.raises(HTTPException) as exc_info:
+                await refresh_equity_price(
+                    account_id=account.id,
+                    account=account,
+                    current_user=user,
+                    db=db,
+                )
+
+        assert exc_info.value.status_code == 422
+        # Internal error message must NOT be exposed to the client
+        assert internal_error not in exc_info.value.detail
+        assert "CoinGecko" not in exc_info.value.detail
+        assert "rate limit" not in exc_info.value.detail
+        # Should contain the ticker (user's own input) and a safe hint
+        assert "AAPL" in exc_info.value.detail
+        assert "ticker" in exc_info.value.detail.lower()
+
+    @pytest.mark.asyncio
+    async def test_market_data_value_error_with_connection_details_sanitized(self):
+        """Even if the ValueError contains a URL or API key fragment, it must not leak."""
+        account = self._make_equity_account(ticker="MSFT")
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        db = AsyncMock()
+
+        internal_error = "Failed to connect to https://api.example.com?key=SECRET123"
+
+        with patch(
+            "app.api.v1.accounts.get_market_data_provider"
+        ) as mock_factory:
+            mock_provider = Mock()
+            mock_provider.get_quote = AsyncMock(side_effect=ValueError(internal_error))
+            mock_factory.return_value = mock_provider
+
+            with pytest.raises(HTTPException) as exc_info:
+                await refresh_equity_price(
+                    account_id=account.id,
+                    account=account,
+                    current_user=user,
+                    db=db,
+                )
+
+        assert exc_info.value.status_code == 422
+        assert "SECRET123" not in exc_info.value.detail
+        assert "api.example.com" not in exc_info.value.detail

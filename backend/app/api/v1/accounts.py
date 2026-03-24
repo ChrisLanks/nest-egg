@@ -1048,7 +1048,11 @@ async def refresh_equity_price(
     try:
         quote = await provider.get_quote(ticker)
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
+        logger.warning("Market data quote failed for ticker=%r: %s", ticker, exc)
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unable to fetch market price for '{ticker}'. Please check the ticker symbol and try again.",
+        )
 
     # Update account
     new_price = quote.price
