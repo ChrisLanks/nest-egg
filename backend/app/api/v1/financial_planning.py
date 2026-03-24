@@ -115,6 +115,18 @@ class SpousalBenefitResponse(BaseModel):
     note: str
 
 
+class FileAndSuspendResponse(BaseModel):
+    worker_birth_year: int
+    worker_fra: float
+    can_suspend: bool
+    monthly_gain_per_year_suspended: float
+    max_gain_age: int
+    suspension_note: str
+    restricted_app_eligible: bool
+    restricted_app_note: str
+    joint_strategy_summary: str
+
+
 class SSClaimingResponse(BaseModel):
     current_age: int
     fra_age: float
@@ -124,6 +136,7 @@ class SSClaimingResponse(BaseModel):
     optimal_age_pessimistic_scenario: int
     optimal_age_optimistic_scenario: int
     spousal: Optional[SpousalBenefitResponse] = None
+    file_and_suspend: Optional[FileAndSuspendResponse] = None
     summary: str
 
 
@@ -380,6 +393,10 @@ async def get_ss_claiming_strategy(
     if result.spousal:
         spousal_resp = SpousalBenefitResponse(**vars(result.spousal))
 
+    fas_resp = None
+    if result.file_and_suspend:
+        fas_resp = FileAndSuspendResponse(**vars(result.file_and_suspend))
+
     return SSClaimingResponse(
         current_age=result.current_age,
         fra_age=result.fra_age,
@@ -389,6 +406,7 @@ async def get_ss_claiming_strategy(
         optimal_age_pessimistic_scenario=result.optimal_age_pessimistic_scenario,
         optimal_age_optimistic_scenario=result.optimal_age_optimistic_scenario,
         spousal=spousal_resp,
+        file_and_suspend=fas_resp,
         summary=result.summary,
     )
 
@@ -589,4 +607,489 @@ async def get_mortgage_rates(
         source=rates.source,
         your_rate=your_rate,
         rate_comparison=rate_comparison,
+    )
+
+
+# ── Guardrails / Sequence-of-Returns Stress Test ──────────────────────────
+
+
+class YearStatsResponse(BaseModel):
+    year: int
+    age: int
+    p10: float
+    p25: float
+    p50: float
+    p75: float
+    p90: float
+    mean: float
+    pct_depleted: float
+
+
+class GuardrailsResponse(BaseModel):
+    initial_portfolio: float
+    initial_annual_spending: float
+    initial_withdrawal_rate: float
+    crash_scenario_name: str
+    crash_first_year_return: float
+    guardrails_enabled: bool
+    success_rate: float
+    median_final_portfolio: float
+    p10_final_portfolio: float
+    p90_final_portfolio: float
+    yearly_stats: List[YearStatsResponse]
+    median_spending_path: List[float]
+    num_simulations: int
+    years_simulated: int
+    data_note: str
+
+
+@router.get("/guardrails-stress-test", response_model=GuardrailsResponse)
+async def get_guardrails_stress_test(
+    initial_portfolio: float = Query(..., gt=0, description="Portfolio value at retirement"),
+    annual_spending: float = Query(..., gt=0, description="Annual spending in today's dollars"),
+    current_age: int = Query(..., ge=40, le=90),
+    life_expectancy: int = Query(90, ge=60, le=110),
+    crash_scenario: str = Query(
+        "2008_financial_crisis",
+        description="Crash scenario: 2008_financial_crisis | 2000_dot_com | 1973_oil_shock",
+    ),
+    crash_return_override: Optional[float] = Query(
+        None, ge=-1.0, le=0.0, description="Custom first-year return (e.g. -0.40 for -40%)"
+    ),
+    guardrails_enabled: bool = Query(True, description="Apply Guyton-Klinger spending rules"),
+    num_simulations: int = Query(1_000, ge=100, le=5_000),
+    current_user: User = Depends(get_current_user),
+) -> GuardrailsResponse:
+    """
+    Sequence-of-returns stress test with optional Guyton-Klinger guardrails.
+
+    Simulates retiring into an immediate severe market crash (year 1) and
+    models portfolio survival across Monte Carlo paths.  Guardrails
+    dynamically raise or cut spending to protect the portfolio.
+
+    **Data note**: crash scenario returns are from historical market data
+    (NYU Stern Damodaran dataset, as of 2024).  Long-run return assumptions
+    are from financial.py FIRE constants.
+    """
+    from app.services.retirement.guardrails_service import run_guardrails_simulation
+
+    result = run_guardrails_simulation(
+        initial_portfolio=initial_portfolio,
+        annual_spending=annual_spending,
+        current_age=current_age,
+        life_expectancy=life_expectancy,
+        crash_scenario=crash_scenario,
+        crash_return_override=crash_return_override,
+        guardrails_enabled=guardrails_enabled,
+        num_simulations=num_simulations,
+    )
+
+    return GuardrailsResponse(
+        initial_portfolio=result.initial_portfolio,
+        initial_annual_spending=result.initial_annual_spending,
+        initial_withdrawal_rate=result.initial_withdrawal_rate,
+        crash_scenario_name=result.crash_scenario_name,
+        crash_first_year_return=result.crash_first_year_return,
+        guardrails_enabled=result.guardrails_enabled,
+        success_rate=result.success_rate,
+        median_final_portfolio=result.median_final_portfolio,
+        p10_final_portfolio=result.p10_final_portfolio,
+        p90_final_portfolio=result.p90_final_portfolio,
+        yearly_stats=[YearStatsResponse(**vars(s)) for s in result.yearly_stats],
+        median_spending_path=result.median_spending_path,
+        num_simulations=result.num_simulations,
+        years_simulated=result.years_simulated,
+        data_note=result.data_note,
+    )
+
+
+# ── Dependent Care FSA Optimizer ──────────────────────────────────────────
+
+
+class DependentCareResponse(BaseModel):
+    tax_year: int
+    annual_childcare_expenses: float
+    num_dependents: int
+    agi: float
+    marginal_rate: float
+    filing_status: str
+    dcfsa_contribution: float
+    dcfsa_tax_savings: float
+    dcfsa_limit: float
+    cdctc_eligible_expenses: float
+    cdctc_rate: float
+    cdctc_credit: float
+    total_benefit: float
+    effective_childcare_cost: float
+    effective_cost_pct: float
+    credit_only_benefit: float
+    fsa_only_benefit: float
+    combined_benefit: float
+    recommendation: str
+    data_note: str
+
+
+@router.get("/dependent-care-optimizer", response_model=DependentCareResponse)
+async def get_dependent_care_optimization(
+    annual_childcare_expenses: float = Query(..., ge=0, description="Total annual qualified childcare costs"),
+    num_dependents: int = Query(1, ge=1, le=10),
+    agi: float = Query(..., ge=0, description="Adjusted gross income"),
+    marginal_rate: float = Query(..., ge=0.0, le=0.50, description="Federal marginal tax rate as decimal"),
+    filing_status: str = Query("mfj", pattern="^(mfj|mfs|single|hoh)$"),
+    current_user: User = Depends(get_current_user),
+) -> DependentCareResponse:
+    """
+    Optimise the split between DC-FSA and Child/Dependent Care Tax Credit (CDCTC).
+
+    Returns tax savings under three strategies (FSA only, credit only, combined)
+    and recommends the most beneficial approach for your tax situation.
+
+    **Data note**: Limits from IRS Publication 503 / IRC §129 (static; rarely
+    changes year-to-year). UI displays the tax year and a link to irs.gov/p503.
+    """
+    from app.services.dependent_care_optimizer_service import optimize_dependent_care
+
+    result = optimize_dependent_care(
+        annual_childcare_expenses=annual_childcare_expenses,
+        num_dependents=num_dependents,
+        agi=agi,
+        marginal_rate=marginal_rate,
+        filing_status=filing_status,
+    )
+    return DependentCareResponse(**vars(result))
+
+
+# ── Survivor Income Scenario ──────────────────────────────────────────────
+
+
+class SurvivorYearResponse(BaseModel):
+    year: int
+    survivor_age: int
+    portfolio_value: float
+    annual_income: float
+    annual_spending: float
+    net_cash_flow: float
+
+
+class SurvivorScenarioResponse(BaseModel):
+    death_age_of_deceased: int
+    survivor_current_age: int
+    survivor_life_expectancy: int
+    joint_portfolio_at_death: float
+    joint_annual_income_at_death: float
+    joint_annual_spending: float
+    survivor_ss_benefit: float
+    survivor_ss_is_own: bool
+    survivor_annual_income: float
+    survivor_annual_spending: float
+    survivor_income_gap: float
+    projection: List[SurvivorYearResponse]
+    success_rate: float
+    median_final_portfolio: float
+    data_note: str
+
+
+@router.get("/survivor-scenario", response_model=SurvivorScenarioResponse)
+async def get_survivor_scenario(
+    death_age: int = Query(..., ge=50, le=100, description="Age of deceased spouse at death"),
+    deceased_ss_monthly: float = Query(0.0, ge=0, description="Deceased's monthly SS benefit"),
+    deceased_pia: float = Query(0.0, ge=0, description="Deceased's PIA (for SSA 82.5% floor)"),
+    survivor_current_age: int = Query(..., ge=40, le=100),
+    survivor_life_expectancy: int = Query(90, ge=60, le=110),
+    survivor_own_ss_monthly: float = Query(0.0, ge=0),
+    survivor_ss_claiming_age: int = Query(67, ge=60, le=70),
+    current_portfolio: float = Query(..., ge=0),
+    joint_annual_income: float = Query(..., ge=0),
+    joint_annual_spending: float = Query(..., ge=0),
+    spending_reduction_pct: float = Query(0.20, ge=0.0, le=0.50),
+    current_user: User = Depends(get_current_user),
+) -> SurvivorScenarioResponse:
+    """
+    Model the surviving spouse's finances if the other partner dies at a specified age.
+
+    Applies SSA survivor benefit rules (POMS RS 00207.010) to determine the
+    survivor's Social Security benefit and projects the portfolio through their
+    life expectancy.
+
+    **Data note**: Survivor benefit reduction factors are statutory (BBA 2015 /
+    SSA POMS RS 00207.010) and do not change annually.
+    """
+    from app.services.survivor_scenario_service import compute_survivor_scenario
+
+    result = compute_survivor_scenario(
+        death_age=death_age,
+        deceased_ss_monthly=deceased_ss_monthly,
+        deceased_pia=deceased_pia,
+        survivor_current_age=survivor_current_age,
+        survivor_life_expectancy=survivor_life_expectancy,
+        survivor_own_ss_monthly=survivor_own_ss_monthly,
+        survivor_ss_claiming_age=survivor_ss_claiming_age,
+        current_portfolio=current_portfolio,
+        joint_annual_income=joint_annual_income,
+        joint_annual_spending=joint_annual_spending,
+        spending_reduction_pct=spending_reduction_pct,
+    )
+
+    return SurvivorScenarioResponse(
+        death_age_of_deceased=result.death_age_of_deceased,
+        survivor_current_age=result.survivor_current_age,
+        survivor_life_expectancy=result.survivor_life_expectancy,
+        joint_portfolio_at_death=result.joint_portfolio_at_death,
+        joint_annual_income_at_death=result.joint_annual_income_at_death,
+        joint_annual_spending=result.joint_annual_spending,
+        survivor_ss_benefit=result.survivor_ss_benefit,
+        survivor_ss_is_own=result.survivor_ss_is_own,
+        survivor_annual_income=result.survivor_annual_income,
+        survivor_annual_spending=result.survivor_annual_spending,
+        survivor_income_gap=result.survivor_income_gap,
+        projection=[SurvivorYearResponse(**vars(y)) for y in result.projection],
+        success_rate=result.success_rate,
+        median_final_portfolio=result.median_final_portfolio,
+        data_note=result.data_note,
+    )
+
+
+# ── Inheritance / Multi-generational Wealth Projection ────────────────────
+
+
+class SpendDownScenarioResponse(BaseModel):
+    strategy_name: str
+    annual_withdrawal: float
+    withdrawal_rate: float
+    final_portfolio: float
+    final_portfolio_real: float
+    estate_before_tax: float
+    federal_estate_tax: float
+    net_to_heirs: float
+    years_projected: int
+    depleted_at_year: Optional[int] = None
+    annual_values: List[float]
+
+
+class InheritanceProjectionResponse(BaseModel):
+    initial_portfolio: float
+    annual_income: float
+    current_age: int
+    life_expectancy: int
+    scenarios: List[SpendDownScenarioResponse]
+    estate_tax_exemption: float
+    estate_tax_rate: float
+    tcja_sunset_applies: bool
+    data_note: str
+
+
+@router.get("/inheritance-projection", response_model=InheritanceProjectionResponse)
+async def get_inheritance_projection(
+    initial_portfolio: float = Query(..., gt=0),
+    annual_income: float = Query(0.0, ge=0, description="Annual SS + pension income"),
+    annual_spending: float = Query(..., gt=0, description="Annual household spending"),
+    current_age: int = Query(..., ge=40, le=100),
+    life_expectancy: int = Query(90, ge=60, le=110),
+    other_assets: float = Query(0.0, ge=0, description="Non-portfolio assets (home, etc.)"),
+    legacy_target: Optional[float] = Query(None, ge=0, description="Desired estate in today's dollars"),
+    current_user: User = Depends(get_current_user),
+) -> InheritanceProjectionResponse:
+    """
+    Project what heirs receive under four spend-down strategies.
+
+    Strategies: 4% rule, minimum distributions only, spend-to-zero,
+    and a user-specified legacy target.  Applies federal estate tax where
+    applicable (state taxes not modelled).
+
+    **Data note**: Estate tax exemption from IRS Rev. Proc. (updated annually).
+    TCJA enhanced exemption sunsets after 2025 — UI surfaces a warning.
+    """
+    from app.services.inheritance_projection_service import project_inheritance
+
+    result = project_inheritance(
+        initial_portfolio=initial_portfolio,
+        annual_income=annual_income,
+        annual_spending=annual_spending,
+        current_age=current_age,
+        life_expectancy=life_expectancy,
+        other_assets=other_assets,
+        legacy_target=legacy_target,
+    )
+
+    return InheritanceProjectionResponse(
+        initial_portfolio=result.initial_portfolio,
+        annual_income=result.annual_income,
+        current_age=result.current_age,
+        life_expectancy=result.life_expectancy,
+        scenarios=[SpendDownScenarioResponse(**vars(s)) for s in result.scenarios],
+        estate_tax_exemption=result.estate_tax_exemption,
+        estate_tax_rate=result.estate_tax_rate,
+        tcja_sunset_applies=result.tcja_sunset_applies,
+        data_note=result.data_note,
+    )
+
+
+# ── Household Net Worth Breakdown ─────────────────────────────────────────
+
+
+class MemberNetWorthResponse(BaseModel):
+    user_id: Optional[UUID] = None
+    display_name: str
+    total_assets: float
+    total_debts: float
+    net_worth: float
+    account_count: int
+    accounts_by_type: dict
+
+
+class HouseholdNetWorthResponse(BaseModel):
+    organization_id: UUID
+    total_net_worth: float
+    total_assets: float
+    total_debts: float
+    members: List[MemberNetWorthResponse]
+    member_count: int
+
+
+@router.get("/household-net-worth-breakdown", response_model=HouseholdNetWorthResponse)
+async def get_household_net_worth_breakdown(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> HouseholdNetWorthResponse:
+    """
+    Break down household net worth by individual member.
+
+    Returns one entry per household member (attributed by account ownership)
+    plus a "Joint / Unattributed" bucket for accounts with no owner.
+    Useful for couples wanting to see "his / hers / joint" net worth.
+    """
+    from app.services.household_net_worth_service import get_household_net_worth_breakdown
+
+    result = await get_household_net_worth_breakdown(
+        db=db,
+        organization_id=current_user.organization_id,
+    )
+
+    return HouseholdNetWorthResponse(
+        organization_id=result.organization_id,
+        total_net_worth=result.total_net_worth,
+        total_assets=result.total_assets,
+        total_debts=result.total_debts,
+        members=[
+            MemberNetWorthResponse(
+                user_id=m.user_id,
+                display_name=m.display_name,
+                total_assets=m.total_assets,
+                total_debts=m.total_debts,
+                net_worth=m.net_worth,
+                account_count=m.account_count,
+                accounts_by_type=m.accounts_by_type,
+            )
+            for m in result.members
+        ],
+        member_count=result.member_count,
+    )
+
+
+# ── Inflation-Linked Asset Tracking ──────────────────────────────────────
+
+
+class InflationLinkedHoldingResponse(BaseModel):
+    account_id: str
+    account_name: str
+    account_type: str
+    current_balance: float
+    ibond_fixed_rate: Optional[float] = None
+    ibond_composite_rate: Optional[float] = None
+    nominal_return: Optional[float] = None
+    real_return: Optional[float] = None
+    cpi_is_estimated: bool
+    ibond_rate_is_stale: bool
+    data_note: str
+
+
+class InflationTrackingResponse(BaseModel):
+    total_inflation_linked: float
+    total_portfolio: float
+    inflation_linked_pct: float
+    holdings: List[InflationLinkedHoldingResponse]
+    cpi_rate: float
+    cpi_is_estimated: bool
+    ibond_fixed_rate: float
+    ibond_composite_rate: float
+    ibond_rate_is_stale: bool
+    ibond_rate_as_of: str
+    generic_real_return: float
+    data_note: str
+
+
+@router.get("/inflation-tracking", response_model=InflationTrackingResponse)
+async def get_inflation_tracking(
+    user_id: Optional[UUID] = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> InflationTrackingResponse:
+    """
+    Analyse inflation-linked assets (I-Bonds, TIPS) in the portfolio.
+
+    Shows current CPI rate (fetched from BLS API, fallback to static table),
+    I-Bond composite rate, and real vs nominal return for each holding.
+
+    **Data note**: CPI sourced from BLS public API (no key required). Falls
+    back to static table if unavailable — UI shows "CPI estimated" notice.
+    I-Bond fixed rate from TreasuryDirect history table in financial constants.
+    """
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+
+    from sqlalchemy import and_, select
+
+    from app.models.account import Account, AccountType as AT
+    from app.services.inflation_tracking_service import analyze_inflation_linked_accounts
+
+    inflation_types = {AT.TIPS, AT.I_BOND}
+    conditions = [
+        Account.organization_id == current_user.organization_id,
+        Account.is_active.is_(True),
+        Account.account_type.in_(inflation_types),
+    ]
+    if user_id:
+        conditions.append(Account.user_id == user_id)
+
+    res = await db.execute(select(Account).where(and_(*conditions)))
+    accts = res.scalars().all()
+
+    # Total portfolio for percentage
+    all_res = await db.execute(
+        select(Account).where(
+            and_(
+                Account.organization_id == current_user.organization_id,
+                Account.is_active.is_(True),
+            )
+        )
+    )
+    all_accts = all_res.scalars().all()
+    total_portfolio = sum(float(a.current_balance or 0) for a in all_accts if a.account_type.is_asset)
+
+    account_dicts = [
+        {
+            "id": str(a.id),
+            "name": a.name,
+            "account_type": a.account_type.value,
+            "current_balance": float(a.current_balance or 0),
+            "nominal_return": None,  # could be enriched from holdings if available
+        }
+        for a in accts
+    ]
+
+    result = analyze_inflation_linked_accounts(account_dicts, total_portfolio)
+
+    return InflationTrackingResponse(
+        total_inflation_linked=result.total_inflation_linked,
+        total_portfolio=result.total_portfolio,
+        inflation_linked_pct=result.inflation_linked_pct,
+        holdings=[InflationLinkedHoldingResponse(**vars(h)) for h in result.holdings],
+        cpi_rate=result.cpi_rate,
+        cpi_is_estimated=result.cpi_is_estimated,
+        ibond_fixed_rate=result.ibond_fixed_rate,
+        ibond_composite_rate=result.ibond_composite_rate,
+        ibond_rate_is_stale=result.ibond_rate_is_stale,
+        ibond_rate_as_of=result.ibond_rate_as_of,
+        generic_real_return=result.generic_real_return,
+        data_note=result.data_note,
     )

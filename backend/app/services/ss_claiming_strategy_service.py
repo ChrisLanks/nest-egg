@@ -66,6 +66,46 @@ class SpousalBenefit:
 
 
 @dataclass
+class FileAndSuspendAnalysis:
+    """Voluntary Suspension (post-2016 rules) analysis.
+
+    Under the Bipartisan Budget Act 2015, the "file and suspend" loophole
+    was closed effective April 30, 2016.  Today, voluntarily suspending
+    benefits also suspends any benefits payable on the worker's record
+    (spousal, dependent) until the worker resumes.
+
+    What remains useful:
+      - A worker at or past FRA can voluntarily suspend to earn 8%/year
+        delayed retirement credits up to age 70, but spousal benefits are
+        also suspended during that period.
+      - Restricted Application: Workers born BEFORE Jan 2, 1954 can still
+        file a restricted application for spousal-only benefits at FRA while
+        deferring their own; those born on/after that date are subject to
+        deemed filing rules.
+
+    DATA NOTE: Rules are statutory (BBA 2015 / OBRA 1990).  They do not
+    change year-to-year.  The restricted-application cutoff birth year (1954)
+    is hard-coded by law.
+    """
+
+    worker_birth_year: int
+    worker_fra: float
+
+    # Voluntary suspension
+    can_suspend: bool  # worker is at or past FRA
+    monthly_gain_per_year_suspended: float  # 8%/yr DRC on PIA
+    max_gain_age: int  # 70 (no credits beyond 70)
+    suspension_note: str
+
+    # Restricted application
+    restricted_app_eligible: bool  # born before Jan 2, 1954
+    restricted_app_note: str
+
+    # Joint optimal strategy narrative
+    joint_strategy_summary: str
+
+
+@dataclass
 class SSClaimingResult:
     """Complete SS claiming strategy analysis."""
 
@@ -77,6 +117,7 @@ class SSClaimingResult:
     optimal_age_pessimistic_scenario: int
     optimal_age_optimistic_scenario: int
     spousal: Optional[SpousalBenefit]
+    file_and_suspend: Optional[FileAndSuspendAnalysis]
     summary: str
 
 
@@ -231,6 +272,15 @@ class SSClaimingStrategyService:
                 ),
             )
 
+        # File-and-suspend / restricted application analysis
+        fas = SSClaimingStrategyService._build_file_and_suspend(
+            pia=pia,
+            fra=fra,
+            birth_year=birth_year,
+            current_age=current_age,
+            spousal=spousal,
+        )
+
         # Build summary narrative
         option_at_opt = next(o for o in options if o.claiming_age == opt_base)
         option_at_62 = options[0]
@@ -247,7 +297,89 @@ class SSClaimingStrategyService:
             optimal_age_pessimistic_scenario=opt_pess,
             optimal_age_optimistic_scenario=opt_opt,
             spousal=spousal,
+            file_and_suspend=fas,
             summary=summary,
+        )
+
+    @staticmethod
+    def _build_file_and_suspend(
+        pia: float,
+        fra: float,
+        birth_year: int,
+        current_age: int,
+        spousal: Optional[SpousalBenefit],
+    ) -> "FileAndSuspendAnalysis":
+        """Compute voluntary-suspension and restricted-application eligibility.
+
+        Rules:
+          - Voluntary suspension: available at or after FRA; earns 8%/yr DRC.
+          - Restricted application: only for workers born BEFORE Jan 2, 1954.
+            (OBRA 1990 / BBA 2015 deemed-filing rules)
+        """
+        can_suspend = current_age >= int(fra)
+        monthly_gain = round(pia * 0.08 / 12, 2)  # 8% of PIA per year = 0.667%/month
+
+        if can_suspend:
+            susp_note = (
+                f"You can voluntarily suspend benefits to earn delayed retirement credits "
+                f"(+8%/year = +${monthly_gain:.0f}/month per year suspended, up to age 70). "
+                "⚠ During suspension, any spousal or dependent benefits on your record are "
+                "also suspended (post-2016 rules)."
+            )
+        else:
+            years_to_fra = max(0, int(fra) - current_age)
+            susp_note = (
+                f"Voluntary suspension becomes available at your FRA (age {fra:.1f}, "
+                f"approximately {years_to_fra} year(s) from now)."
+            )
+
+        # Restricted application cutoff: born before Jan 2, 1954
+        restricted_eligible = birth_year < 1954
+        if restricted_eligible:
+            restr_note = (
+                "Born before Jan 2, 1954: you may file a Restricted Application "
+                "at FRA to claim spousal-only benefits while deferring your own "
+                "benefit to earn delayed credits up to age 70.  "
+                "Consult ssa.gov/myaccount or a financial advisor before filing."
+            )
+        else:
+            restr_note = (
+                "Born on or after Jan 2, 1954: deemed filing rules apply — "
+                "applying for any SS benefit automatically claims all benefits "
+                "you are eligible for.  The restricted-application strategy is "
+                "not available to you."
+            )
+
+        # Joint strategy narrative
+        if spousal is not None:
+            if restricted_eligible:
+                joint_summary = (
+                    f"Joint strategy opportunity: the lower-earning spouse could file "
+                    f"at FRA for spousal benefits (${spousal.spousal_monthly_at_fra:,.0f}/mo) "
+                    f"while the higher earner delays to 70 "
+                    f"(+${monthly_gain * 12 * (70 - int(fra)):,.0f} total additional benefit). "
+                    "Restricted application required — verify eligibility at ssa.gov."
+                )
+            else:
+                joint_summary = (
+                    "Under current deemed-filing rules both spouses must claim all "
+                    "eligible benefits simultaneously.  Consider coordinating claiming "
+                    "ages to maximise the higher earner's survivor benefit — the survivor "
+                    "receives 100% of the deceased's benefit if higher than their own."
+                )
+        else:
+            joint_summary = "Provide spouse PIA to see joint claiming strategy recommendations."
+
+        return FileAndSuspendAnalysis(
+            worker_birth_year=birth_year,
+            worker_fra=fra,
+            can_suspend=can_suspend,
+            monthly_gain_per_year_suspended=monthly_gain,
+            max_gain_age=70,
+            suspension_note=susp_note,
+            restricted_app_eligible=restricted_eligible,
+            restricted_app_note=restr_note,
+            joint_strategy_summary=joint_summary,
         )
 
     @staticmethod

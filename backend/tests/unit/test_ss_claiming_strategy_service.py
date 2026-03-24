@@ -283,3 +283,72 @@ class TestSSClaimingPerUserProjection:
         opt_b = next(o for o in result_b.options if o.claiming_age == 67)
         opt_a = next(o for o in result_a.options if o.claiming_age == 67)
         assert opt_b.monthly_benefit > opt_a.monthly_benefit
+
+
+# ── FileAndSuspendAnalysis ─────────────────────────────────────────────────
+
+
+@pytest.mark.unit
+class TestFileAndSuspendAnalysis:
+    def _analyze(self, **kwargs):
+        defaults = dict(
+            current_salary=80_000,
+            current_age=58,
+            birth_year=1966,
+        )
+        defaults.update(kwargs)
+        return SSClaimingStrategyService.analyze(**defaults)
+
+    def test_file_and_suspend_field_present_on_result(self):
+        result = self._analyze()
+        assert result.file_and_suspend is not None
+
+    def test_workers_born_before_1954_are_restricted_app_eligible(self):
+        result = self._analyze(birth_year=1953, current_age=72)
+        assert result.file_and_suspend.restricted_app_eligible is True
+
+    def test_workers_born_1954_or_later_are_not_restricted_app_eligible(self):
+        result = self._analyze(birth_year=1954, current_age=71)
+        assert result.file_and_suspend.restricted_app_eligible is False
+
+    def test_workers_born_after_1954_are_not_restricted_app_eligible(self):
+        result = self._analyze(birth_year=1966, current_age=58)
+        assert result.file_and_suspend.restricted_app_eligible is False
+
+    def test_voluntary_suspension_earns_positive_monthly_gain_when_below_70(self):
+        # Worker at FRA (67) can suspend and earn DRCs up to 70
+        result = self._analyze(birth_year=1958, current_age=67)
+        assert result.file_and_suspend.monthly_gain_per_year_suspended > 0
+
+    def test_can_suspend_true_when_at_or_past_fra(self):
+        # FRA for 1958 birth year = 66 years 8 months → floor to 66; age 67 >= 66
+        result = self._analyze(birth_year=1958, current_age=67)
+        assert result.file_and_suspend.can_suspend is True
+
+    def test_can_suspend_false_when_before_fra(self):
+        # Age 58 is before any FRA
+        result = self._analyze(birth_year=1966, current_age=58)
+        assert result.file_and_suspend.can_suspend is False
+
+    def test_max_gain_age_is_70(self):
+        result = self._analyze()
+        assert result.file_and_suspend.max_gain_age == 70
+
+    def test_joint_strategy_summary_is_non_empty(self):
+        result = self._analyze()
+        assert len(result.file_and_suspend.joint_strategy_summary) > 0
+
+    def test_joint_strategy_summary_with_spouse_pia(self):
+        result = self._analyze(spouse_pia=1_000)
+        fas = result.file_and_suspend
+        assert len(fas.joint_strategy_summary) > 0
+        # With spousal benefit present, summary should reference a strategy
+        assert fas.joint_strategy_summary != "Provide spouse PIA to see joint claiming strategy recommendations."
+
+    def test_worker_fra_echoed_on_result(self):
+        result = self._analyze(birth_year=1960, current_age=65)
+        assert result.file_and_suspend.worker_fra == pytest.approx(67.0, abs=0.1)
+
+    def test_worker_birth_year_echoed_on_result(self):
+        result = self._analyze(birth_year=1966)
+        assert result.file_and_suspend.worker_birth_year == 1966

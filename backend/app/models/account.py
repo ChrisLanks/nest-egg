@@ -119,6 +119,8 @@ class AccountType(str, enum.Enum):
 
     # Securities
     BOND = "bond"
+    TIPS = "tips"           # Treasury Inflation-Protected Securities
+    I_BOND = "i_bond"       # Series I Savings Bonds (inflation-linked, 30-yr)
     STOCK_OPTIONS = "stock_options"
 
     # Business
