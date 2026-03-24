@@ -155,6 +155,12 @@ class TestValidateProductionSecrets:
         s.PLAID_SECRET = overrides.get("PLAID_SECRET", "plaid_secret_val")
         s.PLAID_WEBHOOK_SECRET = overrides.get("PLAID_WEBHOOK_SECRET", "webhook_val")
         s.METRICS_PASSWORD = overrides.get("METRICS_PASSWORD", "strong_metrics_pw_2024")
+        s.METRICS_USERNAME = overrides.get("METRICS_USERNAME", "metrics_reader")
+        s.REDIS_URL = overrides.get(
+            "REDIS_URL", "redis://:Xk29mNpRq7wZ8vL4n@redis:6379/0"  # pragma: allowlist secret
+        )
+        s.SMTP_HOST = overrides.get("SMTP_HOST", None)
+        s.SMTP_PASSWORD = overrides.get("SMTP_PASSWORD", None)
         return s
 
     def test_debug_mode_skips_validation(self):
@@ -341,6 +347,12 @@ class TestGenerateSecurityChecklist:
         s.PLAID_SECRET = overrides.get("PLAID_SECRET", "plaid_secret_val")
         s.PLAID_WEBHOOK_SECRET = overrides.get("PLAID_WEBHOOK_SECRET", "webhook_val")
         s.METRICS_PASSWORD = overrides.get("METRICS_PASSWORD", "strong_metrics_pw_2024")
+        s.METRICS_USERNAME = overrides.get("METRICS_USERNAME", "metrics_reader")
+        s.REDIS_URL = overrides.get(
+            "REDIS_URL", "redis://:Xk29mNpRq7wZ8vL4n@redis:6379/0"  # pragma: allowlist secret
+        )
+        s.SMTP_HOST = overrides.get("SMTP_HOST", None)
+        s.SMTP_PASSWORD = overrides.get("SMTP_PASSWORD", None)
         return s
 
     def test_all_checks_pass(self):
@@ -357,6 +369,9 @@ class TestGenerateSecurityChecklist:
         assert checklist["plaid_configured"] is True
         assert checklist["plaid_webhook_verified"] is True
         assert checklist["metrics_password_changed"] is True
+        assert checklist["metrics_username_changed"] is True
+        assert checklist["redis_password_strong"] is True
+        assert checklist["smtp_password_strong"] is True  # SMTP not configured — N/A → True
 
     def test_debug_enabled_fails(self):
         with patch(
@@ -432,3 +447,187 @@ class TestGenerateSecurityChecklist:
         ):
             checklist = SecretsValidationService.generate_security_checklist()
         assert checklist["plaid_webhook_verified"] is False
+
+    def test_weak_redis_password_fails(self):
+        with patch(
+            "app.services.secrets_validation_service.settings",
+            self._make_settings(REDIS_URL="redis://:changeme@redis:6379/0"),  # pragma: allowlist secret
+        ):
+            checklist = SecretsValidationService.generate_security_checklist()
+        assert checklist["redis_password_strong"] is False
+
+    def test_strong_redis_password_passes(self):
+        with patch(
+            "app.services.secrets_validation_service.settings",
+            self._make_settings(REDIS_URL="redis://:Xk29mNpRq7wZ8vL4n@redis:6379/0"),  # pragma: allowlist secret
+        ):
+            checklist = SecretsValidationService.generate_security_checklist()
+        assert checklist["redis_password_strong"] is True
+
+    def test_redis_no_password_fails(self):
+        with patch(
+            "app.services.secrets_validation_service.settings",
+            self._make_settings(REDIS_URL="redis://redis:6379/0"),
+        ):
+            checklist = SecretsValidationService.generate_security_checklist()
+        assert checklist["redis_password_strong"] is False
+
+    def test_smtp_not_configured_passes(self):
+        """SMTP not configured is not a security issue."""
+        with patch(
+            "app.services.secrets_validation_service.settings",
+            self._make_settings(SMTP_HOST=None, SMTP_PASSWORD=None),
+        ):
+            checklist = SecretsValidationService.generate_security_checklist()
+        assert checklist["smtp_password_strong"] is True
+
+    def test_smtp_configured_with_strong_password_passes(self):
+        with patch(
+            "app.services.secrets_validation_service.settings",
+            self._make_settings(
+                SMTP_HOST="smtp.example.com",
+                SMTP_PASSWORD="Xk29mNpRq7wZ8vL4n",  # pragma: allowlist secret
+            ),
+        ):
+            checklist = SecretsValidationService.generate_security_checklist()
+        assert checklist["smtp_password_strong"] is True
+
+    def test_smtp_configured_with_weak_password_fails(self):
+        with patch(
+            "app.services.secrets_validation_service.settings",
+            self._make_settings(
+                SMTP_HOST="smtp.example.com",
+                SMTP_PASSWORD="password123",  # pragma: allowlist secret
+            ),
+        ):
+            checklist = SecretsValidationService.generate_security_checklist()
+        assert checklist["smtp_password_strong"] is False
+
+
+# ── _extract_redis_password ───────────────────────────────────────────────────
+
+
+@pytest.mark.unit
+class TestExtractRedisPassword:
+    """Test Redis password extraction from URL."""
+
+    def test_password_with_empty_user(self):
+        url = "redis://:mypassword@redis:6379/0"  # pragma: allowlist secret
+        assert SecretsValidationService._extract_redis_password(url) == "mypassword"
+
+    def test_password_with_username(self):
+        url = "redis://user:mypassword@redis:6379/0"  # pragma: allowlist secret
+        assert SecretsValidationService._extract_redis_password(url) == "mypassword"
+
+    def test_no_auth(self):
+        url = "redis://redis:6379/0"
+        assert SecretsValidationService._extract_redis_password(url) is None
+
+    def test_empty_url(self):
+        assert SecretsValidationService._extract_redis_password("") is None
+
+    def test_none_url(self):
+        assert SecretsValidationService._extract_redis_password(None) is None
+
+
+# ── Redis + SMTP validate_production_secrets ──────────────────────────────────
+
+
+@pytest.mark.unit
+class TestRedisAndSmtpProductionValidation:
+    """Test Redis and SMTP credential validation in production secrets check."""
+
+    def _make_settings(self, **overrides):
+        class FakeSettings:
+            pass
+
+        s = FakeSettings()
+        s.DEBUG = False
+        s.SECRET_KEY = "k8X9mZp2qR7wN4vB6cD1fG3hJ5kL0mNx"  # pragma: allowlist secret
+        s.DATABASE_URL = "postgresql://u:X9kQ!mZ2vL8nR4wY@db:5432/prod"  # pragma: allowlist secret
+        s.MASTER_ENCRYPTION_KEY = "a" * 32
+        s.CORS_ORIGINS = ["https://app.example.com"]
+        s.ALLOWED_HOSTS = ["app.example.com"]
+        s.PLAID_CLIENT_ID = "plaid_client_id_val"
+        s.PLAID_SECRET = "plaid_secret_val"
+        s.PLAID_WEBHOOK_SECRET = "webhook_val"
+        s.METRICS_PASSWORD = "strong_metrics_pw_2024"
+        s.METRICS_USERNAME = "metrics_reader"
+        s.REDIS_URL = overrides.get(
+            "REDIS_URL", "redis://:Xk29mNpRq7wZ8vL4n@redis:6379/0"  # pragma: allowlist secret
+        )
+        s.SMTP_HOST = overrides.get("SMTP_HOST", None)
+        s.SMTP_PASSWORD = overrides.get("SMTP_PASSWORD", None)
+        return s
+
+    def test_short_redis_password_error(self):
+        with patch(
+            "app.services.secrets_validation_service.settings",
+            self._make_settings(REDIS_URL="redis://:short@redis:6379/0"),  # pragma: allowlist secret
+        ):
+            result = SecretsValidationService.validate_production_secrets()
+        assert any("REDIS_URL" in e and "short" in e.lower() for e in result["errors"])
+
+    def test_weak_redis_password_error(self):
+        with patch(
+            "app.services.secrets_validation_service.settings",
+            self._make_settings(REDIS_URL="redis://:changeme123456789@redis:6379/0"),  # pragma: allowlist secret
+        ):
+            result = SecretsValidationService.validate_production_secrets()
+        assert any("REDIS_URL" in e and ("default" in e.lower() or "weak" in e.lower()) for e in result["errors"])
+
+    def test_redis_localhost_warning(self):
+        with patch(
+            "app.services.secrets_validation_service.settings",
+            self._make_settings(REDIS_URL="redis://:Xk29mNpRq7wZ8vL4n@localhost:6379/0"),  # pragma: allowlist secret
+        ):
+            result = SecretsValidationService.validate_production_secrets()
+        assert any("REDIS_URL" in w or "localhost" in w for w in result["warnings"])
+
+    def test_redis_no_password_no_error(self):
+        """Redis without auth (network-isolated) is a warning, not an error."""
+        with patch(
+            "app.services.secrets_validation_service.settings",
+            self._make_settings(REDIS_URL="redis://redis:6379/0"),
+        ):
+            result = SecretsValidationService.validate_production_secrets()
+        # No REDIS_URL errors expected — no password means no weak-password check fires
+        assert not any("REDIS_URL" in e for e in result["errors"])
+
+    def test_smtp_short_password_error(self):
+        with patch(
+            "app.services.secrets_validation_service.settings",
+            self._make_settings(SMTP_HOST="smtp.example.com", SMTP_PASSWORD="short"),  # pragma: allowlist secret
+        ):
+            result = SecretsValidationService.validate_production_secrets()
+        assert any("SMTP_PASSWORD" in e for e in result["errors"])
+
+    def test_smtp_weak_password_error(self):
+        with patch(
+            "app.services.secrets_validation_service.settings",
+            self._make_settings(
+                SMTP_HOST="smtp.example.com",
+                SMTP_PASSWORD="password_long_enough_12345",  # pragma: allowlist secret
+            ),
+        ):
+            result = SecretsValidationService.validate_production_secrets()
+        assert any("SMTP_PASSWORD" in e for e in result["errors"])
+
+    def test_smtp_not_configured_no_error(self):
+        with patch(
+            "app.services.secrets_validation_service.settings",
+            self._make_settings(SMTP_HOST=None, SMTP_PASSWORD=None),
+        ):
+            result = SecretsValidationService.validate_production_secrets()
+        assert not any("SMTP" in e for e in result["errors"])
+
+    def test_smtp_strong_password_no_error(self):
+        with patch(
+            "app.services.secrets_validation_service.settings",
+            self._make_settings(
+                SMTP_HOST="smtp.example.com",
+                SMTP_PASSWORD="Xk29mNpRq7wZ8vL4n",  # pragma: allowlist secret
+            ),
+        ):
+            result = SecretsValidationService.validate_production_secrets()
+        assert not any("SMTP" in e for e in result["errors"])

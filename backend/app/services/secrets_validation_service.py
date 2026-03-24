@@ -80,10 +80,21 @@ class SecretsValidationService:
         if not settings.ALLOWED_HOSTS or settings.ALLOWED_HOSTS == ["*"]:
             errors.append("ALLOWED_HOSTS must be set to specific domains in production")
 
-        # Critical: Metrics admin password must be changed from default
-        if settings.METRICS_PASSWORD in ("metrics_admin", "admin", "password", "metrics"):
+        # Critical: Metrics admin password must be changed from default and be strong
+        if (
+            SecretsValidationService._is_default_or_weak(settings.METRICS_PASSWORD)
+            or len(settings.METRICS_PASSWORD) < 16
+        ):
             errors.append(
-                "METRICS_PASSWORD is set to a default/weak value — change before deploying to production"
+                "METRICS_PASSWORD is set to a default/weak value or is too short "
+                "(minimum 16 characters) — change before deploying to production"
+            )
+
+        # Critical: Metrics admin username must not be the default
+        if settings.METRICS_USERNAME in ("admin", "metrics", "prometheus"):
+            errors.append(
+                "METRICS_USERNAME is set to a default/guessable value — "
+                "change before deploying to production"
             )
 
         # Optional but recommended: Plaid secrets
@@ -93,6 +104,37 @@ class SecretsValidationService:
             warnings.append("PLAID_SECRET not set - Plaid integration will not work")
         if not settings.PLAID_WEBHOOK_SECRET:
             warnings.append("PLAID_WEBHOOK_SECRET not set - webhook verification disabled")
+
+        # Redis URL validation — weak embedded password is exploitable for cache poisoning /
+        # session hijack if Redis is exposed outside the container network.
+        redis_password = SecretsValidationService._extract_redis_password(settings.REDIS_URL)
+        if redis_password is not None:
+            # Password is present — validate its strength
+            if len(redis_password) < 16:
+                errors.append(
+                    "REDIS_URL password is too short (minimum 16 characters) — "
+                    "Redis auth can be brute-forced with a short password"
+                )
+            if SecretsValidationService._is_default_or_weak(redis_password):
+                errors.append(
+                    "REDIS_URL password appears to be a default or weak value"
+                )
+        if settings.REDIS_URL and (
+            "localhost" in settings.REDIS_URL or "127.0.0.1" in settings.REDIS_URL
+        ):
+            warnings.append(
+                "REDIS_URL points to localhost — ensure Redis is not exposed beyond the local network"
+            )
+
+        # SMTP password validation — if SMTP is configured, the password must be strong.
+        if settings.SMTP_HOST and settings.SMTP_PASSWORD:
+            if len(settings.SMTP_PASSWORD) < 16:
+                errors.append(
+                    "SMTP_PASSWORD is too short (minimum 16 characters) — "
+                    "use an app-specific password or strong credential"
+                )
+            if SecretsValidationService._is_default_or_weak(settings.SMTP_PASSWORD):
+                errors.append("SMTP_PASSWORD appears to be a default or weak value")
 
         # Check for environment-specific issues
         if os.getenv("DATABASE_URL") == os.getenv("DATABASE_URL_TEST"):
@@ -165,6 +207,25 @@ class SecretsValidationService:
         if match:
             return match.group(1)
 
+        return None
+
+    @staticmethod
+    def _extract_redis_password(redis_url: str) -> Optional[str]:
+        """
+        Extract password from a Redis URL.
+
+        Handles forms:
+          redis://:password@host:port/db
+          redis://user:password@host:port/db
+
+        Returns the password string if present, None if absent.
+        """
+        if not redis_url:
+            return None
+        # Match :password@ (with or without a username)
+        match = re.search(r"://(?:[^:@]*:)?([^@]+)@", redis_url)
+        if match:
+            return match.group(1) or None
         return None
 
     @staticmethod
@@ -243,10 +304,35 @@ class SecretsValidationService:
         checklist["plaid_configured"] = bool(settings.PLAID_CLIENT_ID and settings.PLAID_SECRET)
         checklist["plaid_webhook_verified"] = bool(settings.PLAID_WEBHOOK_SECRET)
 
-        # Metrics admin password changed from default
-        checklist["metrics_password_changed"] = settings.METRICS_PASSWORD not in (
-            "metrics_admin", "admin", "password", "metrics"
+        # Metrics credentials: password must be strong and username non-default
+        checklist["metrics_password_changed"] = (
+            not SecretsValidationService._is_default_or_weak(settings.METRICS_PASSWORD)
+            and len(settings.METRICS_PASSWORD) >= 16
         )
+        checklist["metrics_username_changed"] = settings.METRICS_USERNAME not in (
+            "admin", "metrics", "prometheus"
+        )
+
+        # Redis: if a password is embedded in the URL it must be strong
+        redis_password = SecretsValidationService._extract_redis_password(settings.REDIS_URL)
+        if redis_password is not None:
+            checklist["redis_password_strong"] = (
+                len(redis_password) >= 16
+                and not SecretsValidationService._is_default_or_weak(redis_password)
+            )
+        else:
+            # No auth configured — not a checklist failure (Redis may be network-isolated),
+            # but flag it so operators are aware.
+            checklist["redis_password_strong"] = False
+
+        # SMTP: if configured, password must be present and strong
+        if settings.SMTP_HOST:
+            checklist["smtp_password_strong"] = bool(settings.SMTP_PASSWORD) and (
+                len(settings.SMTP_PASSWORD) >= 16
+                and not SecretsValidationService._is_default_or_weak(settings.SMTP_PASSWORD)
+            )
+        else:
+            checklist["smtp_password_strong"] = True  # Not configured — not applicable
 
         return checklist
 
