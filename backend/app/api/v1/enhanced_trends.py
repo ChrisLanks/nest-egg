@@ -30,6 +30,8 @@ async def get_net_worth_history(
     current_user: User = Depends(get_current_user),
 ):
     """Get net worth history time series with asset/liability breakdown."""
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
     service = EnhancedTrendsService(db)
     return await service.get_net_worth_history(
         organization_id=current_user.organization_id,
@@ -67,6 +69,8 @@ async def get_spending_velocity(
     current_user: User = Depends(get_current_user),
 ):
     """Analyze spending acceleration/deceleration: MoM change, trend direction."""
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
     service = EnhancedTrendsService(db)
     return await service.get_spending_velocity(
         organization_id=current_user.organization_id,
@@ -83,6 +87,8 @@ async def get_cash_flow_history(
     current_user: User = Depends(get_current_user),
 ):
     """Get monthly cash flow (income vs expenses) time series with savings rate."""
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
     service = EnhancedTrendsService(db)
     return await service.get_cash_flow_history(
         organization_id=current_user.organization_id,
