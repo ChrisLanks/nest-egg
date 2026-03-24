@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.responses import RedirectResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +13,7 @@ from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.services import attachment_service
+from app.services.rate_limit_service import rate_limit_service
 from app.services.storage_service import StorageService, get_storage_service
 
 router = APIRouter()
@@ -55,6 +56,7 @@ class AttachmentListResponse(BaseModel):
 )
 async def upload_attachment(
     transaction_id: UUID,
+    http_request: Request,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -66,6 +68,14 @@ async def upload_attachment(
     Allowed types: JPEG, PNG, GIF, WebP, PDF.
     Maximum 5 attachments per transaction.
     """
+    # Rate-limit: prevent storage abuse via bulk uploads (20/hr per user)
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=20,
+        window_seconds=3600,
+        identifier=str(current_user.id),
+    )
+
     attachment = await attachment_service.upload_attachment(
         db=db,
         transaction_id=transaction_id,

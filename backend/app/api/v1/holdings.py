@@ -9,7 +9,7 @@ from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import func, select
 from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -58,6 +58,7 @@ from app.services.fund_fee_analyzer_service import resolve_expense_ratio
 from app.services.input_sanitization_service import input_sanitization_service
 from app.services.market_data import get_market_data_provider
 from app.services.snapshot_service import snapshot_service
+from app.services.rate_limit_service import rate_limit_service
 from app.utils.account_type_groups import (
     ALL_RETIREMENT_TYPES,
     CASH_ACCOUNT_TYPES,
@@ -1432,6 +1433,7 @@ async def delete_holding(
 
 @router.post("/capture-snapshot", response_model=SnapshotResponse)
 async def capture_portfolio_snapshot(
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1441,6 +1443,14 @@ async def capture_portfolio_snapshot(
     Creates or updates a snapshot of the current portfolio state.
     Used for historical performance tracking.
     """
+    # Rate-limit: full portfolio scan + DB write (10/hr per user)
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=10,
+        window_seconds=3600,
+        identifier=str(current_user.id),
+    )
+
     # Get current portfolio summary
     portfolio = await get_portfolio_summary(current_user=current_user, db=db)
 
