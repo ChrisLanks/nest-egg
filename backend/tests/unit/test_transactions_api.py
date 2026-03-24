@@ -912,8 +912,10 @@ class TestListTransactionsAdditionalBranches:
     @pytest.mark.asyncio
     async def test_with_date_range_and_account_filter(self, mock_user):
         """Should apply all filters together."""
+        from unittest.mock import patch as _patch
         mock_db = AsyncMock()
         mock_txn = self.create_mock_transaction()
+        account_id = uuid4()
 
         mock_scalars = Mock()
         mock_scalars.all = Mock(return_value=[mock_txn])
@@ -925,21 +927,30 @@ class TestListTransactionsAdditionalBranches:
         mock_count_result.scalar = Mock(return_value=1)
         mock_db.execute = AsyncMock(side_effect=[mock_execute_result, mock_count_result])
 
-        result = await list_transactions(
-            page_size=50,
-            cursor=None,
-            account_id=uuid4(),
-            user_id=None,
-            start_date="2024-01-01",
-            end_date="2024-12-31",
-            search=None,
-            flagged=None,
-            min_amount=None,
-            max_amount=None,
-            is_income=None,
-            current_user=mock_user,
-            db=mock_db,
-        )
+        # account_id validation calls get_all_household_accounts — return a matching account
+        mock_account = Mock()
+        mock_account.id = account_id
+
+        with _patch(
+            "app.api.v1.transactions.get_all_household_accounts",
+            new_callable=AsyncMock,
+            return_value=[mock_account],
+        ):
+            result = await list_transactions(
+                page_size=50,
+                cursor=None,
+                account_id=account_id,
+                user_id=None,
+                start_date="2024-01-01",
+                end_date="2024-12-31",
+                search=None,
+                flagged=None,
+                min_amount=None,
+                max_amount=None,
+                is_income=None,
+                current_user=mock_user,
+                db=mock_db,
+            )
 
         assert len(result.transactions) == 1
 

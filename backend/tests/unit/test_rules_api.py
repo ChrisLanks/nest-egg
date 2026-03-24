@@ -192,6 +192,7 @@ class TestCreateRule:
                 request=mock_request,
                 max_requests=20,
                 window_seconds=3600,
+                identifier=str(mock_user.id),
             )
 
 
@@ -372,6 +373,7 @@ class TestUpdateRule:
                 request=mock_request,
                 max_requests=30,
                 window_seconds=3600,
+                identifier=str(mock_user.id),
             )
 
 
@@ -470,6 +472,7 @@ class TestDeleteRule:
                 request=mock_request,
                 max_requests=20,
                 window_seconds=3600,
+                identifier=str(mock_user.id),
             )
 
 
