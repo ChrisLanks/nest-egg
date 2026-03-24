@@ -1,7 +1,7 @@
 """API endpoints for enriching holdings with external data."""
 
 from fastapi import APIRouter, Depends, BackgroundTasks
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,7 +25,7 @@ class EnrichmentRequest(BaseModel):
     """Request to enrich holdings."""
 
     force_refresh: bool = False
-    limit: int = 20
+    limit: int = Field(default=20, ge=1, le=200)
 
 
 @router.post("/holdings/enrich", response_model=EnrichmentResponse)
