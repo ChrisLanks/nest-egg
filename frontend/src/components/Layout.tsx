@@ -943,13 +943,6 @@ export const Layout = () => {
         "529 college savings projections — see if you're on track to cover tuition costs per child",
     },
     {
-      label: "FIRE",
-      path: "/fire",
-      tooltip:
-        "Financial Independence, Retire Early — track how close you are to never needing to work again",
-      advanced: true,
-    },
-    {
       label: "Debt Payoff",
       path: "/debt-payoff",
       tooltip:
@@ -962,55 +955,29 @@ export const Layout = () => {
         "Analyze your mortgage: amortization schedule, extra payment impact, and break-even on refinancing",
     },
     {
-      label: "SS Optimizer",
-      path: "/ss-claiming",
-      tooltip:
-        "Social Security Optimizer — find the best age to start collecting Social Security benefits",
-    },
-    {
-      label: "Tax Projection",
-      path: "/tax-projection",
-      tooltip:
-        "Estimate your tax bill before April — factor in income, deductions, and capital gains",
-      advanced: true,
-    },
-    {
-      label: "Equity",
-      path: "/equity",
-      tooltip:
-        "Track stock options and equity grants — model vesting schedules, AMT exposure, and optimal exercise timing",
-    },
-    {
       label: "HSA Planner",
       path: "/hsa",
       tooltip:
         "Maximize your HSA as a triple-tax-advantaged account — see contribution headroom and investment growth",
     },
+    // ── Consolidated hubs (replace 9 separate items) ──────────────────────
     {
-      label: "Estate Plan",
-      path: "/estate",
+      label: "Tax Center",
+      path: "/tax-center",
       tooltip:
-        "Organize beneficiaries, wills, trusts, and estate documents — ensure your assets go where you intend",
-      advanced: true,
+        "Tax projection, three-bucket optimization, and charitable giving strategy — all in one place",
     },
     {
-      label: "Variable Income",
-      path: "/variable-income",
+      label: "Life Planning",
+      path: "/life-planning",
       tooltip:
-        "Plan finances around irregular or self-employment income — model cash flow and quarterly estimated taxes",
+        "Social Security optimizer, variable income smoothing, and estate & beneficiary planning",
     },
     {
-      label: "Loan Modeler",
-      path: "/loan-modeler",
+      label: "Investment Tools",
+      path: "/investment-tools",
       tooltip:
-        "Compare loan affordability, buy vs. lease scenarios, and model extra payment impact",
-      advanced: true,
-    },
-    {
-      label: "Charitable Giving",
-      path: "/charitable-giving",
-      tooltip:
-        "Tax-optimized charitable strategy — donor-advised funds, appreciated stock gifts, and bunching deductions",
+        "FIRE progress tracker, equity compensation modeling, and loan affordability analysis",
       advanced: true,
     },
   ];

@@ -319,11 +319,7 @@ function NavigationVisibilitySection() {
   // Paths controlled by the "Show advanced features" master toggle
   // Must match every item with advanced: true in NAV_SECTIONS (useNavDefaults.ts)
   const ADVANCED_PATHS = [
-    "/fire",
-    "/tax-projection",
-    "/estate",
-    "/loan-modeler",
-    "/charitable-giving",
+    "/investment-tools",
   ];
 
   // Single source of truth: per-item overrides from nest-egg-nav-visibility.
