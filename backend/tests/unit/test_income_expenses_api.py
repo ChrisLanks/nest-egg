@@ -332,6 +332,125 @@ class TestGetIncomeExpenseTrend:
 
             mock_verify.assert_awaited_once()
 
+    @pytest.mark.asyncio
+    async def test_trend_with_label_name_filter(self):
+        """Should accept label_name param and return trend data; verify_household_member NOT called."""
+        user = _make_user()
+        mock_acc = _make_account()
+        db = AsyncMock()
+
+        row = Mock()
+        row.month = date(2024, 3, 1)
+        row.income = Decimal("4000")
+        row.expenses = Decimal("-2500")
+
+        result = Mock()
+        result.__iter__ = Mock(return_value=iter([row]))
+        db.execute = AsyncMock(return_value=result)
+
+        with patch(
+            "app.api.v1.income_expenses.verify_household_member",
+            new_callable=AsyncMock,
+        ) as mock_verify:
+            with patch(
+                "app.api.v1.income_expenses.get_all_household_accounts",
+                new_callable=AsyncMock,
+                return_value=[mock_acc],
+            ):
+                with patch(
+                    "app.api.v1.income_expenses.deduplication_service.deduplicate_accounts",
+                    return_value=[mock_acc],
+                ):
+                    trends = await get_income_expense_trend(
+                        start_date=date(2024, 1, 1),
+                        end_date=date(2024, 12, 31),
+                        user_id=None,
+                        label_name="Freelance",
+                        current_user=user,
+                        db=db,
+                    )
+
+        # verify_household_member should NOT be called when user_id=None
+        mock_verify.assert_not_awaited()
+        # Trend data should still be returned
+        assert len(trends) == 1
+        assert trends[0].month == "2024-03"
+        assert trends[0].income == 4000.0
+        assert trends[0].expenses == 2500.0
+        assert trends[0].net == 1500.0
+
+    @pytest.mark.asyncio
+    async def test_trend_with_label_name_and_user_id(self):
+        """Should call verify_household_member when both label_name and user_id are provided."""
+        user = _make_user()
+        target_user_id = uuid4()
+        mock_acc = _make_account()
+        db = AsyncMock()
+
+        result = Mock()
+        result.__iter__ = Mock(return_value=iter([]))
+        db.execute = AsyncMock(return_value=result)
+
+        with patch(
+            "app.api.v1.income_expenses.verify_household_member",
+            new_callable=AsyncMock,
+        ) as mock_verify:
+            with patch(
+                "app.api.v1.income_expenses.get_user_accounts",
+                new_callable=AsyncMock,
+                return_value=[mock_acc],
+            ):
+                await get_income_expense_trend(
+                    start_date=date(2024, 1, 1),
+                    end_date=date(2024, 12, 31),
+                    user_id=target_user_id,
+                    label_name="Freelance",
+                    current_user=user,
+                    db=db,
+                )
+
+        mock_verify.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_trend_label_name_none_uses_all_income(self):
+        """When label_name=None (default), endpoint returns income from all transactions (no regression)."""
+        user = _make_user()
+        mock_acc = _make_account()
+        db = AsyncMock()
+
+        row = Mock()
+        row.month = date(2024, 6, 1)
+        row.income = Decimal("6000")
+        row.expenses = Decimal("-4000")
+
+        result = Mock()
+        result.__iter__ = Mock(return_value=iter([row]))
+        db.execute = AsyncMock(return_value=result)
+
+        with patch(
+            "app.api.v1.income_expenses.get_all_household_accounts",
+            new_callable=AsyncMock,
+            return_value=[mock_acc],
+        ):
+            with patch(
+                "app.api.v1.income_expenses.deduplication_service.deduplicate_accounts",
+                return_value=[mock_acc],
+            ):
+                trends = await get_income_expense_trend(
+                    start_date=date(2024, 1, 1),
+                    end_date=date(2024, 12, 31),
+                    user_id=None,
+                    label_name=None,
+                    current_user=user,
+                    db=db,
+                )
+
+        assert len(trends) == 1
+        assert trends[0].month == "2024-06"
+        assert trends[0].income == 6000.0
+        assert trends[0].expenses == 4000.0
+        assert trends[0].net == 2000.0
+
 
 # ---------------------------------------------------------------------------
 # GET /income-expenses/merchants

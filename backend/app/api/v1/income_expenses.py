@@ -563,10 +563,20 @@ async def get_income_expense_trend(
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = combined household view"
     ),
+    label_name: Optional[str] = Query(
+        None,
+        description="When provided, only income transactions carrying this label are counted. "
+        "Expenses are always unfiltered (all spending). Useful for isolating self-employment income.",
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get monthly income vs expense trend."""
+    """Get monthly income vs expense trend.
+
+    When label_name is set, income is restricted to transactions tagged with
+    that label so callers can isolate business/freelance income from other
+    income sources (e.g. a spouse's W-2 deposits).
+    """
 
     # Get accounts based on user filter
     if user_id:
@@ -581,25 +591,51 @@ async def get_income_expense_trend(
     # Create the date_trunc expression once to reuse
     month_expr = func.date_trunc("month", Transaction.date)
 
+    base_where = [
+        Transaction.organization_id == current_user.organization_id,
+        Account.is_active.is_(True),
+        Account.exclude_from_cash_flow.is_(False),
+        Transaction.is_transfer.is_(False),
+        Transaction.account_id.in_(account_ids),
+        Transaction.date >= start_date,
+        Transaction.date <= end_date,
+    ]
+
+    if label_name:
+        # Income: only transactions tagged with the requested label
+        labeled_income_subq = (
+            select(Transaction.id)
+            .join(transaction_labels, Transaction.id == transaction_labels.c.transaction_id)
+            .join(Label, Label.id == transaction_labels.c.label_id)
+            .where(
+                Label.name == label_name,
+                Label.organization_id == current_user.organization_id,
+            )
+            .scalar_subquery()
+        )
+        income_expr = func.sum(
+            case(
+                (
+                    and_(Transaction.amount > 0, Transaction.id.in_(labeled_income_subq)),
+                    Transaction.amount,
+                ),
+                else_=0,
+            )
+        )
+    else:
+        income_expr = func.sum(
+            case((Transaction.amount > 0, Transaction.amount), else_=0)
+        )
+
     result = await db.execute(
         select(
             month_expr.label("month"),
-            func.sum(case((Transaction.amount > 0, Transaction.amount), else_=0)).label("income"),
+            income_expr.label("income"),
             func.sum(case((Transaction.amount < 0, Transaction.amount), else_=0)).label("expenses"),
         )
         .select_from(Transaction)
         .join(Account)
-        .where(
-            Transaction.organization_id == current_user.organization_id,
-            Account.is_active.is_(True),
-            Account.exclude_from_cash_flow.is_(
-                False
-            ),  # Exclude loans/mortgages to prevent double-counting
-            Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
-            Transaction.account_id.in_(account_ids),
-            Transaction.date >= start_date,
-            Transaction.date <= end_date,
-        )
+        .where(*base_where)
         .group_by(month_expr)
         .order_by(month_expr)
     )
