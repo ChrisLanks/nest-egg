@@ -4,8 +4,9 @@
  * Helps freelancers and self-employed users smooth out income volatility,
  * set a minimum monthly floor, and stay on top of quarterly estimated taxes.
  *
- * Settings (income label filter, tax rates) are persisted to localStorage so
- * they survive page reloads without requiring a backend settings endpoint.
+ * Tax rate defaults are fetched from /settings/financial-constants/variable-income
+ * which reads from financial.py — a single source of truth for IRS-sourced rates.
+ * User overrides are persisted to localStorage so they survive page reloads.
  */
 
 import {
@@ -68,24 +69,46 @@ const STORAGE_KEY = "nest-egg-variable-income-settings";
 
 interface VariableIncomeSettings {
   incomeLabelName: string; // "" = all income
-  seTaxRate: number; // e.g. 14.13 (percent)
-  fedTaxRate: number; // e.g. 22 (percent)
-  stateTaxRate: number; // e.g. 5 (percent)
+  seTaxRate: number; // percent, e.g. 14.13
+  fedTaxRate: number; // percent, e.g. 22
+  stateTaxRate: number; // percent, e.g. 5
 }
 
-const DEFAULTS: VariableIncomeSettings = {
-  incomeLabelName: "",
-  seTaxRate: 14.13, // effective rate after 50% SE tax deduction: 15.3% × 92.35%
-  fedTaxRate: 22,
-  stateTaxRate: 0,
+interface FinancialConstants {
+  se_tax_rate_effective: number; // e.g. 0.1413
+  fed_tax_rate_default: number;  // e.g. 0.22
+  state_tax_rate_default: number; // e.g. 0.00
+  safe_floor_pct: number;         // e.g. 0.80
+}
+
+/** Fallback if the constants endpoint is unavailable */
+const HARDCODED_FALLBACK: FinancialConstants = {
+  se_tax_rate_effective: 0.1413,
+  fed_tax_rate_default: 0.22,
+  state_tax_rate_default: 0.0,
+  safe_floor_pct: 0.80,
 };
 
-function loadSettings(): VariableIncomeSettings {
+function toPercent(rate: number) {
+  // Convert fractional rate (0.1413) to percent (14.13), rounded to 2dp
+  return Math.round(rate * 10000) / 100;
+}
+
+function buildDefaults(constants: FinancialConstants): VariableIncomeSettings {
+  return {
+    incomeLabelName: "",
+    seTaxRate: toPercent(constants.se_tax_rate_effective),
+    fedTaxRate: toPercent(constants.fed_tax_rate_default),
+    stateTaxRate: toPercent(constants.state_tax_rate_default),
+  };
+}
+
+function loadSettings(defaults: VariableIncomeSettings): VariableIncomeSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? { ...DEFAULTS, ...JSON.parse(raw) } : DEFAULTS;
+    return raw ? { ...defaults, ...JSON.parse(raw) } : defaults;
   } catch {
-    return DEFAULTS;
+    return defaults;
   }
 }
 
@@ -126,7 +149,44 @@ export const VariableIncomePage = () => {
   const currentYear = today.getFullYear();
   const { isOpen: settingsOpen, onToggle: toggleSettings } = useDisclosure();
 
-  const [settings, setSettings] = useState<VariableIncomeSettings>(loadSettings);
+  // Fetch IRS-sourced rate defaults from backend (financial.py → settings endpoint)
+  const { data: financialConstants } = useQuery<FinancialConstants>({
+    queryKey: ["financial-constants-variable-income"],
+    queryFn: async () => {
+      const res = await api.get("/settings/financial-constants/variable-income");
+      return res.data;
+    },
+    staleTime: 24 * 60 * 60 * 1000, // these only change with IRS updates
+  });
+
+  const constantDefaults = buildDefaults(financialConstants ?? HARDCODED_FALLBACK);
+
+  const [settings, setSettings] = useState<VariableIncomeSettings>(() =>
+    loadSettings(buildDefaults(HARDCODED_FALLBACK)),
+  );
+
+  // Once constants load, seed any settings the user hasn't explicitly overridden
+  // (i.e. values still matching the hardcoded fallback) with the real API values.
+  const settingsWithApiDefaults: VariableIncomeSettings = (() => {
+    const fallbackDefaults = buildDefaults(HARDCODED_FALLBACK);
+    return {
+      incomeLabelName: settings.incomeLabelName,
+      seTaxRate:
+        settings.seTaxRate === fallbackDefaults.seTaxRate
+          ? constantDefaults.seTaxRate
+          : settings.seTaxRate,
+      fedTaxRate:
+        settings.fedTaxRate === fallbackDefaults.fedTaxRate
+          ? constantDefaults.fedTaxRate
+          : settings.fedTaxRate,
+      stateTaxRate:
+        settings.stateTaxRate === fallbackDefaults.stateTaxRate
+          ? constantDefaults.stateTaxRate
+          : settings.stateTaxRate,
+    };
+  })();
+
+  const effectiveSettings = financialConstants ? settingsWithApiDefaults : settings;
 
   const updateSetting = <K extends keyof VariableIncomeSettings>(
     key: K,
@@ -150,12 +210,12 @@ export const VariableIncomePage = () => {
       selectedUserId,
       startStr,
       endStr,
-      settings.incomeLabelName,
+      effectiveSettings.incomeLabelName,
     ],
     queryFn: async () => {
       const params: Record<string, string> = { start_date: startStr, end_date: endStr };
       if (selectedUserId) params.user_id = selectedUserId;
-      if (settings.incomeLabelName) params.label_name = settings.incomeLabelName;
+      if (effectiveSettings.incomeLabelName) params.label_name = effectiveSettings.incomeLabelName;
       const res = await api.get("/income-expenses/trend", { params });
       return res.data;
     },
@@ -174,7 +234,7 @@ export const VariableIncomePage = () => {
   });
 
   const combinedRate =
-    (settings.seTaxRate + settings.fedTaxRate + settings.stateTaxRate) / 100;
+    (effectiveSettings.seTaxRate + effectiveSettings.fedTaxRate + effectiveSettings.stateTaxRate) / 100;
 
   const stats = useMemo(() => {
     if (!trend.length) return null;
@@ -201,8 +261,9 @@ export const VariableIncomePage = () => {
 
     const variance = thisMonthIncome - avgMonthlyIncome;
 
-    // Safe spending floor: 80% of lowest monthly income
-    const safeFloor = lowestIncome * 0.8;
+    // Safe spending floor from financial.py: SAFE_FLOOR_PCT of lowest monthly income
+    const safeFloorPct = (financialConstants?.safe_floor_pct ?? HARDCODED_FALLBACK.safe_floor_pct);
+    const safeFloor = lowestIncome * safeFloorPct;
 
     // Quarterly estimated tax
     const projectedAnnual = avgMonthlyIncome * 12;
@@ -220,7 +281,7 @@ export const VariableIncomePage = () => {
       quarterlyTaxEst,
       monthsOfData: last12.length,
     };
-  }, [trend, today, combinedRate]);
+  }, [trend, today, combinedRate, financialConstants]);
 
   const hasData = !isLoading && stats !== null && stats.monthsOfData > 0;
 
@@ -287,13 +348,13 @@ export const VariableIncomePage = () => {
                     max={20}
                     step={0.1}
                     precision={2}
-                    value={settings.seTaxRate}
+                    value={effectiveSettings.seTaxRate}
                     onChange={(_, v) => !isNaN(v) && updateSetting("seTaxRate", v)}
                   >
                     <NumberInputField />
                   </NumberInput>
                   <FormHelperText fontSize="xs">
-                    Effective rate after 50% SE deduction (~14.13%)
+                    Effective rate after 50% SE deduction (~{toPercent(HARDCODED_FALLBACK.se_tax_rate_effective)}%)
                   </FormHelperText>
                 </FormControl>
 
@@ -307,7 +368,7 @@ export const VariableIncomePage = () => {
                     min={0}
                     max={50}
                     step={1}
-                    value={settings.fedTaxRate}
+                    value={effectiveSettings.fedTaxRate}
                     onChange={(_, v) => !isNaN(v) && updateSetting("fedTaxRate", v)}
                   >
                     <NumberInputField />
@@ -327,7 +388,7 @@ export const VariableIncomePage = () => {
                     min={0}
                     max={15}
                     step={0.5}
-                    value={settings.stateTaxRate}
+                    value={effectiveSettings.stateTaxRate}
                     onChange={(_, v) => !isNaN(v) && updateSetting("stateTaxRate", v)}
                   >
                     <NumberInputField />
@@ -361,7 +422,7 @@ export const VariableIncomePage = () => {
                     </StatNumber>
                   </Skeleton>
                   <StatHelpText>
-                    {settings.incomeLabelName ? `label: ${settings.incomeLabelName}` : "all income"}
+                    {effectiveSettings.incomeLabelName ? `label: ${effectiveSettings.incomeLabelName}` : "all income"}
                   </StatHelpText>
                 </Stat>
               </CardBody>
@@ -474,12 +535,12 @@ export const VariableIncomePage = () => {
                 </Tbody>
               </Table>
               <Text fontSize="xs" color="text.secondary" mt={3}>
-                Estimates use {settings.seTaxRate}% SE tax + {settings.fedTaxRate}% federal
-                {settings.stateTaxRate > 0 ? ` + ${settings.stateTaxRate}% state` : ""} applied
+                Estimates use {effectiveSettings.seTaxRate}% SE tax + {effectiveSettings.fedTaxRate}% federal
+                {effectiveSettings.stateTaxRate > 0 ? ` + ${effectiveSettings.stateTaxRate}% state` : ""} applied
                 to your projected annual income of{" "}
                 {hasData ? fmt(stats!.projectedAnnual) : "—"}.{" "}
-                {settings.incomeLabelName
-                  ? `Counting only transactions labeled "${settings.incomeLabelName}".`
+                {effectiveSettings.incomeLabelName
+                  ? `Counting only transactions labeled "${effectiveSettings.incomeLabelName}".`
                   : ""}{" "}
                 Not tax advice — consult a CPA for your actual liability.
               </Text>

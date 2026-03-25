@@ -1256,13 +1256,36 @@ class PENSION:
 
 
 class VARIABLE_INCOME:
-    """Variable and self-employment income planning constants."""
+    """Variable and self-employment income planning constants.
+
+    Tax rates (2026 IRS):
+      SE_TAX_RATE              — statutory 15.3% (12.4% SS + 2.9% Medicare)
+      SE_TAX_DEDUCTIBLE_HALF   — you deduct 50% of SE tax before income tax,
+                                  so the *effective* rate is:
+                                  SE_TAX_RATE * (1 - SE_TAX_DEDUCTIBLE_HALF * SE_TAX_RATE)
+                                  ≈ 14.13%  (use SE_TAX_RATE_EFFECTIVE below)
+      SE_TAX_RATE_EFFECTIVE    — pre-computed effective rate for UI defaults
+
+    Federal bracket defaults (FED_TAX_RATE_DEFAULT) are set to 22%, the most
+    common bracket for self-employed individuals in the $44k–$100k net income
+    range.  Users should override in the planner settings for their bracket.
+
+    SAFE_FLOOR_PCT             — recommended monthly spending cap as a fraction
+                                  of the lowest monthly income in the trailing
+                                  12 months (80% leaves a 20% tax/savings buffer).
+    """
 
     SMOOTHING_MONTHS = 12
     EMERGENCY_FUND_MONTHS_MINIMUM = 9
     QUARTERLY_TAX_DUE_MONTHS = [4, 6, 9, 1]
     SE_TAX_RATE = Decimal("0.153")
     SE_TAX_DEDUCTIBLE_HALF = Decimal("0.50")
+    # Effective SE rate after the 50% above-the-line deduction:
+    # 0.153 × (1 − 0.50 × 0.153) ≈ 0.1413
+    SE_TAX_RATE_EFFECTIVE = Decimal("0.1413")
+    FED_TAX_RATE_DEFAULT = Decimal("0.22")   # 22% bracket default
+    STATE_TAX_RATE_DEFAULT = Decimal("0.00") # 0% — user must set for their state
+    SAFE_FLOOR_PCT = Decimal("0.80")         # 80% of worst month = spending cap
     QBI_DEDUCTION_RATE = Decimal("0.20")
     QBI_THRESHOLD_SINGLE = 197_300
     QBI_THRESHOLD_MARRIED = 394_600

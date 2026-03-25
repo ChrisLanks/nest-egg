@@ -914,3 +914,26 @@ async def update_notification_preferences(
 async def check_email_configured():
     """Check if email (SMTP) is configured."""
     return {"configured": email_service.is_configured}
+
+
+@router.get("/financial-constants/variable-income")
+async def get_variable_income_constants():
+    """Return IRS-sourced constants used by the Variable Income Planner.
+
+    Exposed via API so the frontend uses the same source-of-truth values as the
+    backend services rather than duplicating magic numbers in TypeScript.
+    No auth required — these are public IRS / statutory rates.
+    """
+    from app.constants.financial import VARIABLE_INCOME
+
+    return {
+        "se_tax_rate": float(VARIABLE_INCOME.SE_TAX_RATE),
+        "se_tax_rate_effective": float(VARIABLE_INCOME.SE_TAX_RATE_EFFECTIVE),
+        "fed_tax_rate_default": float(VARIABLE_INCOME.FED_TAX_RATE_DEFAULT),
+        "state_tax_rate_default": float(VARIABLE_INCOME.STATE_TAX_RATE_DEFAULT),
+        "safe_floor_pct": float(VARIABLE_INCOME.SAFE_FLOOR_PCT),
+        "smoothing_months": VARIABLE_INCOME.SMOOTHING_MONTHS,
+        "safe_harbor_110_pct_income_threshold": VARIABLE_INCOME.SAFE_HARBOR_110_PCT_INCOME_THRESHOLD,
+        "safe_harbor_rate_normal": float(VARIABLE_INCOME.SAFE_HARBOR_RATE_NORMAL),
+        "safe_harbor_rate_high_income": float(VARIABLE_INCOME.SAFE_HARBOR_RATE_HIGH_INCOME),
+    }
