@@ -50,6 +50,8 @@ import {
   smartInsightsApi,
   type HoldingFeeDetail,
 } from "../../../api/smartInsights";
+import { HelpHint } from "../../../components/HelpHint";
+import { helpContent } from "../../../constants/helpContent";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -257,7 +259,10 @@ export const FeeAnalysisPanel = ({ userId }: FeeAnalysisPanelProps) => {
         <Card variant="outline">
           <CardBody py={3}>
             <Stat>
-              <StatLabel fontSize="xs">Portfolio Value</StatLabel>
+              <StatLabel fontSize="xs">
+                Portfolio Value
+                <HelpHint hint={helpContent.investments.feePortfolioValue} />
+              </StatLabel>
               <StatNumber fontSize="lg">
                 {formatCurrency(feeData.current_portfolio_value)}
               </StatNumber>
@@ -268,7 +273,10 @@ export const FeeAnalysisPanel = ({ userId }: FeeAnalysisPanelProps) => {
         <Card variant="outline">
           <CardBody py={3}>
             <Stat>
-              <StatLabel fontSize="xs">Weighted Avg ER</StatLabel>
+              <StatLabel fontSize="xs">
+                Weighted Avg ER
+                <HelpHint hint={helpContent.investments.weightedAvgER} />
+              </StatLabel>
               <StatNumber fontSize="lg">
                 {(feeData.weighted_avg_expense_ratio * 100).toFixed(3)}%
               </StatNumber>
@@ -282,7 +290,10 @@ export const FeeAnalysisPanel = ({ userId }: FeeAnalysisPanelProps) => {
         <Card variant="outline">
           <CardBody py={3}>
             <Stat>
-              <StatLabel fontSize="xs">30-Year Fee Cost</StatLabel>
+              <StatLabel fontSize="xs">
+                30-Year Fee Cost
+                <HelpHint hint={helpContent.investments.thirtyYearFeeCost} />
+              </StatLabel>
               <StatNumber fontSize="lg" color="finance.negative">
                 {formatCurrency(thirtyYearCost)}
               </StatNumber>
@@ -296,7 +307,10 @@ export const FeeAnalysisPanel = ({ userId }: FeeAnalysisPanelProps) => {
         <Card variant="outline">
           <CardBody py={3}>
             <Stat>
-              <StatLabel fontSize="xs">Fund Overlaps</StatLabel>
+              <StatLabel fontSize="xs">
+                Fund Overlaps
+                <HelpHint hint={helpContent.investments.fundOverlaps} />
+              </StatLabel>
               <StatNumber
                 fontSize="lg"
                 color={

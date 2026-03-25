@@ -71,6 +71,15 @@ export const helpContent = {
       "Intentionally realizing long-term gains in a low-income year to take advantage of the 0% federal LTCG rate. If your taxable income is below ~$48K (single) or ~$97K (MFJ), you can sell appreciated positions and owe zero federal capital gains tax.",
     stressTest:
       "Models how your portfolio would have performed during historical market crashes and hypothetical scenarios — like the 2008 financial crisis or a sudden +200bps rate shock. Helps you understand your downside risk before it happens.",
+    // Fee Analyzer stat card tooltips
+    feePortfolioValue:
+      "The total market value of all investment accounts being analyzed for fees. Only accounts with detailed holdings (individual stocks/funds) are included.",
+    weightedAvgER:
+      "Your portfolio's average expense ratio, weighted by how much you have in each fund. For example, if you have $80K in a 0.03% fund and $20K in a 1% fund, your weighted average is about 0.22%. Target: under 0.20% for a passively-managed portfolio.",
+    thirtyYearFeeCost:
+      "How much total wealth you'll lose to fees over 30 years compared to a fee-free portfolio, assuming 7% annual growth on your current balance. Fees compound against you the same way returns compound for you.",
+    fundOverlaps:
+      "The number of fund pairs in your portfolio that hold many of the same stocks. For example, if you own both VTI (total market) and VOO (S&P 500), they overlap ~85% — you're not as diversified as two funds sounds. Zero overlaps is ideal.",
     // In-panel metrics
     costBasis:
       "The total amount of money you originally spent to buy this investment — your 'in for' amount. If your cost basis is $5,000 and it's now worth $7,000, you're up $2,000.",
