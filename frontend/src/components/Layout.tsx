@@ -963,6 +963,45 @@ export const Layout = () => {
         "Estimate your tax bill before April — factor in income, deductions, and capital gains",
       advanced: true,
     },
+    {
+      label: "Equity",
+      path: "/equity",
+      tooltip:
+        "Track stock options and equity grants — model vesting schedules, AMT exposure, and optimal exercise timing",
+    },
+    {
+      label: "HSA Planner",
+      path: "/hsa",
+      tooltip:
+        "Maximize your HSA as a triple-tax-advantaged account — see contribution headroom and investment growth",
+    },
+    {
+      label: "Estate Plan",
+      path: "/estate",
+      tooltip:
+        "Organize beneficiaries, wills, trusts, and estate documents — ensure your assets go where you intend",
+      advanced: true,
+    },
+    {
+      label: "Variable Income",
+      path: "/variable-income",
+      tooltip:
+        "Plan finances around irregular or self-employment income — model cash flow and quarterly estimated taxes",
+    },
+    {
+      label: "Loan Modeler",
+      path: "/loan-modeler",
+      tooltip:
+        "Compare loan affordability, buy vs. lease scenarios, and model extra payment impact",
+      advanced: true,
+    },
+    {
+      label: "Charitable Giving",
+      path: "/charitable-giving",
+      tooltip:
+        "Tax-optimized charitable strategy — donor-advised funds, appreciated stock gifts, and bunching deductions",
+      advanced: true,
+    },
   ];
 
   const filterVisible = (

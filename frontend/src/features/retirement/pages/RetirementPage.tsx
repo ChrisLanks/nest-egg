@@ -119,16 +119,27 @@ export function RetirementPage() {
   // Derive current user's age from the shared profile cache (no extra request).
   // Social Security planning is only relevant from ~55 onwards.
   const SS_SHOW_AGE = 55;
-  const userProfile = queryClient.getQueryData<{ birthdate?: string | null }>(["userProfile"]);
+  const userProfile = queryClient.getQueryData<{
+    birthdate?: string | null;
+    birth_year?: number | null;
+    birth_month?: number | null;
+    birth_day?: number | null;
+  }>(["userProfile"]);
+  const hasBirthdate = !!(userProfile?.birthdate || userProfile?.birth_year);
   const currentUserAge = useMemo(() => {
-    if (!userProfile?.birthdate) return null;
-    const birth = new Date(userProfile.birthdate);
-    const today = new Date();
-    let age = today.getFullYear() - birth.getFullYear();
-    const m = today.getMonth() - birth.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
-    return age;
-  }, [userProfile?.birthdate]);
+    if (userProfile?.birthdate) {
+      const birth = new Date(userProfile.birthdate);
+      const today = new Date();
+      let age = today.getFullYear() - birth.getFullYear();
+      const m = today.getMonth() - birth.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+      return age;
+    }
+    if (userProfile?.birth_year) {
+      return new Date().getFullYear() - userProfile.birth_year;
+    }
+    return null;
+  }, [userProfile?.birthdate, userProfile?.birth_year]);
   // Show SS estimator only when age is known AND >= 55. When age is unknown
   // (new user, no birthdate yet) we hide it — defaulting to visible would
   // show it to every new user and defeat the gate.
@@ -1205,7 +1216,7 @@ export function RetirementPage() {
       <VStack spacing={6} align="stretch">
         {/* Preemptive birthdate prompt — shown when birthdate is missing so users
             understand upfront why scenario creation will fail */}
-        {!userProfile?.birthdate && (
+        {!hasBirthdate && (
           <Alert status="warning" borderRadius="lg" variant="subtle">
             <AlertIcon />
             <AlertDescription>

@@ -47,7 +47,7 @@ import {
   useColorModeValue,
 } from "@chakra-ui/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Fragment } from "react";
 import api from "../services/api";
 import { useUserView } from "../contexts/UserViewContext";
 import { Skeleton, Stack } from "@chakra-ui/react";
@@ -770,7 +770,7 @@ export default function DebtPayoffPage() {
                   </Thead>
                   <Tbody>
                     {sortedDebts.map((debt) => (
-                      <>
+                      <Fragment key={debt.account_id}>
                         <Tr
                           key={debt.account_id}
                           opacity={
@@ -902,7 +902,7 @@ export default function DebtPayoffPage() {
                             </Td>
                           </Tr>
                         )}
-                      </>
+                      </Fragment>
                     ))}
                   </Tbody>
                 </Table>
