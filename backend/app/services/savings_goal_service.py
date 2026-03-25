@@ -397,7 +397,7 @@ class SavingsGoalService:
             if not account:
                 continue
 
-            balance = account.current_balance
+            balance = account.current_balance or Decimal("0")
 
             if method == "waterfall":
                 remaining = balance
@@ -519,9 +519,10 @@ class SavingsGoalService:
         on_track = None
         if goal.target_date and days_elapsed > 0:
             total_days = (goal.target_date - goal.start_date).days
-            expected_progress = (days_elapsed / total_days) * 100
-            actual_progress = float(progress_pct)
-            on_track = actual_progress >= expected_progress * 0.9  # Within 10%
+            if total_days > 0:
+                expected_progress = (days_elapsed / total_days) * 100
+                actual_progress = float(progress_pct)
+                on_track = actual_progress >= expected_progress * 0.9  # Within 10%
 
         return {
             "goal_id": goal.id,

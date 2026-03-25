@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.financial import TAX_BUCKETS, RMD, TAX
 from app.models.account import Account, TaxTreatment
+from app.utils.account_type_groups import TAX_TREATMENT_DEFAULTS
 
 
 class TaxBucketService:
@@ -48,7 +49,11 @@ class TaxBucketService:
             balance = acct.current_balance or Decimal("0")
             if balance <= 0:
                 continue
-            treatment = acct.tax_treatment
+            # Use explicit tax_treatment if set; otherwise infer from account type.
+            # Investment/brokerage accounts without a treatment default to TAXABLE.
+            treatment = acct.tax_treatment or TAX_TREATMENT_DEFAULTS.get(
+                acct.account_type, TaxTreatment.TAXABLE
+            )
             if treatment == TaxTreatment.PRE_TAX:
                 buckets["pre_tax"] += balance
             elif treatment == TaxTreatment.ROTH:
