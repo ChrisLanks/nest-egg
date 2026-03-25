@@ -55,8 +55,10 @@ from app.api.v1 import (
     smart_insights,
     subscriptions,
     capital_gains_harvesting,
+    charitable_giving,
     estate,
     hsa,
+    loan_modeling,
     net_worth_attribution,
     stress_test,
     tax_advisor,
@@ -688,5 +690,17 @@ app.include_router(
     estate.router,
     prefix="/api/v1/estate",
     tags=["Estate Planning"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    loan_modeling.router,
+    prefix="/api/v1/loan-modeling",
+    tags=["Loan Modeling"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    charitable_giving.router,
+    prefix="/api/v1/charitable-giving",
+    tags=["Charitable Giving"],
     dependencies=_guest_dep,
 )
