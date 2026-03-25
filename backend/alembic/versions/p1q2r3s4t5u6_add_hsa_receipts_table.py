@@ -1,6 +1,6 @@
 """Add hsa_receipts table.
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: p1q2r3s4t5u6
 Revises: z8a9b0c1d2e3
 Create Date: 2026-03-24
 
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = "a1b2c3d4e5f6"
+revision: str = "p1q2r3s4t5u6"
 down_revision: Union[str, None] = "z8a9b0c1d2e3"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

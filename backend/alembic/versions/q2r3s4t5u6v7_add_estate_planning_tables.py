@@ -1,6 +1,6 @@
 """Add estate planning tables (beneficiaries + estate_documents).
 
-Revision ID: b2c3d4e5f6a7
+Revision ID: q2r3s4t5u6v7
 Revises: a1b2c3d4e5f6
 Create Date: 2026-03-24
 
@@ -15,8 +15,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = "b2c3d4e5f6a7"
-down_revision: Union[str, None] = "a1b2c3d4e5f6"
+revision: str = "q2r3s4t5u6v7"
+down_revision: Union[str, None] = "p1q2r3s4t5u6"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
