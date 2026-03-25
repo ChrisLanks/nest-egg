@@ -24,11 +24,31 @@ EQUITY_ACCOUNT_TYPES = {
     AccountType.RETIREMENT_ROTH,
     AccountType.RETIREMENT_403B,
     AccountType.RETIREMENT_457B,
+    AccountType.RETIREMENT_SEP_IRA,
+    AccountType.RETIREMENT_SIMPLE_IRA,
+    AccountType.RETIREMENT_529,
+    AccountType.PENSION,
     AccountType.CRYPTO,
+    AccountType.PRIVATE_EQUITY,
+    AccountType.STOCK_OPTIONS,
+    AccountType.BUSINESS_EQUITY,
+    AccountType.TRUST,
+    AccountType.CUSTODIAL_UGMA,
 }
 
-BOND_ASSET_TYPES = {"bond", "fixed_income", "treasury"}  # holding.asset_type values
-EQUITY_ASSET_TYPES = {"stock", "etf", "mutual_fund", "equity"}
+BOND_ACCOUNT_TYPES = {
+    AccountType.BOND,
+    AccountType.TIPS,
+    AccountType.I_BOND,
+    AccountType.PRIVATE_DEBT,
+}
+
+# holding.asset_type values
+BOND_ASSET_TYPES = {"bond", "fixed_income", "treasury", "fixed income"}
+EQUITY_ASSET_TYPES = {"stock", "etf", "mutual_fund", "equity", "fund"}
+
+# holding.asset_class values that indicate bonds
+BOND_ASSET_CLASSES = {"bond", "fixed_income", "fixed income", "treasury"}
 
 
 class StressTestService:
@@ -60,12 +80,23 @@ class StressTestService:
         other_value = Decimal("0")
 
         for holding, account in rows:
-            # Use current_total_value (the actual Holding field name)
             value = holding.current_total_value or Decimal("0")
-            asset_type = (holding.asset_type or "").lower()
-            if asset_type in BOND_ASSET_TYPES:
+            asset_type = (holding.asset_type or "").lower().strip()
+            asset_class = (holding.asset_class or "").lower().strip()
+
+            is_bond = (
+                asset_type in BOND_ASSET_TYPES
+                or asset_class in BOND_ASSET_CLASSES
+                or account.account_type in BOND_ACCOUNT_TYPES
+            )
+            is_equity = (
+                asset_type in EQUITY_ASSET_TYPES
+                or account.account_type in EQUITY_ACCOUNT_TYPES
+            )
+
+            if is_bond:
                 bond_value += value
-            elif asset_type in EQUITY_ASSET_TYPES or account.account_type in EQUITY_ACCOUNT_TYPES:
+            elif is_equity:
                 equity_value += value
             else:
                 other_value += value

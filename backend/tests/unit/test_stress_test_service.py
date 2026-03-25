@@ -158,6 +158,7 @@ class TestGetPortfolioComposition:
         holding = MagicMock()
         holding.current_total_value = Decimal("10000")
         holding.asset_type = "bond"
+        holding.asset_class = None
 
         account = MagicMock()
         account.account_type = AccountType.BROKERAGE
@@ -182,6 +183,7 @@ class TestGetPortfolioComposition:
         holding = MagicMock()
         holding.current_total_value = Decimal("25000")
         holding.asset_type = "stock"
+        holding.asset_class = None
 
         account = MagicMock()
         account.account_type = AccountType.BROKERAGE
@@ -197,3 +199,126 @@ class TestGetPortfolioComposition:
         )
         assert result["equity"] == pytest.approx(25000.0)
         assert result["bonds"] == pytest.approx(0.0)
+
+    @pytest.mark.asyncio
+    async def test_null_asset_type_equity_account_classifies_as_equity(self, mock_db, org_id):
+        """Holding with no asset_type on a brokerage account → equity (not other)."""
+        from app.models.account import AccountType
+
+        holding = MagicMock()
+        holding.current_total_value = Decimal("500")
+        holding.asset_type = None
+        holding.asset_class = None
+
+        account = MagicMock()
+        account.account_type = AccountType.BROKERAGE
+        account.is_active = True
+
+        mock_result = MagicMock()
+        mock_result.all.return_value = [(holding, account)]
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        result = await StressTestService.get_portfolio_composition(
+            db=mock_db,
+            organization_id=org_id,
+        )
+        assert result["equity"] == pytest.approx(500.0)
+        assert result["other"] == pytest.approx(0.0)
+
+    @pytest.mark.asyncio
+    async def test_null_asset_type_on_retirement_account_classifies_as_equity(self, mock_db, org_id):
+        """Holding with no asset_type on a 401k account → equity."""
+        from app.models.account import AccountType
+
+        holding = MagicMock()
+        holding.current_total_value = Decimal("50000")
+        holding.asset_type = None
+        holding.asset_class = None
+
+        account = MagicMock()
+        account.account_type = AccountType.RETIREMENT_401K
+        account.is_active = True
+
+        mock_result = MagicMock()
+        mock_result.all.return_value = [(holding, account)]
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        result = await StressTestService.get_portfolio_composition(
+            db=mock_db,
+            organization_id=org_id,
+        )
+        assert result["equity"] == pytest.approx(50000.0)
+
+    @pytest.mark.asyncio
+    async def test_asset_class_bond_classifies_as_bond(self, mock_db, org_id):
+        """Holding with asset_class='bond' goes to bonds even if asset_type is unset."""
+        from app.models.account import AccountType
+
+        holding = MagicMock()
+        holding.current_total_value = Decimal("15000")
+        holding.asset_type = None
+        holding.asset_class = "bond"
+
+        account = MagicMock()
+        account.account_type = AccountType.BROKERAGE
+        account.is_active = True
+
+        mock_result = MagicMock()
+        mock_result.all.return_value = [(holding, account)]
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        result = await StressTestService.get_portfolio_composition(
+            db=mock_db,
+            organization_id=org_id,
+        )
+        assert result["bonds"] == pytest.approx(15000.0)
+        assert result["equity"] == pytest.approx(0.0)
+
+    @pytest.mark.asyncio
+    async def test_bond_account_type_classifies_as_bond(self, mock_db, org_id):
+        """Account with AccountType.BOND goes to bonds bucket."""
+        from app.models.account import AccountType
+
+        holding = MagicMock()
+        holding.current_total_value = Decimal("20000")
+        holding.asset_type = None
+        holding.asset_class = None
+
+        account = MagicMock()
+        account.account_type = AccountType.BOND
+        account.is_active = True
+
+        mock_result = MagicMock()
+        mock_result.all.return_value = [(holding, account)]
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        result = await StressTestService.get_portfolio_composition(
+            db=mock_db,
+            organization_id=org_id,
+        )
+        assert result["bonds"] == pytest.approx(20000.0)
+
+    @pytest.mark.asyncio
+    async def test_sep_ira_classifies_as_equity(self, mock_db, org_id):
+        """SEP-IRA account with no asset_type goes to equity (was missing from set)."""
+        from app.models.account import AccountType
+
+        holding = MagicMock()
+        holding.current_total_value = Decimal("75000")
+        holding.asset_type = None
+        holding.asset_class = None
+
+        account = MagicMock()
+        account.account_type = AccountType.RETIREMENT_SEP_IRA
+        account.is_active = True
+
+        mock_result = MagicMock()
+        mock_result.all.return_value = [(holding, account)]
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        result = await StressTestService.get_portfolio_composition(
+            db=mock_db,
+            organization_id=org_id,
+        )
+        assert result["equity"] == pytest.approx(75000.0)
+        assert result["other"] == pytest.approx(0.0)
