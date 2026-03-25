@@ -1530,3 +1530,160 @@ class TestDashboardServiceMocked:
         assert len(trend) == 1
         assert trend[0]["income"] == 0.0
         assert trend[0]["expenses"] == 0.0
+
+# ---------------------------------------------------------------------------
+# STOCK_OPTIONS vesting — parallel to PRIVATE_EQUITY tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestStockOptionsVesting:
+    """STOCK_OPTIONS accounts should use the same vesting logic as PRIVATE_EQUITY."""
+
+    @pytest.mark.asyncio
+    async def test_stock_options_vesting_calculates_vested_value(self, db, test_user):
+        """Net worth should only count vested stock options."""
+        import json
+
+        account = Account(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=test_user.id,
+            name="Company RSUs",
+            account_type=AccountType.STOCK_OPTIONS,
+            current_balance=Decimal("100000.00"),
+            vesting_schedule=json.dumps(
+                [
+                    {"date": "2020-01-01", "quantity": 200},  # vested
+                    {"date": "2020-07-01", "quantity": 100},  # vested
+                    {"date": "2099-01-01", "quantity": 500},  # not yet vested
+                ]
+            ),
+            share_price=Decimal("40.00"),
+            include_in_networth=True,
+            is_active=True,
+        )
+        db.add(account)
+        await db.commit()
+
+        service = DashboardService(db)
+        net_worth = await service.get_net_worth(test_user.organization_id)
+
+        # Only vested: (200 + 100) * 40 = 12000
+        assert net_worth == Decimal("12000.00")
+
+    @pytest.mark.asyncio
+    async def test_stock_options_no_vesting_uses_balance(self, db, test_user):
+        """STOCK_OPTIONS without a vesting schedule use current_balance directly."""
+        account = Account(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=test_user.id,
+            name="Public Company RSUs",
+            account_type=AccountType.STOCK_OPTIONS,
+            current_balance=Decimal("50000.00"),
+            vesting_schedule=None,
+            include_in_networth=True,
+            is_active=True,
+        )
+        db.add(account)
+        await db.commit()
+
+        service = DashboardService(db)
+        net_worth = await service.get_net_worth(test_user.organization_id)
+
+        assert net_worth == Decimal("50000.00")
+
+    @pytest.mark.asyncio
+    async def test_stock_options_private_excluded_by_default(self, db, test_user):
+        """STOCK_OPTIONS at a private company are excluded from net worth by default."""
+        from app.models.account import CompanyStatus
+
+        account = Account(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=test_user.id,
+            name="Private Startup Options",
+            account_type=AccountType.STOCK_OPTIONS,
+            current_balance=Decimal("20000.00"),
+            include_in_networth=None,
+            company_status=CompanyStatus.PRIVATE,
+            is_active=True,
+        )
+        db.add(account)
+        await db.commit()
+
+        service = DashboardService(db)
+        net_worth = await service.get_net_worth(test_user.organization_id)
+
+        assert net_worth == Decimal("0")
+
+    @pytest.mark.asyncio
+    async def test_stock_options_public_included_by_default(self, db, test_user):
+        """STOCK_OPTIONS at a public company are included in net worth by default."""
+        from app.models.account import CompanyStatus
+
+        account = Account(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=test_user.id,
+            name="Public Co Options",
+            account_type=AccountType.STOCK_OPTIONS,
+            current_balance=Decimal("30000.00"),
+            include_in_networth=None,
+            company_status=CompanyStatus.PUBLIC,
+            is_active=True,
+        )
+        db.add(account)
+        await db.commit()
+
+        service = DashboardService(db)
+        net_worth = await service.get_net_worth(test_user.organization_id)
+
+        assert net_worth == Decimal("30000.00")
+
+    @pytest.mark.asyncio
+    async def test_stock_options_malformed_vesting_fallback(self, db, test_user):
+        """Malformed vesting schedule for STOCK_OPTIONS falls back to current_balance."""
+        account = Account(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=test_user.id,
+            name="Bad Vesting Options",
+            account_type=AccountType.STOCK_OPTIONS,
+            current_balance=Decimal("8000.00"),
+            vesting_schedule="bad-json",
+            share_price=Decimal("10.00"),
+            include_in_networth=True,
+            is_active=True,
+        )
+        db.add(account)
+        await db.commit()
+
+        service = DashboardService(db)
+        net_worth = await service.get_net_worth(test_user.organization_id)
+
+        assert net_worth == Decimal("8000.00")
+
+    def test_calculate_account_value_stock_options_vesting_unit(self):
+        """_calculate_account_value uses vesting schedule for STOCK_OPTIONS."""
+        import json
+        from unittest.mock import MagicMock
+
+        from app.services.dashboard_service import DashboardService
+
+        account = MagicMock()
+        account.account_type = AccountType.STOCK_OPTIONS
+        account.vesting_schedule = json.dumps(
+            [
+                {"date": "2020-01-01", "quantity": 1000},  # vested
+                {"date": "2099-06-01", "quantity": 9000},  # not vested
+            ]
+        )
+        account.share_price = Decimal("5.00")
+        account.current_balance = Decimal("50000.00")
+
+        svc = DashboardService(MagicMock())
+        result = svc._calculate_account_value(account)
+        # 1000 vested * $5 = $5000
+        assert result == Decimal("5000.00")

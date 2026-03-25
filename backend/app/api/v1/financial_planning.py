@@ -26,6 +26,7 @@ from app.core.database import get_db
 from app.dependencies import get_current_user, verify_household_member
 from app.models.account import Account, AccountType
 from app.models.user import User
+from app.services.dashboard_service import DashboardService
 from app.services.mortgage_analyzer_service import MortgageAnalyzerService
 from app.services.ss_claiming_strategy_service import SSClaimingStrategyService
 from app.services.tax_projection_service import TaxProjectionService
@@ -1064,7 +1065,12 @@ async def get_inflation_tracking(
         )
     )
     all_accts = all_res.scalars().all()
-    total_portfolio = sum(float(a.current_balance or 0) for a in all_accts if a.account_type.is_asset)
+    _dash_svc = DashboardService(db)
+    total_portfolio = float(sum(
+        _dash_svc._calculate_account_value(a)
+        for a in all_accts
+        if a.account_type.is_asset and _dash_svc._should_include_in_networth(a)
+    ))
 
     account_dicts = [
         {

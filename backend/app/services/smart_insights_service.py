@@ -31,6 +31,7 @@ from app.constants.financial import MEDICARE, RETIREMENT, TAX
 from app.models.account import Account, AccountType
 from app.models.holding import Holding
 from app.models.transaction import Transaction
+from app.services.dashboard_service import DashboardService
 
 logger = logging.getLogger(__name__)
 
@@ -642,8 +643,9 @@ class SmartInsightsService:
         if age < 18:
             return None
 
-        # ── Net worth = all account balances (assets minus liabilities) ──
-        net_worth = sum(float(a.current_balance or 0) for a in accounts)
+        # ── Net worth = vesting-aware assets minus liabilities ───────────
+        dashboard_svc = DashboardService(self.db)
+        net_worth = float(dashboard_svc.compute_net_worth(accounts))
         if net_worth <= 0:
             return None
 

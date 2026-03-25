@@ -2167,3 +2167,158 @@ class TestPrivateDebtEdgeCases:
 
         events = ForecastService._get_mortgage_payment_events([account], days_ahead=90)
         assert len(events) >= 3
+
+
+# ---------------------------------------------------------------------------
+# STOCK_OPTIONS vesting in forecast service
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestStockOptionsForecast:
+    """STOCK_OPTIONS accounts use the same vesting logic as PRIVATE_EQUITY in forecast."""
+
+    def test_future_vesting_events_stock_options(self):
+        """_get_future_vesting_events includes STOCK_OPTIONS accounts."""
+        import json
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        vest_date = (date.today() + timedelta(days=10)).isoformat()
+        schedule = json.dumps([{"date": vest_date, "quantity": 100}])
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="RSU Grant",
+            account_type=AccountType.STOCK_OPTIONS,
+            vesting_schedule=schedule,
+            share_price=Decimal("20"),
+            include_in_networth=True,
+            is_active=True,
+        )
+
+        events = ForecastService._get_future_vesting_events([account], days_ahead=30)
+        assert len(events) == 1
+        assert events[0]["amount"] == Decimal("2000")  # 100 * 20
+
+    def test_future_vesting_events_stock_options_past_excluded(self):
+        """Past vesting events for STOCK_OPTIONS are not included in future events."""
+        import json
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        past_date = (date.today() - timedelta(days=10)).isoformat()
+        schedule = json.dumps([{"date": past_date, "quantity": 500}])
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Past Vested RSUs",
+            account_type=AccountType.STOCK_OPTIONS,
+            vesting_schedule=schedule,
+            share_price=Decimal("10"),
+            include_in_networth=True,
+            is_active=True,
+        )
+
+        events = ForecastService._get_future_vesting_events([account], days_ahead=30)
+        assert len(events) == 0
+
+    @pytest.mark.asyncio
+    async def test_get_total_balance_stock_options_public_auto_included(self):
+        """STOCK_OPTIONS at a public company auto-include in _get_total_balance."""
+        from unittest.mock import AsyncMock, MagicMock
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType, CompanyStatus
+
+        org_id = uuid4()
+        db = AsyncMock()
+
+        so = MagicMock(spec=Account)
+        so.include_in_networth = None
+        so.account_type = AccountType.STOCK_OPTIONS
+        so.company_status = CompanyStatus.PUBLIC
+        so.vesting_schedule = None
+        so.current_balance = Decimal("15000")
+        so.exclude_from_cash_flow = False
+        so.is_active = True
+
+        scalars_mock = MagicMock()
+        scalars_mock.all.return_value = [so]
+        result_mock = MagicMock()
+        result_mock.scalars.return_value = scalars_mock
+        db.execute.return_value = result_mock
+
+        total = await ForecastService._get_total_balance(db, org_id)
+        assert total == Decimal("15000")
+
+    @pytest.mark.asyncio
+    async def test_get_total_balance_stock_options_private_auto_excluded(self):
+        """STOCK_OPTIONS at a private company are excluded from _get_total_balance by default."""
+        from unittest.mock import AsyncMock, MagicMock
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType, CompanyStatus
+
+        org_id = uuid4()
+        db = AsyncMock()
+
+        so = MagicMock(spec=Account)
+        so.include_in_networth = None
+        so.account_type = AccountType.STOCK_OPTIONS
+        so.company_status = CompanyStatus.PRIVATE
+        so.vesting_schedule = None
+        so.current_balance = Decimal("15000")
+        so.exclude_from_cash_flow = False
+        so.is_active = True
+
+        scalars_mock = MagicMock()
+        scalars_mock.all.return_value = [so]
+        result_mock = MagicMock()
+        result_mock.scalars.return_value = scalars_mock
+        db.execute.return_value = result_mock
+
+        total = await ForecastService._get_total_balance(db, org_id)
+        assert total == Decimal("0")
+
+    @pytest.mark.asyncio
+    async def test_get_total_balance_stock_options_with_vesting(self):
+        """_get_total_balance applies vesting math for STOCK_OPTIONS."""
+        import json
+        from unittest.mock import AsyncMock, MagicMock
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        org_id = uuid4()
+        db = AsyncMock()
+
+        so = MagicMock(spec=Account)
+        so.include_in_networth = True
+        so.account_type = AccountType.STOCK_OPTIONS
+        so.vesting_schedule = json.dumps(
+            [
+                {"date": "2020-01-01", "quantity": 300},  # vested
+                {"date": "2099-01-01", "quantity": 700},  # not vested
+            ]
+        )
+        so.share_price = Decimal("10")
+        so.current_balance = Decimal("10000")
+        so.exclude_from_cash_flow = False
+        so.is_active = True
+
+        scalars_mock = MagicMock()
+        scalars_mock.all.return_value = [so]
+        result_mock = MagicMock()
+        result_mock.scalars.return_value = scalars_mock
+        db.execute.return_value = result_mock
+
+        total = await ForecastService._get_total_balance(db, org_id)
+        # 300 vested * $10 = $3000
+        assert total == Decimal("3000")

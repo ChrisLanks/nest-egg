@@ -660,3 +660,482 @@ describe('AccountDetailPage error state', () => {
     expect(accountRetryButtonLabel).toBe('Retry');
   });
 });
+
+// ── Equity Grant Details section visibility ───────────────────────────────────
+
+/**
+ * The Grant Details card is shown when:
+ *   account.account_type === 'stock_options' || account.account_type === 'private_equity'
+ *
+ * Mirrors the condition in AccountDetailPage.tsx.
+ */
+const showEquityGrantDetails = (type: string) =>
+  type === 'stock_options' || type === 'private_equity';
+
+describe('showEquityGrantDetails', () => {
+  it('is true for stock_options', () => {
+    expect(showEquityGrantDetails('stock_options')).toBe(true);
+  });
+
+  it('is true for private_equity', () => {
+    expect(showEquityGrantDetails('private_equity')).toBe(true);
+  });
+
+  it('is false for checking', () => {
+    expect(showEquityGrantDetails('checking')).toBe(false);
+  });
+
+  it('is false for brokerage', () => {
+    expect(showEquityGrantDetails('brokerage')).toBe(false);
+  });
+
+  it('is false for retirement_401k', () => {
+    expect(showEquityGrantDetails('retirement_401k')).toBe(false);
+  });
+
+  it('is false for property', () => {
+    expect(showEquityGrantDetails('property')).toBe(false);
+  });
+
+  it('is false for business_equity', () => {
+    // Business equity has its own valuation section; equity grant section is for stock_options/private_equity
+    expect(showEquityGrantDetails('business_equity')).toBe(false);
+  });
+});
+
+// ── Equity save button disabled state ─────────────────────────────────────────
+
+/**
+ * The Save Grant Details button is disabled when all equity fields are empty.
+ * Mirrors:
+ *   isDisabled={!equityGrantType && !equityQuantity && !equityStrikePrice
+ *               && !equitySharePrice && !equityGrantDate && !equityCompanyStatus}
+ */
+const equitySaveDisabled = (
+  grantType: string,
+  quantity: string,
+  strikePrice: string,
+  sharePrice: string,
+  grantDate: string,
+  companyStatus: string,
+) =>
+  !grantType && !quantity && !strikePrice && !sharePrice && !grantDate && !companyStatus;
+
+describe('equitySaveDisabled', () => {
+  it('is disabled when all fields are empty', () => {
+    expect(equitySaveDisabled('', '', '', '', '', '')).toBe(true);
+  });
+
+  it('is enabled when grant type is set', () => {
+    expect(equitySaveDisabled('iso', '', '', '', '', '')).toBe(false);
+  });
+
+  it('is enabled when quantity is set', () => {
+    expect(equitySaveDisabled('', '1000', '', '', '', '')).toBe(false);
+  });
+
+  it('is enabled when share price is set', () => {
+    expect(equitySaveDisabled('', '', '', '25.00', '', '')).toBe(false);
+  });
+
+  it('is enabled when strike price is set', () => {
+    expect(equitySaveDisabled('', '', '10.00', '', '', '')).toBe(false);
+  });
+
+  it('is enabled when grant date is set', () => {
+    expect(equitySaveDisabled('', '', '', '', '2024-01-15', '')).toBe(false);
+  });
+
+  it('is enabled when company status is set', () => {
+    expect(equitySaveDisabled('', '', '', '', '', 'public')).toBe(false);
+  });
+
+  it('is enabled when multiple fields are set', () => {
+    expect(equitySaveDisabled('rsu', '500', '', '30.00', '', 'private')).toBe(false);
+  });
+});
+
+// ── Strike price conditional display ─────────────────────────────────────────
+
+/**
+ * Strike price field is only shown for ISO/NSO grants (options, not RSUs).
+ * Mirrors:
+ *   equityGrantType === 'iso' || equityGrantType === 'nso'
+ *   || account.grant_type === 'iso' || account.grant_type === 'nso'
+ */
+const showStrikePrice = (newGrantType: string, existingGrantType: string | null) =>
+  newGrantType === 'iso' || newGrantType === 'nso' ||
+  existingGrantType === 'iso' || existingGrantType === 'nso';
+
+describe('showStrikePrice', () => {
+  it('shows for new iso selection', () => {
+    expect(showStrikePrice('iso', null)).toBe(true);
+  });
+
+  it('shows for new nso selection', () => {
+    expect(showStrikePrice('nso', null)).toBe(true);
+  });
+
+  it('shows when existing grant type is iso', () => {
+    expect(showStrikePrice('', 'iso')).toBe(true);
+  });
+
+  it('shows when existing grant type is nso', () => {
+    expect(showStrikePrice('', 'nso')).toBe(true);
+  });
+
+  it('hides for rsu', () => {
+    expect(showStrikePrice('rsu', null)).toBe(false);
+  });
+
+  it('hides for rsa with no existing type', () => {
+    expect(showStrikePrice('rsa', null)).toBe(false);
+  });
+
+  it('hides when no type is selected and existing is rsu', () => {
+    expect(showStrikePrice('', 'rsu')).toBe(false);
+  });
+
+  it('hides when both empty', () => {
+    expect(showStrikePrice('', null)).toBe(false);
+  });
+});
+
+// ── Vest row validation (Add Event rows in Grant Details card) ────────────────
+
+interface VestRow { date: string; quantity: string; notes: string; }
+
+const validVestRows = (rows: VestRow[]) =>
+  rows.filter((r) => r.date && r.quantity && !isNaN(parseFloat(r.quantity)));
+
+describe('validVestRows', () => {
+  it('returns empty for no rows', () => {
+    expect(validVestRows([])).toHaveLength(0);
+  });
+
+  it('filters out rows missing date', () => {
+    expect(validVestRows([{ date: '', quantity: '100', notes: '' }])).toHaveLength(0);
+  });
+
+  it('filters out rows missing quantity', () => {
+    expect(validVestRows([{ date: '2025-01-01', quantity: '', notes: '' }])).toHaveLength(0);
+  });
+
+  it('filters out rows with non-numeric quantity', () => {
+    expect(validVestRows([{ date: '2025-01-01', quantity: 'abc', notes: '' }])).toHaveLength(0);
+  });
+
+  it('keeps valid rows', () => {
+    const rows = [
+      { date: '2025-01-01', quantity: '250', notes: 'Cliff' },
+      { date: '2025-04-01', quantity: '62.5', notes: '' },
+    ];
+    expect(validVestRows(rows)).toHaveLength(2);
+  });
+
+  it('mixed valid and invalid — only valid returned', () => {
+    const rows = [
+      { date: '2025-01-01', quantity: '100', notes: '' },
+      { date: '', quantity: '50', notes: '' },
+    ];
+    expect(validVestRows(rows)).toHaveLength(1);
+  });
+});
+
+// ── Save button disabled with vest rows ───────────────────────────────────────
+
+const equitySaveDisabledWithVest = (
+  grantType: string,
+  quantity: string,
+  strikePrice: string,
+  sharePrice: string,
+  grantDate: string,
+  companyStatus: string,
+  validVestRowCount: number,
+) =>
+  !grantType && !quantity && !strikePrice && !sharePrice && !grantDate && !companyStatus && validVestRowCount === 0;
+
+describe('equitySaveDisabledWithVest', () => {
+  it('disabled when all fields empty and no valid vest rows', () => {
+    expect(equitySaveDisabledWithVest('', '', '', '', '', '', 0)).toBe(true);
+  });
+
+  it('enabled when there is at least one valid vest row', () => {
+    expect(equitySaveDisabledWithVest('', '', '', '', '', '', 1)).toBe(false);
+  });
+
+  it('enabled when grant type set even with no vest rows', () => {
+    expect(equitySaveDisabledWithVest('rsu', '', '', '', '', '', 0)).toBe(false);
+  });
+});
+
+// ── Reclassify dropdown — complete type list ──────────────────────────────────
+
+/**
+ * These are the account types available in the reclassify <Select> in
+ * AccountDetailPage. The list must include equity types so users can
+ * correct an account that was imported with the wrong type (e.g., "checking"
+ * instead of "stock_options").
+ *
+ * Mirrors the array literal in AccountDetailPage.tsx.
+ */
+const RECLASSIFY_TYPES = [
+  "checking",
+  "savings",
+  "credit_card",
+  "brokerage",
+  "retirement_401k",
+  "retirement_403b",
+  "retirement_457b",
+  "retirement_ira",
+  "retirement_roth",
+  "retirement_sep_ira",
+  "retirement_simple_ira",
+  "retirement_529",
+  "hsa",
+  "loan",
+  "mortgage",
+  "student_loan",
+  "property",
+  "vehicle",
+  "crypto",
+  "stock_options",
+  "private_equity",
+  "business_equity",
+  "collectibles",
+  "precious_metals",
+  "manual",
+  "other",
+] as const;
+
+describe('reclassify dropdown type list', () => {
+  it('includes stock_options', () => {
+    expect(RECLASSIFY_TYPES).toContain('stock_options');
+  });
+
+  it('includes private_equity', () => {
+    expect(RECLASSIFY_TYPES).toContain('private_equity');
+  });
+
+  it('includes business_equity', () => {
+    expect(RECLASSIFY_TYPES).toContain('business_equity');
+  });
+
+  it('includes student_loan', () => {
+    expect(RECLASSIFY_TYPES).toContain('student_loan');
+  });
+
+  it('includes collectibles', () => {
+    expect(RECLASSIFY_TYPES).toContain('collectibles');
+  });
+
+  it('includes precious_metals', () => {
+    expect(RECLASSIFY_TYPES).toContain('precious_metals');
+  });
+
+  it('includes standard cash account types', () => {
+    expect(RECLASSIFY_TYPES).toContain('checking');
+    expect(RECLASSIFY_TYPES).toContain('savings');
+    expect(RECLASSIFY_TYPES).toContain('credit_card');
+  });
+
+  it('includes all major retirement types', () => {
+    expect(RECLASSIFY_TYPES).toContain('retirement_401k');
+    expect(RECLASSIFY_TYPES).toContain('retirement_ira');
+    expect(RECLASSIFY_TYPES).toContain('retirement_roth');
+    expect(RECLASSIFY_TYPES).toContain('retirement_sep_ira');
+    expect(RECLASSIFY_TYPES).toContain('retirement_529');
+  });
+
+  it('includes property and vehicle', () => {
+    expect(RECLASSIFY_TYPES).toContain('property');
+    expect(RECLASSIFY_TYPES).toContain('vehicle');
+  });
+
+  it('has no duplicate entries', () => {
+    const unique = new Set(RECLASSIFY_TYPES);
+    expect(unique.size).toBe(RECLASSIFY_TYPES.length);
+  });
+
+  it('covers all equity-related types that trigger the Grant Details card', () => {
+    // Every type where showEquityGrantDetails returns true must be reclassifiable to
+    const equityTypes = ['stock_options', 'private_equity'];
+    equityTypes.forEach((t) => expect(RECLASSIFY_TYPES).toContain(t));
+  });
+});
+
+// ── formatAccountType display labels for new types ───────────────────────────
+
+/**
+ * The reclassify dropdown uses formatAccountType() for labels.
+ * New types added to the list must produce readable labels (not empty strings).
+ * We test the fallback snake_case → Title Case path since these types have no
+ * explicit override in formatAccountType.ts.
+ */
+const snakeCaseToTitle = (type: string): string =>
+  type
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+
+describe('formatAccountType fallback for equity types', () => {
+  it('renders stock_options as "Stock Options"', () => {
+    expect(snakeCaseToTitle('stock_options')).toBe('Stock Options');
+  });
+
+  it('renders private_equity as "Private Equity"', () => {
+    expect(snakeCaseToTitle('private_equity')).toBe('Private Equity');
+  });
+
+  it('renders business_equity as "Business Equity"', () => {
+    expect(snakeCaseToTitle('business_equity')).toBe('Business Equity');
+  });
+
+  it('renders collectibles as "Collectibles"', () => {
+    expect(snakeCaseToTitle('collectibles')).toBe('Collectibles');
+  });
+
+  it('renders precious_metals as "Precious Metals"', () => {
+    expect(snakeCaseToTitle('precious_metals')).toBe('Precious Metals');
+  });
+
+  it('renders student_loan as "Student Loan"', () => {
+    expect(snakeCaseToTitle('student_loan')).toBe('Student Loan');
+  });
+
+  it('produces a non-empty string for every type in the dropdown', () => {
+    RECLASSIFY_TYPES.forEach((type) => {
+      expect(snakeCaseToTitle(type).length).toBeGreaterThan(0);
+    });
+  });
+});
+
+// ── Vesting schedule template generator ──────────────────────────────────────
+
+type VestRow2 = { date: string; quantity: string; notes: string };
+
+const addMonths2 = (startIso: string, months: number): string => {
+  const d = new Date(startIso + 'T00:00:00');
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().slice(0, 10);
+};
+
+const fmt2 = (n: number) => String(Math.round(n * 10000) / 10000);
+
+function applyVestTemplate(template: string, startDate: string, totalShares: number): VestRow2[] {
+  const rows: VestRow2[] = [];
+  if (template === '4yr-1yr-cliff-monthly') {
+    const cliff = totalShares * 0.25;
+    const remaining = totalShares - cliff;
+    const monthly = remaining / 36;
+    rows.push({ date: addMonths2(startDate, 12), quantity: fmt2(cliff), notes: 'Cliff (1 year)' });
+    for (let i = 1; i <= 36; i++)
+      rows.push({ date: addMonths2(startDate, 12 + i), quantity: fmt2(monthly), notes: `Month ${12 + i}` });
+  } else if (template === '4yr-1yr-cliff-quarterly') {
+    const cliff = totalShares * 0.25;
+    const remaining = totalShares - cliff;
+    const perQ = remaining / 12;
+    rows.push({ date: addMonths2(startDate, 12), quantity: fmt2(cliff), notes: 'Cliff (1 year)' });
+    for (let i = 1; i <= 12; i++)
+      rows.push({ date: addMonths2(startDate, 12 + i * 3), quantity: fmt2(perQ), notes: `Q${i} post-cliff` });
+  } else if (template === '4yr-quarterly') {
+    const perEvent = totalShares / 16;
+    for (let i = 1; i <= 16; i++)
+      rows.push({ date: addMonths2(startDate, i * 3), quantity: fmt2(perEvent), notes: `Q${i}` });
+  } else if (template === '4yr-annual') {
+    const perYear = totalShares / 4;
+    for (let i = 1; i <= 4; i++)
+      rows.push({ date: addMonths2(startDate, i * 12), quantity: fmt2(perYear), notes: `Year ${i}` });
+  } else if (template === '3yr-annual') {
+    const perYear = totalShares / 3;
+    for (let i = 1; i <= 3; i++)
+      rows.push({ date: addMonths2(startDate, i * 12), quantity: fmt2(perYear), notes: `Year ${i}` });
+  } else if (template === '2yr-semi') {
+    const perEvent = totalShares / 4;
+    for (let i = 1; i <= 4; i++)
+      rows.push({ date: addMonths2(startDate, i * 6), quantity: fmt2(perEvent), notes: `Semi-annual ${i}` });
+  } else if (template === '1yr-annual') {
+    rows.push({ date: addMonths2(startDate, 12), quantity: fmt2(totalShares), notes: 'Full vest' });
+  } else if (template === '1yr-monthly') {
+    const perMonth = totalShares / 12;
+    for (let i = 1; i <= 12; i++)
+      rows.push({ date: addMonths2(startDate, i), quantity: fmt2(perMonth), notes: `Month ${i}` });
+  }
+  return rows;
+}
+
+const sumShares2 = (rows: VestRow2[]) => rows.reduce((s, r) => s + parseFloat(r.quantity), 0);
+
+describe('applyVestTemplate — 4yr / 1yr cliff monthly', () => {
+  const rows = applyVestTemplate('4yr-1yr-cliff-monthly', '2024-01-01', 4800);
+  it('generates 37 events (1 cliff + 36 monthly)', () => { expect(rows).toHaveLength(37); });
+  it('first event is the cliff at 12 months', () => { expect(rows[0].notes).toBe('Cliff (1 year)'); expect(rows[0].date).toBe(addMonths2('2024-01-01', 12)); });
+  it('cliff is 25% of total shares', () => { expect(parseFloat(rows[0].quantity)).toBeCloseTo(1200, 2); });
+  it('remaining 36 events are equal monthly tranches', () => { rows.slice(1).forEach((r) => expect(parseFloat(r.quantity)).toBeCloseTo((4800 * 0.75) / 36, 2)); });
+  it('total shares sum equals grant size', () => { expect(sumShares2(rows)).toBeCloseTo(4800, 1); });
+});
+
+describe('applyVestTemplate — 4yr / 1yr cliff quarterly', () => {
+  const rows = applyVestTemplate('4yr-1yr-cliff-quarterly', '2024-01-01', 4000);
+  it('generates 13 events (1 cliff + 12 quarterly)', () => { expect(rows).toHaveLength(13); });
+  it('total shares sum equals grant size', () => { expect(sumShares2(rows)).toBeCloseTo(4000, 1); });
+  it('post-cliff events are spaced 3 months apart', () => {
+    const prev = new Date(rows[1].date);
+    const next = new Date(rows[2].date);
+    const diff = (next.getFullYear() - prev.getFullYear()) * 12 + next.getMonth() - prev.getMonth();
+    expect(diff).toBe(3);
+  });
+});
+
+describe('applyVestTemplate — 4yr quarterly', () => {
+  const rows = applyVestTemplate('4yr-quarterly', '2024-01-01', 1600);
+  it('generates 16 events', () => { expect(rows).toHaveLength(16); });
+  it('first event is 3 months after start', () => { expect(rows[0].date).toBe(addMonths2('2024-01-01', 3)); });
+  it('equal shares per event', () => { rows.forEach((r) => expect(parseFloat(r.quantity)).toBeCloseTo(100, 2)); });
+  it('total shares sum equals grant size', () => { expect(sumShares2(rows)).toBeCloseTo(1600, 1); });
+});
+
+describe('applyVestTemplate — 4yr annual', () => {
+  const rows = applyVestTemplate('4yr-annual', '2024-01-01', 4000);
+  it('generates 4 events', () => { expect(rows).toHaveLength(4); });
+  it('last event is 4 years after start', () => { expect(rows[3].date).toBe(addMonths2('2024-01-01', 48)); });
+  it('total shares sum equals grant size', () => { expect(sumShares2(rows)).toBeCloseTo(4000, 1); });
+});
+
+describe('applyVestTemplate — 3yr annual', () => {
+  const rows = applyVestTemplate('3yr-annual', '2024-06-15', 3000);
+  it('generates 3 events', () => { expect(rows).toHaveLength(3); });
+  it('events are labeled Year 1, Year 2, Year 3', () => { expect(rows[0].notes).toBe('Year 1'); expect(rows[2].notes).toBe('Year 3'); });
+  it('total shares sum equals grant size', () => { expect(sumShares2(rows)).toBeCloseTo(3000, 1); });
+});
+
+describe('applyVestTemplate — 2yr semi-annual', () => {
+  const rows = applyVestTemplate('2yr-semi', '2024-01-01', 2000);
+  it('generates 4 events', () => { expect(rows).toHaveLength(4); });
+  it('events spaced 6 months apart', () => {
+    expect(rows[0].date).toBe(addMonths2('2024-01-01', 6));
+    expect(rows[3].date).toBe(addMonths2('2024-01-01', 24));
+  });
+  it('total shares sum equals grant size', () => { expect(sumShares2(rows)).toBeCloseTo(2000, 1); });
+});
+
+describe('applyVestTemplate — 1yr annual', () => {
+  const rows = applyVestTemplate('1yr-annual', '2024-01-01', 500);
+  it('generates exactly 1 event', () => { expect(rows).toHaveLength(1); });
+  it('vest date is 12 months after start', () => { expect(rows[0].date).toBe(addMonths2('2024-01-01', 12)); });
+  it('full grant vests in one event', () => { expect(parseFloat(rows[0].quantity)).toBeCloseTo(500, 2); });
+});
+
+describe('applyVestTemplate — 1yr monthly', () => {
+  const rows = applyVestTemplate('1yr-monthly', '2024-01-01', 1200);
+  it('generates 12 events', () => { expect(rows).toHaveLength(12); });
+  it('first event is 1 month after start', () => { expect(rows[0].date).toBe(addMonths2('2024-01-01', 1)); });
+  it('equal shares per month', () => { rows.forEach((r) => expect(parseFloat(r.quantity)).toBeCloseTo(100, 2)); });
+  it('total shares sum equals grant size', () => { expect(sumShares2(rows)).toBeCloseTo(1200, 1); });
+});
+
+describe('applyVestTemplate — unknown template', () => {
+  it('returns empty array for unrecognized template id', () => {
+    expect(applyVestTemplate('bogus', '2024-01-01', 1000)).toHaveLength(0);
+  });
+});

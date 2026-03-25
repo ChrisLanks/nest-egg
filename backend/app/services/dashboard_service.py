@@ -112,8 +112,10 @@ class DashboardService:
         if account.account_type in NET_WORTH_EXCLUDED_BY_DEFAULT:
             return False
 
-        if account.account_type == AccountType.PRIVATE_EQUITY:
-            # Private equity: default to excluding unless public
+        if account.account_type in (AccountType.PRIVATE_EQUITY, AccountType.STOCK_OPTIONS):
+            # Illiquid / unvested equity: default to excluding unless public.
+            # Users who check "Include in net worth" when adding the account will
+            # have include_in_networth=True which is caught by the first check above.
             return bool(account.company_status and account.company_status.value == "public")
 
         # All other accounts: default to including
@@ -143,11 +145,11 @@ class DashboardService:
             # Fallback to current_balance
             return account.current_balance or Decimal(0)
 
-        # For non-private-equity accounts, just return the balance
-        if account.account_type != AccountType.PRIVATE_EQUITY:
+        # For non-equity accounts, just return the balance
+        if account.account_type not in (AccountType.PRIVATE_EQUITY, AccountType.STOCK_OPTIONS):
             return account.current_balance or Decimal(0)
 
-        # Private equity without vesting schedule: return full balance
+        # Equity without vesting schedule: return full balance (user may not have entered vesting yet)
         if not account.vesting_schedule:
             return account.current_balance or Decimal(0)
 

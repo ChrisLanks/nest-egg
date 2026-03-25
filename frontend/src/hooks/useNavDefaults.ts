@@ -60,7 +60,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: "Transactions", path: "/transactions" },
       { label: "Budgets", path: "/budgets" },
-      { label: "Categories", path: "/categories" },
+      { label: "Categories & Labels", path: "/categories" },
       {
         label: "Recurring",
         path: "/recurring",

@@ -67,6 +67,10 @@ export const helpContent = {
       "Measures how risky your portfolio is based on price volatility and how concentrated your holdings are. Lower risk scores mean more stability, but potentially lower returns too.",
     rebalancing:
       "Compares your current portfolio mix against your target allocation and shows where you've drifted. Rebalancing — selling what's overweight and buying what's underweight — keeps your risk level consistent.",
+    capitalGainsHarvesting:
+      "Intentionally realizing long-term gains in a low-income year to take advantage of the 0% federal LTCG rate. If your taxable income is below ~$48K (single) or ~$97K (MFJ), you can sell appreciated positions and owe zero federal capital gains tax.",
+    stressTest:
+      "Models how your portfolio would have performed during historical market crashes and hypothetical scenarios — like the 2008 financial crisis or a sudden +200bps rate shock. Helps you understand your downside risk before it happens.",
     // In-panel metrics
     costBasis:
       "The total amount of money you originally spent to buy this investment — your 'in for' amount. If your cost basis is $5,000 and it's now worth $7,000, you're up $2,000.",

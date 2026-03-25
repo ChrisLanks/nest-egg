@@ -848,7 +848,7 @@ export const Layout = () => {
       tooltip: "Upcoming bills and due dates so you never miss a payment",
     },
     {
-      label: "Categories",
+      label: "Categories & Labels",
       path: "/categories",
       tooltip:
         "Organize transactions into groups (Groceries, Dining, etc.) to understand your spending",

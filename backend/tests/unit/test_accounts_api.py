@@ -289,6 +289,85 @@ class TestListAccounts:
             assert result[0].last_error_code == "INVALID_CREDENTIALS"
             assert result[0].needs_reauth is False  # Teller doesn't use reauth
 
+    @pytest.mark.asyncio
+    async def test_includes_equity_fields_in_summary(self, mock_db, mock_user):
+        """AccountSummary returned by list_accounts must include equity fields."""
+        import json
+
+        account = Mock(spec=Account)
+        account.id = uuid4()
+        account.user_id = uuid4()
+        account.name = "Startup Options"
+        account.account_type = AccountType.STOCK_OPTIONS
+        account.account_source = AccountSource.MANUAL
+        account.property_type = None
+        account.institution_name = None
+        account.mask = None
+        account.current_balance = Decimal("10000.00")
+        account.balance_as_of = None
+        account.is_active = True
+        account.exclude_from_cash_flow = False
+        account.plaid_item_hash = None
+        account.plaid_item = None
+        account.plaid_item_id = None
+        account.teller_enrollment = None
+        account.teller_enrollment_id = None
+        # Equity fields
+        account.grant_type = "iso"
+        account.quantity = Decimal("1000")
+        account.strike_price = Decimal("6.00")
+        account.share_price = Decimal("10.00")
+        account.grant_date = None
+        account.company_status = "private"
+        account.vesting_schedule = json.dumps([{"date": "2026-01-01", "quantity": 250}])
+
+        with patch("app.api.v1.accounts.get_all_household_accounts", return_value=[account]):
+            result = await list_accounts(
+                include_hidden=False,
+                user_id=None,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+        assert len(result) == 1
+        summary = result[0]
+        assert summary.grant_type == "iso"
+        assert summary.quantity == Decimal("1000")
+        assert summary.strike_price == Decimal("6.00")
+        assert summary.share_price == Decimal("10.00")
+        assert summary.company_status == "private"
+        parsed = json.loads(summary.vesting_schedule)
+        assert parsed[0]["date"] == "2026-01-01"
+        assert parsed[0]["quantity"] == 250
+
+    @pytest.mark.asyncio
+    async def test_equity_fields_null_for_non_equity_accounts(self, mock_db, mock_user, mock_account):
+        """Non-equity accounts should return None for all equity fields."""
+        mock_account.grant_type = None
+        mock_account.quantity = None
+        mock_account.strike_price = None
+        mock_account.share_price = None
+        mock_account.grant_date = None
+        mock_account.company_status = None
+        mock_account.vesting_schedule = None
+
+        with patch("app.api.v1.accounts.get_all_household_accounts", return_value=[mock_account]):
+            result = await list_accounts(
+                include_hidden=False,
+                user_id=None,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+        assert len(result) == 1
+        summary = result[0]
+        assert summary.grant_type is None
+        assert summary.quantity is None
+        assert summary.strike_price is None
+        assert summary.share_price is None
+        assert summary.company_status is None
+        assert summary.vesting_schedule is None
+
 
 @pytest.mark.unit
 class TestGetAccount:
@@ -1906,17 +1985,16 @@ class TestUpdateAccountExtendedFields:
         account_data.vehicle_mileage = None
         account_data.valuation_adjustment_pct = None
         # Fields we want to test
+        import json
+
         account_data.grant_type = "iso"
         account_data.grant_date = dt_date(2023, 6, 1)
         account_data.quantity = Decimal("1000")
         account_data.strike_price = Decimal("10.50")
-        milestone1 = Mock()
-        milestone1.date = dt_date(2024, 6, 1)
-        milestone1.quantity = Decimal("250")
-        milestone2 = Mock()
-        milestone2.date = dt_date(2025, 6, 1)
-        milestone2.quantity = Decimal("250")
-        account_data.vesting_schedule = [milestone1, milestone2]
+        account_data.vesting_schedule = json.dumps([
+            {"date": "2024-06-01", "quantity": 250},
+            {"date": "2025-06-01", "quantity": 250},
+        ])
         account_data.share_price = Decimal("25.00")
         account_data.company_status = "private"
         account_data.valuation_method = "409a"
@@ -1937,11 +2015,11 @@ class TestUpdateAccountExtendedFields:
         assert account.company_status == "private"
         assert account.valuation_method == "409a"
         assert account.include_in_networth is True
-        # vesting_schedule should be set to a JSON string
-        import json
-
+        # vesting_schedule is stored as a raw JSON string (direct assignment)
         parsed = json.loads(account.vesting_schedule)
         assert len(parsed) == 2
+        assert parsed[0]["date"] == "2024-06-01"
+        assert parsed[1]["quantity"] == 250
 
     @pytest.mark.asyncio
     async def test_update_pension_and_credit_fields(self, mock_user):

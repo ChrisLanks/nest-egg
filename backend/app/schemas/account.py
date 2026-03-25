@@ -304,9 +304,20 @@ class AccountSummary(BaseModel):
     exclude_from_cash_flow: bool
     plaid_item_hash: Optional[str] = None  # For duplicate detection
 
+    # Equity / stock option fields
+    grant_type: Optional[str] = None
+    quantity: Optional[Decimal] = None
+    strike_price: Optional[Decimal] = None
+    share_price: Optional[Decimal] = None
+    grant_date: Optional[datetime] = None
+    company_status: Optional[str] = None
+    vesting_schedule: Optional[str] = None
+
     # Provider-agnostic sync status (populated from PlaidItem, TellerEnrollment, etc.)
     provider_item_id: Optional[UUID] = None  # ID of PlaidItem or TellerEnrollment
     last_synced_at: Optional[datetime] = None
     last_error_code: Optional[str] = None
     last_error_message: Optional[str] = None
     needs_reauth: Optional[bool] = None
+
+    model_config = {"from_attributes": True}

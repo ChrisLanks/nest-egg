@@ -124,7 +124,7 @@ async def list_accounts(
         try:
             cached = await cache_get(cache_key)
             if cached is not None:
-                return cached
+                return [AccountSummary.model_validate(a) for a in cached]
         except Exception:
             pass  # fail-open on Redis errors
 
@@ -194,6 +194,14 @@ async def list_accounts(
             is_active=acc.is_active,
             exclude_from_cash_flow=acc.exclude_from_cash_flow,
             plaid_item_hash=acc.plaid_item_hash,
+            # Equity / stock option fields
+            grant_type=acc.grant_type,
+            quantity=acc.quantity,
+            strike_price=acc.strike_price,
+            share_price=acc.share_price,
+            grant_date=acc.grant_date,
+            company_status=acc.company_status,
+            vesting_schedule=acc.vesting_schedule,
             # Provider-agnostic sync status
             provider_item_id=provider_item_id,
             last_synced_at=last_synced_at,
@@ -599,12 +607,8 @@ async def update_account(
     if account_data.strike_price is not None:
         account.strike_price = account_data.strike_price
     if account_data.vesting_schedule is not None:
-        account.vesting_schedule = json.dumps(
-            [
-                {"date": m.date.isoformat(), "quantity": float(m.quantity)}
-                for m in account_data.vesting_schedule
-            ]
-        )
+        # AccountUpdate.vesting_schedule is already a JSON string
+        account.vesting_schedule = account_data.vesting_schedule
     if account_data.share_price is not None:
         account.share_price = account_data.share_price
     if account_data.company_status is not None:

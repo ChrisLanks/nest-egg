@@ -62,6 +62,8 @@ import StyleBoxModal from "../features/investments/components/StyleBoxModal";
 import { RMDAlert } from "../features/investments/components/RMDAlert";
 import { RothConversionAnalyzer } from "../features/investments/components/RothConversionAnalyzer";
 import TaxLossHarvestingPanel from "../features/investments/components/TaxLossHarvestingPanel";
+import CapitalGainsHarvestingPanel from "../features/investments/components/CapitalGainsHarvestingPanel";
+import StressTestPanel from "../features/investments/components/StressTestPanel";
 import { RebalancingPanel } from "../features/investments/components/RebalancingPanel";
 import { FeeAnalysisPanel } from "../features/investments/components/FeeAnalysisPanel";
 import { DividendIncomePanel } from "../features/investments/components/DividendIncomePanel";
@@ -1360,7 +1362,7 @@ export const InvestmentsPage = () => {
                   {
                     key: "optimization",
                     label: "Optimization",
-                    indexes: [6, 7, 8, 9],
+                    indexes: [6, 7, 8, 9, 11, 12],
                   },
                 ] as const
               ).map((group) => {
@@ -1466,7 +1468,7 @@ export const InvestmentsPage = () => {
                     [
                       {
                         idx: 2,
-                        label: "Future Growth",
+                        label: "Monte Carlo Projection",
                         hint: helpContent.investments.futureGrowth,
                       },
                       {
@@ -1512,7 +1514,7 @@ export const InvestmentsPage = () => {
               )}
 
               {/* Optimization sub-items */}
-              {[6, 7, 8, 9].includes(selectedTabIndex) && (
+              {[6, 7, 8, 9, 11, 12].includes(selectedTabIndex) && (
                 <>
                   {(
                     [
@@ -1535,6 +1537,16 @@ export const InvestmentsPage = () => {
                         idx: 9,
                         label: "Rebalancing",
                         hint: helpContent.investments.rebalancing,
+                      },
+                      {
+                        idx: 11,
+                        label: "Gain Harvesting",
+                        hint: helpContent.investments.capitalGainsHarvesting,
+                      },
+                      {
+                        idx: 12,
+                        label: "Stress Test",
+                        hint: helpContent.investments.stressTest,
                       },
                     ] as const
                   ).map((item) => (
@@ -1621,6 +1633,8 @@ export const InvestmentsPage = () => {
               {selectedTabIndex === 8 && <TaxLossHarvestingPanel />}
               {selectedTabIndex === 9 && <RebalancingPanel />}
               {selectedTabIndex === 10 && <DividendIncomePanel />}
+              {selectedTabIndex === 11 && <CapitalGainsHarvestingPanel />}
+              {selectedTabIndex === 12 && <StressTestPanel />}
             </Box>
           </CardBody>
         </Card>

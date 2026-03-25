@@ -39,6 +39,7 @@ from app.services.retirement.withdrawal_strategy_service import (
     AccountBuckets,
     run_withdrawal_comparison,
 )
+from app.services.dashboard_service import DashboardService
 from app.utils.account_tax_treatment import get_tax_treatment
 from app.utils.account_type_groups import (
     INVESTMENT_ACCOUNT_TYPES,
@@ -940,11 +941,14 @@ class RetirementMonteCarloService:
         inv_weighted_interest = Decimal(0)   # sum(balance * rate) for accounts with rate set
         inv_balance_with_rate = Decimal(0)   # total balance of such accounts
 
+        _dashboard_svc = DashboardService(db)
+
         for account in accounts:
-            balance = account.current_balance or Decimal(0)
+            balance = _dashboard_svc._calculate_account_value(account)
             tax_cat = get_tax_treatment(account.account_type, account.tax_treatment)
 
             # Investment-type accounts contribute to portfolio
+            # STOCK_OPTIONS and PRIVATE_EQUITY are handled below via include_in_networth
             if account.account_type in INVESTMENT_ACCOUNT_TYPES:
                 total_portfolio += balance
                 if tax_cat == "tax-deferred":
@@ -1005,6 +1009,25 @@ class RetirementMonteCarloService:
                             "excluded": False,
                         }
                     )
+
+            # Equity accounts (stock_options, private_equity) — include vested value
+            # when the user has flagged them for inclusion or they auto-qualify (public company).
+            if account.account_type in (AccountType.STOCK_OPTIONS, AccountType.PRIVATE_EQUITY):
+                if _dashboard_svc._should_include_in_networth(account) and balance > 0:
+                    total_portfolio += balance
+                    taxable_balance += balance
+                    if balance > 0:
+                        account_items.append(
+                            {
+                                "id": str(account.id),
+                                "name": account.name or account.account_type.value,
+                                "balance": float(balance),
+                                "bucket": "taxable",
+                                "account_type": account.account_type.value,
+                                "interest_rate": None,
+                                "excluded": False,
+                            }
+                        )
 
             # Pension income
             if account.monthly_benefit and account.account_type == AccountType.PENSION:
@@ -1083,7 +1106,7 @@ class RetirementMonteCarloService:
         # frontend can show them as greyed-out in AccountDataSummary.
         for account in all_accounts:
             if str(account.id) in excluded_set:
-                balance = account.current_balance or Decimal(0)
+                balance = _dashboard_svc._calculate_account_value(account)
                 account_items.append(
                     {
                         "id": str(account.id),

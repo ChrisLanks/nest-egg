@@ -178,7 +178,7 @@ class ForecastService:
                 # Auto-determine
                 if account.account_type in NET_WORTH_EXCLUDED_BY_DEFAULT:
                     include = False
-                elif account.account_type == AccountType.PRIVATE_EQUITY:
+                elif account.account_type in (AccountType.PRIVATE_EQUITY, AccountType.STOCK_OPTIONS):
                     include = bool(
                         account.company_status and account.company_status.value == "public"
                     )
@@ -207,8 +207,8 @@ class ForecastService:
                 # Fallback to current_balance
                 else:
                     total += account.current_balance or Decimal(0)
-            # Handle Private Equity with vesting schedule
-            elif account.account_type == AccountType.PRIVATE_EQUITY and account.vesting_schedule:
+            # Handle equity accounts (Private Equity + Stock Options) with vesting schedule
+            elif account.account_type in (AccountType.PRIVATE_EQUITY, AccountType.STOCK_OPTIONS) and account.vesting_schedule:
                 # Calculate vested value
                 try:
                     milestones = json.loads(account.vesting_schedule)
@@ -297,11 +297,12 @@ class ForecastService:
         Returns:
             List of future vesting events as transaction-like dictionaries
         """
-        # Filter to Private Equity accounts with vesting schedules
+        # Filter to equity accounts (stock options + private equity) with vesting schedules
         accounts = [
             a
             for a in all_accounts
-            if a.account_type == AccountType.PRIVATE_EQUITY and a.vesting_schedule
+            if a.account_type in (AccountType.PRIVATE_EQUITY, AccountType.STOCK_OPTIONS)
+            and a.vesting_schedule
         ]
 
         vesting_events = []

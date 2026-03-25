@@ -430,6 +430,17 @@ export const GrowthProjectionsChart = ({
 
   return (
     <VStack spacing={6} align="stretch">
+      {/* Header */}
+      <Box>
+        <Text fontWeight="bold" fontSize="lg">Monte Carlo Projection</Text>
+        <Text fontSize="sm" color="text.secondary" mt={1}>
+          Simulates thousands of possible futures using random returns to show a <strong>range of outcomes</strong> —
+          from pessimistic to optimistic — over your chosen horizon.
+          To see how a specific past crisis would have affected your holdings today, use{" "}
+          <strong>Optimization → Stress Test</strong>.
+        </Text>
+      </Box>
+
       {/* Summary Statistics */}
       <SimpleGrid
         columns={{ base: 1, md: activeScenario.enableRetirement ? 4 : 3 }}

@@ -173,14 +173,19 @@ export default function PerformanceTrendsChart({
     const totalReturn = endValue - startValue;
     const totalReturnPercent = (totalReturn / startValue) * 100;
 
-    // Calculate CAGR
+    // Calculate CAGR — null when not enough data or start value is zero/negative
     const startDate = new Date(firstSnapshot.snapshot_date);
     const endDate = new Date(lastSnapshot.snapshot_date);
     const years =
       (endDate.getTime() - startDate.getTime()) /
       (365.25 * 24 * 60 * 60 * 1000);
+    const cagrRaw =
+      years > 0 && startValue > 0
+        ? (Math.pow(endValue / startValue, 1 / years) - 1) * 100
+        : null;
+    // Discard non-finite values (NaN, Infinity) so the UI can show "N/A"
     const cagr =
-      years > 0 ? (Math.pow(endValue / startValue, 1 / years) - 1) * 100 : 0;
+      cagrRaw !== null && Number.isFinite(cagrRaw) ? cagrRaw : null;
 
     // YoY Growth (if we have data >= 1 year apart)
     let yoyGrowth = 0;
@@ -206,7 +211,7 @@ export default function PerformanceTrendsChart({
     return {
       totalReturn,
       totalReturnPercent,
-      cagr,
+      cagr,         // number | null — null means insufficient data
       yoyGrowth,
       isPositive: totalReturn >= 0,
     };
@@ -323,11 +328,17 @@ export default function PerformanceTrendsChart({
         >
           <Stat>
             <StatLabel>
-              CAGR
+              Avg. Annual Return
               <HelpHint hint={helpContent.investments.cagr} />
             </StatLabel>
-            <StatNumber>{metrics.cagr.toFixed(2)}%</StatNumber>
-            <StatHelpText>Compound Annual Growth Rate</StatHelpText>
+            <StatNumber>
+              {metrics.cagr !== null ? `${metrics.cagr.toFixed(2)}%` : "N/A"}
+            </StatNumber>
+            <StatHelpText>
+              {metrics.cagr !== null
+                ? "Compound Annual Growth Rate"
+                : "Need more history to calculate"}
+            </StatHelpText>
           </Stat>
         </Box>
 

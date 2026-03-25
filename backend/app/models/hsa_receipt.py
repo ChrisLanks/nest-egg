@@ -50,6 +50,11 @@ class HsaReceipt(Base):
     tax_year = Column(Integer, nullable=False)
     notes = Column(Text, nullable=True)
 
+    # File attachment — storage key (local path or S3 key) set after upload
+    file_key = Column(String(1024), nullable=True)
+    file_name = Column(String(255), nullable=True)   # original filename for display
+    file_content_type = Column(String(128), nullable=True)
+
     created_at = Column(DateTime(timezone=True), default=utc_now_lambda, nullable=False)
     updated_at = Column(
         DateTime(timezone=True),

@@ -54,6 +54,7 @@ import {
   FiRefreshCw,
   FiTrash2,
   FiRepeat,
+  FiPlus,
 } from "react-icons/fi";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -112,6 +113,15 @@ interface Account {
   employer_match_percent: number | null;
   employer_match_limit_percent: number | null;
   annual_salary: number | null;
+  // Equity fields (stock_options / private_equity)
+  grant_type: string | null;
+  quantity: number | null;
+  strike_price: number | null;
+  share_price: number | null;
+  grant_date: string | null;
+  company_status: string | null;
+  valuation_method: string | null;
+  vesting_schedule: string | null;
   // Sync status
   last_synced_at: string | null;
   last_error_code: string | null;
@@ -181,6 +191,14 @@ export const AccountDetailPage = () => {
   const [empAnnualSalary, setEmpAnnualSalary] = useState("");
   // Valuation adjustment state
   const [adjustmentPct, setAdjustmentPct] = useState("");
+  // Equity detail editing state
+  const [equityGrantType, setEquityGrantType] = useState("");
+  const [equityQuantity, setEquityQuantity] = useState("");
+  const [equityStrikePrice, setEquityStrikePrice] = useState("");
+  const [equitySharePrice, setEquitySharePrice] = useState("");
+  const [equityGrantDate, setEquityGrantDate] = useState("");
+  const [equityCompanyStatus, setEquityCompanyStatus] = useState("");
+  const [vestRows, setVestRows] = useState<{ date: string; quantity: string; notes: string }[]>([]);
 
   // Fetch account details
   const {
@@ -750,6 +768,121 @@ export const AccountDetailPage = () => {
     }
   };
 
+  const handleSaveEquityDetails = () => {
+    const updates: Record<string, unknown> = {};
+    if (equityGrantType !== "") updates.grant_type = equityGrantType;
+    if (equityQuantity !== "") {
+      const v = parseFloat(equityQuantity);
+      if (!isNaN(v) && v >= 0) updates.quantity = v;
+    }
+    if (equityStrikePrice !== "") {
+      const v = parseFloat(equityStrikePrice);
+      if (!isNaN(v) && v >= 0) updates.strike_price = v;
+    }
+    if (equitySharePrice !== "") {
+      const v = parseFloat(equitySharePrice);
+      if (!isNaN(v) && v >= 0) updates.share_price = v;
+    }
+    if (equityGrantDate !== "") updates.grant_date = equityGrantDate;
+    if (equityCompanyStatus !== "") updates.company_status = equityCompanyStatus;
+    // Merge vest rows with existing vesting schedule
+    const allExistingRows: { date: string; quantity: number; notes?: string }[] = (() => {
+      try { return account?.vesting_schedule ? JSON.parse(account.vesting_schedule) : []; }
+      catch { return []; }
+    })();
+    const newValidRows = vestRows
+      .filter((r) => r.date && r.quantity && !isNaN(parseFloat(r.quantity)))
+      .map((r) => ({ date: r.date, quantity: parseFloat(r.quantity), ...(r.notes ? { notes: r.notes } : {}) }));
+    if (newValidRows.length > 0) {
+      updates.vesting_schedule = JSON.stringify([...allExistingRows, ...newValidRows]);
+    }
+    if (Object.keys(updates).length > 0) {
+      updateAccountMutation.mutate(updates as Parameters<typeof updateAccountMutation.mutate>[0], {
+        onSuccess: () => {
+          setEquityGrantType("");
+          setEquityQuantity("");
+          setEquityStrikePrice("");
+          setEquitySharePrice("");
+          setEquityGrantDate("");
+          setEquityCompanyStatus("");
+          setVestRows([]);
+        },
+      });
+    }
+  };
+
+  // Generate vesting rows from a common schedule template.
+  // startDate: YYYY-MM-DD grant/cliff start, totalShares: total grant size.
+  const applyVestTemplate = (
+    template: string,
+    startDate: string,
+    totalShares: number,
+  ) => {
+    if (!startDate || !totalShares) return;
+    const d = new Date(startDate + "T00:00:00");
+    const addMonths = (base: Date, months: number): string => {
+      const r = new Date(base);
+      r.setMonth(r.getMonth() + months);
+      return r.toISOString().slice(0, 10);
+    };
+    const fmt = (n: number) => String(Math.round(n * 10000) / 10000);
+
+    type Row = { date: string; quantity: string; notes: string };
+    let rows: Row[] = [];
+
+    if (template === "4yr-1yr-cliff-monthly") {
+      // 25% cliff at 12 months, then 1/48 per month for 36 more months
+      const cliffShares = totalShares * 0.25;
+      const remaining = totalShares - cliffShares;
+      const monthly = remaining / 36;
+      rows.push({ date: addMonths(d, 12), quantity: fmt(cliffShares), notes: "Cliff (1 year)" });
+      for (let i = 1; i <= 36; i++) {
+        rows.push({ date: addMonths(d, 12 + i), quantity: fmt(monthly), notes: `Month ${12 + i}` });
+      }
+    } else if (template === "4yr-quarterly") {
+      // 16 quarterly events, equal shares, no cliff
+      const perEvent = totalShares / 16;
+      for (let i = 1; i <= 16; i++) {
+        rows.push({ date: addMonths(d, i * 3), quantity: fmt(perEvent), notes: `Q${i}` });
+      }
+    } else if (template === "4yr-annual") {
+      const perYear = totalShares / 4;
+      for (let i = 1; i <= 4; i++) {
+        rows.push({ date: addMonths(d, i * 12), quantity: fmt(perYear), notes: `Year ${i}` });
+      }
+    } else if (template === "3yr-annual") {
+      const perYear = totalShares / 3;
+      for (let i = 1; i <= 3; i++) {
+        rows.push({ date: addMonths(d, i * 12), quantity: fmt(perYear), notes: `Year ${i}` });
+      }
+    } else if (template === "2yr-semi") {
+      // Every 6 months for 2 years (4 events)
+      const perEvent = totalShares / 4;
+      for (let i = 1; i <= 4; i++) {
+        rows.push({ date: addMonths(d, i * 6), quantity: fmt(perEvent), notes: `Semi-annual ${i}` });
+      }
+    } else if (template === "1yr-annual") {
+      rows.push({ date: addMonths(d, 12), quantity: fmt(totalShares), notes: "Full vest" });
+    } else if (template === "1yr-monthly") {
+      // 12 equal monthly events over 1 year
+      const perMonth = totalShares / 12;
+      for (let i = 1; i <= 12; i++) {
+        rows.push({ date: addMonths(d, i), quantity: fmt(perMonth), notes: `Month ${i}` });
+      }
+    } else if (template === "4yr-1yr-cliff-quarterly") {
+      // 25% cliff at 12 months, then quarterly for 3 years (12 events)
+      const cliffShares = totalShares * 0.25;
+      const remaining = totalShares - cliffShares;
+      const perQ = remaining / 12;
+      rows.push({ date: addMonths(d, 12), quantity: fmt(cliffShares), notes: "Cliff (1 year)" });
+      for (let i = 1; i <= 12; i++) {
+        rows.push({ date: addMonths(d, 12 + i * 3), quantity: fmt(perQ), notes: `Q${i} post-cliff` });
+      }
+    }
+
+    setVestRows(rows);
+  };
+
   const handleSaveCashApy = () => {
     if (cashApyRate === "") return;
     const rate = parseFloat(cashApyRate);
@@ -1050,9 +1183,15 @@ export const AccountDetailPage = () => {
                       "hsa",
                       "loan",
                       "mortgage",
+                      "student_loan",
                       "property",
                       "vehicle",
                       "crypto",
+                      "stock_options",
+                      "private_equity",
+                      "business_equity",
+                      "collectibles",
+                      "precious_metals",
                       "manual",
                       "other",
                     ].map((value) => (
@@ -2481,6 +2620,363 @@ export const AccountDetailPage = () => {
               </CardBody>
             </Card>
           )}
+
+        {/* Equity Grant Details - For stock_options and private_equity accounts */}
+        {(account.account_type === "stock_options" ||
+          account.account_type === "private_equity") && (
+          <Card>
+            <CardBody>
+              <Heading size="md" mb={1}>
+                Grant Details
+              </Heading>
+              <Text fontSize="sm" color="text.muted" mb={4}>
+                Update grant specifics used in net worth calculations, vesting
+                schedules, and the Equity Compensation page.
+              </Text>
+              <VStack spacing={4} align="stretch">
+                {/* Current values display */}
+                {(account.grant_type || account.quantity != null || account.share_price != null || account.vesting_schedule) && (
+                  <>
+                    <HStack spacing={6} wrap="wrap">
+                      {account.grant_type && (
+                        <Box>
+                          <Text fontSize="xs" color="text.muted">Grant Type</Text>
+                          <Text fontWeight="semibold">{account.grant_type.toUpperCase()}</Text>
+                        </Box>
+                      )}
+                      {account.quantity != null && (
+                        <Box>
+                          <Text fontSize="xs" color="text.muted">Shares / Options</Text>
+                          <Text fontWeight="semibold">{account.quantity.toLocaleString()}</Text>
+                        </Box>
+                      )}
+                      {account.strike_price != null && (
+                        <Box>
+                          <Text fontSize="xs" color="text.muted">Strike Price</Text>
+                          <Text fontWeight="semibold">${account.strike_price}</Text>
+                        </Box>
+                      )}
+                      {account.share_price != null && (
+                        <Box>
+                          <Text fontSize="xs" color="text.muted">Current Share Price</Text>
+                          <Text fontWeight="semibold">${account.share_price}</Text>
+                        </Box>
+                      )}
+                      {account.company_status && (
+                        <Box>
+                          <Text fontSize="xs" color="text.muted">Company Status</Text>
+                          <Text fontWeight="semibold" textTransform="capitalize">{account.company_status}</Text>
+                        </Box>
+                      )}
+                    </HStack>
+                    {account.vesting_schedule && (() => {
+                      try {
+                        const rows: { date: string; quantity: number; notes?: string }[] =
+                          JSON.parse(account.vesting_schedule);
+                        if (!Array.isArray(rows) || rows.length === 0) return null;
+                        return (
+                          <Box>
+                            <Text fontSize="xs" color="text.muted" mb={1}>Saved Vesting Events</Text>
+                            <Table size="sm" variant="simple">
+                              <Thead>
+                                <Tr>
+                                  <Th>Date</Th>
+                                  <Th isNumeric>Shares</Th>
+                                  <Th>Notes</Th>
+                                </Tr>
+                              </Thead>
+                              <Tbody>
+                                {rows.map((r, i) => (
+                                  <Tr key={i}>
+                                    <Td>{r.date}</Td>
+                                    <Td isNumeric>{Number(r.quantity).toLocaleString()}</Td>
+                                    <Td color="text.muted">{r.notes ?? ""}</Td>
+                                  </Tr>
+                                ))}
+                              </Tbody>
+                            </Table>
+                          </Box>
+                        );
+                      } catch { return null; }
+                    })()}
+                    <Divider />
+                  </>
+                )}
+
+                {!canEditAccount ? (
+                  <Text fontSize="sm" color="text.secondary">
+                    Grant details can only be updated by the account owner.
+                  </Text>
+                ) : (
+                  <>
+                    <FormControl>
+                      <FormLabel fontSize="sm">Grant Type</FormLabel>
+                      <Select
+                        size="sm"
+                        value={equityGrantType}
+                        onChange={(e) => setEquityGrantType(e.target.value)}
+                        placeholder={account.grant_type ? account.grant_type.toUpperCase() : "Select grant type"}
+                      >
+                        <option value="iso">ISO (Incentive Stock Option)</option>
+                        <option value="nso">NSO (Non-Qualified Stock Option)</option>
+                        <option value="rsu">RSU (Restricted Stock Unit)</option>
+                        <option value="rsa">RSA (Restricted Stock Award)</option>
+                        <option value="profit_interest">Profits Interest (LLC Units)</option>
+                      </Select>
+                    </FormControl>
+
+                    <FormControl>
+                      <FormLabel fontSize="sm">Company Status</FormLabel>
+                      <Select
+                        size="sm"
+                        value={equityCompanyStatus}
+                        onChange={(e) => setEquityCompanyStatus(e.target.value)}
+                        placeholder={account.company_status ?? "Select status"}
+                      >
+                        <option value="private">Private</option>
+                        <option value="public">Public</option>
+                      </Select>
+                    </FormControl>
+
+                    <FormControl>
+                      <FormLabel fontSize="sm">Quantity (shares / options)</FormLabel>
+                      <NumberInput
+                        value={equityQuantity}
+                        onChange={setEquityQuantity}
+                        precision={4}
+                        min={0}
+                        size="sm"
+                      >
+                        <NumberInputField
+                          placeholder={account.quantity != null ? String(account.quantity) : "e.g., 10000"}
+                        />
+                      </NumberInput>
+                    </FormControl>
+
+                    {(equityGrantType === "iso" || equityGrantType === "nso" ||
+                      account.grant_type === "iso" || account.grant_type === "nso") && (
+                      <FormControl>
+                        <FormLabel fontSize="sm">Strike Price (exercise price)</FormLabel>
+                        <NumberInput
+                          value={equityStrikePrice}
+                          onChange={setEquityStrikePrice}
+                          precision={4}
+                          min={0}
+                          size="sm"
+                        >
+                          <NumberInputField
+                            placeholder={account.strike_price != null ? String(account.strike_price) : "e.g., 10.50"}
+                          />
+                        </NumberInput>
+                      </FormControl>
+                    )}
+
+                    <FormControl>
+                      <FormLabel fontSize="sm">Current Share Price</FormLabel>
+                      <NumberInput
+                        value={equitySharePrice}
+                        onChange={setEquitySharePrice}
+                        precision={4}
+                        min={0}
+                        size="sm"
+                      >
+                        <NumberInputField
+                          placeholder={account.share_price != null ? String(account.share_price) : "e.g., 25.00"}
+                        />
+                      </NumberInput>
+                    </FormControl>
+
+                    <FormControl>
+                      <FormLabel fontSize="sm">Grant Date</FormLabel>
+                      <Input
+                        type="date"
+                        size="sm"
+                        value={equityGrantDate}
+                        onChange={(e) => setEquityGrantDate(e.target.value)}
+                        placeholder={account.grant_date ?? undefined}
+                      />
+                    </FormControl>
+
+                    <Divider />
+
+                    {/* Vesting Schedule Editor */}
+                    <Box>
+                      <Text fontSize="sm" fontWeight="semibold" mb={2}>Vesting Schedule</Text>
+                      {account.vesting_schedule && (() => {
+                        try {
+                          const rows = JSON.parse(account.vesting_schedule);
+                          return Array.isArray(rows) && rows.length > 0 ? (
+                            <Text fontSize="xs" color="text.muted" mb={3}>
+                              {rows.length} existing event{rows.length !== 1 ? "s" : ""} — new events will be appended
+                            </Text>
+                          ) : null;
+                        } catch { return null; }
+                      })()}
+
+                      {/* Template quick-fill */}
+                      {(() => {
+                        const templateStart = equityGrantDate || account.grant_date || "";
+                        const templateShares =
+                          parseFloat(equityQuantity) ||
+                          (account.quantity != null ? account.quantity : 0);
+                        const canTemplate = !!templateStart && templateShares > 0;
+                        return (
+                          <Box mb={3} p={3} borderWidth="1px" borderRadius="md" borderColor="border.subtle">
+                            <Text fontSize="xs" fontWeight="semibold" mb={1} color="text.secondary">
+                              Quick templates
+                            </Text>
+                            <Text fontSize="xs" color="text.muted" mb={3}>
+                              Uses the Grant Date and Total Shares fields above.
+                              {!templateStart && " Fill in a Grant Date to enable."}
+                              {templateStart && !templateShares && " Fill in Total Shares to enable."}
+                            </Text>
+                            <HStack spacing={2} flexWrap="wrap">
+                              {[
+                                { id: "4yr-1yr-cliff-monthly",   label: "4yr / 1yr cliff (monthly)" },
+                                { id: "4yr-1yr-cliff-quarterly", label: "4yr / 1yr cliff (quarterly)" },
+                                { id: "4yr-quarterly",           label: "4yr quarterly" },
+                                { id: "4yr-annual",              label: "4yr annual" },
+                                { id: "3yr-annual",              label: "3yr annual" },
+                                { id: "2yr-semi",                label: "2yr semi-annual" },
+                                { id: "1yr-annual",              label: "1yr (single)" },
+                                { id: "1yr-monthly",             label: "1yr monthly" },
+                              ].map(({ id, label }) => (
+                                <Button
+                                  key={id}
+                                  size="xs"
+                                  variant="outline"
+                                  isDisabled={!canTemplate}
+                                  onClick={() => applyVestTemplate(id, templateStart, templateShares)}
+                                >
+                                  {label}
+                                </Button>
+                              ))}
+                            </HStack>
+                          </Box>
+                        );
+                      })()}
+
+                      <HStack justify="space-between" mb={2}>
+                        <Text fontSize="xs" color="text.muted">
+                          {vestRows.length > 0
+                            ? `${vestRows.length} event${vestRows.length !== 1 ? "s" : ""} — edit or add manually below`
+                            : "Or add events manually:"}
+                        </Text>
+                        <HStack spacing={2}>
+                          {vestRows.length > 0 && (
+                            <Button size="xs" variant="ghost" colorScheme="red" onClick={() => setVestRows([])}>
+                              Clear all
+                            </Button>
+                          )}
+                          <Button
+                            size="xs"
+                            leftIcon={<FiPlus />}
+                            variant="outline"
+                            onClick={() => setVestRows((r) => [...r, { date: "", quantity: "", notes: "" }])}
+                          >
+                            Add row
+                          </Button>
+                        </HStack>
+                      </HStack>
+
+                      {vestRows.length === 0 ? (
+                        <Text fontSize="xs" color="text.muted">
+                          No events yet. Use a template above or add rows manually.
+                        </Text>
+                      ) : (
+                        <Box overflowX="auto">
+                          <Table size="sm" variant="simple">
+                            <Thead>
+                              <Tr>
+                                <Th>Vest Date</Th>
+                                <Th isNumeric>Shares</Th>
+                                <Th>Notes (optional)</Th>
+                                <Th />
+                              </Tr>
+                            </Thead>
+                            <Tbody>
+                              {vestRows.map((row, idx) => (
+                                <Tr key={idx}>
+                                  <Td minW="150px">
+                                    <Input
+                                      type="date"
+                                      size="sm"
+                                      value={row.date}
+                                      onChange={(e) =>
+                                        setVestRows((rows) =>
+                                          rows.map((r, i) => i === idx ? { ...r, date: e.target.value } : r)
+                                        )
+                                      }
+                                    />
+                                  </Td>
+                                  <Td minW="120px">
+                                    <NumberInput
+                                      size="sm"
+                                      value={row.quantity}
+                                      onChange={(v) =>
+                                        setVestRows((rows) =>
+                                          rows.map((r, i) => i === idx ? { ...r, quantity: v } : r)
+                                        )
+                                      }
+                                      min={0}
+                                      precision={4}
+                                    >
+                                      <NumberInputField placeholder="e.g. 250" />
+                                    </NumberInput>
+                                  </Td>
+                                  <Td minW="140px">
+                                    <Input
+                                      size="sm"
+                                      placeholder="e.g. Cliff"
+                                      value={row.notes}
+                                      onChange={(e) =>
+                                        setVestRows((rows) =>
+                                          rows.map((r, i) => i === idx ? { ...r, notes: e.target.value } : r)
+                                        )
+                                      }
+                                    />
+                                  </Td>
+                                  <Td>
+                                    <IconButton
+                                      aria-label="Remove"
+                                      icon={<FiTrash2 />}
+                                      size="xs"
+                                      variant="ghost"
+                                      colorScheme="red"
+                                      onClick={() => setVestRows((rows) => rows.filter((_, i) => i !== idx))}
+                                    />
+                                  </Td>
+                                </Tr>
+                              ))}
+                            </Tbody>
+                          </Table>
+                        </Box>
+                      )}
+                    </Box>
+
+                    <Button
+                      colorScheme="brand"
+                      size="sm"
+                      onClick={handleSaveEquityDetails}
+                      isLoading={updateAccountMutation.isPending}
+                      isDisabled={
+                        !equityGrantType &&
+                        !equityQuantity &&
+                        !equityStrikePrice &&
+                        !equitySharePrice &&
+                        !equityGrantDate &&
+                        !equityCompanyStatus &&
+                        vestRows.filter((r) => r.date && r.quantity).length === 0
+                      }
+                    >
+                      Save Grant Details
+                    </Button>
+                  </>
+                )}
+              </VStack>
+            </CardBody>
+          </Card>
+        )}
 
         {/* Recurring Contributions Section - Only for investment/savings manual accounts */}
         {showContributions && (

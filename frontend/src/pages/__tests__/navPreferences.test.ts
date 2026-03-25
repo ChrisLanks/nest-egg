@@ -27,7 +27,14 @@ import {
 const STORAGE_KEY = "nest-egg-nav-visibility";
 const LEGACY_KEY = "nest-egg-show-all-nav";
 const LEGACY_ADVANCED_KEY = "nest-egg-show-advanced-nav";
-const ADVANCED_NAV_PATHS = ["/fire", "/tax-projection"];
+// Must match ADVANCED_PATHS in PreferencesPage (all items with advanced: true in NAV_SECTIONS)
+const ADVANCED_NAV_PATHS = [
+  "/fire",
+  "/tax-projection",
+  "/estate",
+  "/loan-modeler",
+  "/charitable-giving",
+];
 
 // ── Account fixtures ──────────────────────────────────────────────────────────
 
@@ -40,7 +47,6 @@ interface Account {
 
 const noAccounts: Account[] = [];
 const withMortgage: Account[] = [{ account_type: "mortgage" }];
-const withBrokerage: Account[] = [{ account_type: "brokerage" }];
 const withRental: Account[] = [
   { account_type: "property", is_rental_property: true },
 ];
@@ -248,21 +254,24 @@ describe("isNavVisible: unified override model", () => {
 describe("toggleAdvancedNav: writes into shared overrides store", () => {
   beforeEach(() => localStorage.clear());
 
-  it("enabling sets /fire and /tax-projection to true", () => {
+  it("enabling sets all advanced paths to true", () => {
     const updated = toggleAdvancedNav({}, true);
-    expect(updated["/fire"]).toBe(true);
-    expect(updated["/tax-projection"]).toBe(true);
+    for (const p of ADVANCED_NAV_PATHS) {
+      expect(updated[p]).toBe(true);
+    }
   });
-  it("disabling sets /fire and /tax-projection to false", () => {
+  it("disabling sets all advanced paths to false", () => {
     const updated = toggleAdvancedNav({}, false);
-    expect(updated["/fire"]).toBe(false);
-    expect(updated["/tax-projection"]).toBe(false);
+    for (const p of ADVANCED_NAV_PATHS) {
+      expect(updated[p]).toBe(false);
+    }
   });
-  it("persists to nest-egg-nav-visibility", () => {
+  it("persists all advanced paths to nest-egg-nav-visibility", () => {
     toggleAdvancedNav({}, true);
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)!);
-    expect(stored["/fire"]).toBe(true);
-    expect(stored["/tax-projection"]).toBe(true);
+    for (const p of ADVANCED_NAV_PATHS) {
+      expect(stored[p]).toBe(true);
+    }
   });
   it("also writes legacy compat flag", () => {
     toggleAdvancedNav({}, true);
@@ -295,9 +304,8 @@ describe("deriveShowAdvanced: derived from overrides", () => {
     ).toBe(false);
   });
   it("true when ALL advanced paths are explicitly true", () => {
-    expect(deriveShowAdvanced({ "/fire": true, "/tax-projection": true })).toBe(
-      true,
-    );
+    const allOn = Object.fromEntries(ADVANCED_NAV_PATHS.map((p) => [p, true]));
+    expect(deriveShowAdvanced(allOn)).toBe(true);
   });
   it("roundtrip: toggle on → derive true", () => {
     expect(deriveShowAdvanced(toggleAdvancedNav({}, true))).toBe(true);
@@ -516,25 +524,28 @@ describe("top-nav Advanced button: removed (consolidated into Preferences)", () 
   // "Show advanced features" toggle. These tests confirm the toggle/derive logic
   // works correctly from Preferences alone.
 
-  it("enabling advanced via Preferences toggle makes /fire and /tax-projection visible", () => {
+  it("enabling advanced via Preferences toggle makes all advanced paths visible", () => {
     const overrides = toggleAdvancedNav({}, true);
     const defaults = buildConditionalDefaults(noAccounts, null);
-    expect(isNavVisible("/fire", overrides, defaults)).toBe(true);
-    expect(isNavVisible("/tax-projection", overrides, defaults)).toBe(true);
+    for (const p of ADVANCED_NAV_PATHS) {
+      expect(isNavVisible(p, overrides, defaults)).toBe(true);
+    }
   });
 
-  it("disabling advanced via Preferences toggle hides /fire and /tax-projection", () => {
+  it("disabling advanced via Preferences toggle hides all advanced paths", () => {
     const overrides = toggleAdvancedNav({}, false);
     const defaults = buildConditionalDefaults(noAccounts, null);
-    expect(isNavVisible("/fire", overrides, defaults)).toBe(false);
-    expect(isNavVisible("/tax-projection", overrides, defaults)).toBe(false);
+    for (const p of ADVANCED_NAV_PATHS) {
+      expect(isNavVisible(p, overrides, defaults)).toBe(false);
+    }
   });
 
   it("state persists in the same localStorage key used by the nav", () => {
     toggleAdvancedNav({}, true);
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)!);
-    expect(stored["/fire"]).toBe(true);
-    expect(stored["/tax-projection"]).toBe(true);
+    for (const p of ADVANCED_NAV_PATHS) {
+      expect(stored[p]).toBe(true);
+    }
   });
 });
 

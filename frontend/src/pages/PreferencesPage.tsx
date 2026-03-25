@@ -317,7 +317,14 @@ function NavigationVisibilitySection() {
   const { conditionalDefaults } = useNavDefaults();
 
   // Paths controlled by the "Show advanced features" master toggle
-  const ADVANCED_PATHS = ["/fire", "/tax-projection"];
+  // Must match every item with advanced: true in NAV_SECTIONS (useNavDefaults.ts)
+  const ADVANCED_PATHS = [
+    "/fire",
+    "/tax-projection",
+    "/estate",
+    "/loan-modeler",
+    "/charitable-giving",
+  ];
 
   // Single source of truth: per-item overrides from nest-egg-nav-visibility.
   // The advanced master switch reads from and writes into this same store,

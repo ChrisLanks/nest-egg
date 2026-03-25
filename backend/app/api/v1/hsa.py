@@ -1,21 +1,34 @@
 """HSA optimization API endpoints."""
 
 import logging
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Path, Query, UploadFile
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import select, update
+from sqlalchemy import func, select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.dependencies import get_current_user
+from app.models.account import Account, AccountType
 from app.models.hsa_receipt import HsaReceipt
+from app.models.transaction import Transaction
 from app.models.user import User
 from app.services.hsa_optimization_service import HsaOptimizationService
+from app.services.storage_service import StorageService, get_storage_service
+
+# Allowed MIME types for receipt attachments
+_ALLOWED_CONTENT_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "application/pdf",
+}
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +144,9 @@ async def list_receipts(
             "reimbursed_at": r.reimbursed_at.isoformat() if r.reimbursed_at else None,
             "tax_year": r.tax_year,
             "notes": r.notes,
+            "file_name": r.file_name,
+            "file_content_type": r.file_content_type,
+            "has_attachment": r.file_key is not None,
             "created_at": r.created_at.isoformat(),
         }
         for r in receipts
@@ -210,3 +226,159 @@ async def update_receipt(
         "reimbursed_at": receipt.reimbursed_at.isoformat() if receipt.reimbursed_at else None,
         "notes": receipt.notes,
     }
+
+
+# ── YTD summary ───────────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/ytd-summary",
+    summary="HSA year-to-date contribution and expense summary",
+    description=(
+        "Aggregates transactions from HSA accounts for the current year. "
+        "Returns ytd_contributions (positive amounts) and ytd_medical_expenses (absolute value of negatives)."
+    ),
+)
+async def get_ytd_summary(
+    year: Optional[int] = Query(None, description="Tax year (defaults to current year)"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Returns YTD contribution and medical expense totals from linked HSA accounts."""
+    tax_year = year or datetime.utcnow().year
+    start = date(tax_year, 1, 1)
+    end = date(tax_year, 12, 31)
+
+    # Find all HSA accounts for this org
+    acct_result = await db.execute(
+        select(Account.id).where(
+            Account.organization_id == current_user.organization_id,
+            Account.account_type == AccountType.HSA,
+        )
+    )
+    hsa_account_ids = [row[0] for row in acct_result.fetchall()]
+
+    if not hsa_account_ids:
+        return {
+            "year": tax_year,
+            "ytd_contributions": 0.0,
+            "ytd_medical_expenses": 0.0,
+            "hsa_accounts_found": 0,
+        }
+
+    # Positive transactions = contributions; negative = withdrawals/medical
+    txn_result = await db.execute(
+        select(Transaction.amount).where(
+            and_(
+                Transaction.organization_id == current_user.organization_id,
+                Transaction.account_id.in_(hsa_account_ids),
+                Transaction.date >= start,
+                Transaction.date <= end,
+                Transaction.is_pending.is_(False),
+            )
+        )
+    )
+    amounts = [row[0] for row in txn_result.fetchall()]
+
+    ytd_contributions = float(sum(a for a in amounts if a > 0))
+    ytd_medical_expenses = float(abs(sum(a for a in amounts if a < 0)))
+
+    return {
+        "year": tax_year,
+        "ytd_contributions": ytd_contributions,
+        "ytd_medical_expenses": ytd_medical_expenses,
+        "hsa_accounts_found": len(hsa_account_ids),
+    }
+
+
+# ── Receipt file attachment ───────────────────────────────────────────────────
+
+
+@router.post(
+    "/receipts/{receipt_id}/attachment",
+    summary="Upload a file attachment for an HSA receipt",
+    status_code=200,
+)
+async def upload_receipt_attachment(
+    receipt_id: UUID = Path(...),
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    storage: StorageService = Depends(get_storage_service),
+):
+    """Uploads a receipt image or PDF and stores the file key on the receipt record."""
+    content_type = file.content_type or ""
+    if content_type not in _ALLOWED_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported file type '{content_type}'. Allowed: image/jpeg, image/png, image/gif, image/webp, application/pdf.",
+        )
+
+    result = await db.execute(
+        select(HsaReceipt).where(
+            HsaReceipt.id == receipt_id,
+            HsaReceipt.organization_id == current_user.organization_id,
+            HsaReceipt.user_id == current_user.id,
+        )
+    )
+    receipt = result.scalar_one_or_none()
+    if not receipt:
+        raise HTTPException(status_code=404, detail="HSA receipt not found")
+
+    data = await file.read()
+    if len(data) > 20 * 1024 * 1024:  # 20 MB cap
+        raise HTTPException(status_code=413, detail="File too large (max 20 MB)")
+
+    ext = (file.filename or "receipt").rsplit(".", 1)[-1] if "." in (file.filename or "") else "bin"
+    key = f"hsa-receipts/{current_user.organization_id}/{receipt_id}/{uuid4()}.{ext}"
+    await storage.save(key, data, content_type=content_type)
+
+    receipt.file_key = key
+    receipt.file_name = file.filename
+    receipt.file_content_type = content_type
+    await db.commit()
+
+    return {
+        "id": str(receipt.id),
+        "file_name": receipt.file_name,
+        "file_content_type": receipt.file_content_type,
+    }
+
+
+@router.get(
+    "/receipts/{receipt_id}/attachment",
+    summary="Download the file attachment for an HSA receipt",
+)
+async def download_receipt_attachment(
+    receipt_id: UUID = Path(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    storage: StorageService = Depends(get_storage_service),
+):
+    """Returns the raw bytes of the stored receipt file."""
+    result = await db.execute(
+        select(HsaReceipt).where(
+            HsaReceipt.id == receipt_id,
+            HsaReceipt.organization_id == current_user.organization_id,
+            HsaReceipt.user_id == current_user.id,
+        )
+    )
+    receipt = result.scalar_one_or_none()
+    if not receipt:
+        raise HTTPException(status_code=404, detail="HSA receipt not found")
+    if not receipt.file_key:
+        raise HTTPException(status_code=404, detail="No attachment found for this receipt")
+
+    try:
+        data = await storage.load(receipt.file_key)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Attachment file not found in storage")
+
+    return StreamingResponse(
+        iter([data]),
+        media_type=receipt.file_content_type or "application/octet-stream",
+        headers={
+            "Content-Disposition": f'attachment; filename="{receipt.file_name or "receipt"}"',
+            "Content-Length": str(len(data)),
+        },
+    )
