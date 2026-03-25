@@ -553,14 +553,25 @@ export const Layout = () => {
     }
   });
 
-  // Advanced nav preference — set during onboarding or in Preferences
-  const showAdvancedNav = useState<boolean>(() => {
+  // Advanced nav preference — set during onboarding or in Preferences.
+  // Uses a storage event listener so the nav updates when the user toggles
+  // the preference in PreferencesPage without a full page reload.
+  const [showAdvancedNav, setShowAdvancedNav] = useState<boolean>(() => {
     try {
       return localStorage.getItem("nest-egg-show-advanced-nav") === "true";
     } catch {
       return false;
     }
-  })[0];
+  });
+  useEffect(() => {
+    const handler = (e: StorageEvent) => {
+      if (e.key === "nest-egg-show-advanced-nav") {
+        setShowAdvancedNav(e.newValue === "true");
+      }
+    };
+    window.addEventListener("storage", handler);
+    return () => window.removeEventListener("storage", handler);
+  }, []);
 
   const [collapsedSections, setCollapsedSections] = useState<
     Record<string, boolean>
@@ -1012,9 +1023,16 @@ export const Layout = () => {
       advanced?: boolean;
     }[],
   ): { label: string; path: string; tooltip?: string }[] =>
-    items.filter(
-      (item) => isNavVisible(item.path) && (!item.advanced || showAdvancedNav),
-    );
+    items.filter((item) => {
+      if (!isNavVisible(item.path)) return false;
+      // Advanced items are hidden by default unless:
+      // (a) the master advanced-nav switch is on, OR
+      // (b) the user has an explicit per-item override enabling it
+      if (item.advanced && !showAdvancedNav && !(item.path in navOverridesState && navOverridesState[item.path])) {
+        return false;
+      }
+      return true;
+    });
 
   const spendingMenuItems = filterVisible(allSpendingItems);
   const analyticsMenuItems = filterVisible(allAnalyticsItems);

@@ -589,8 +589,11 @@ describe("advanced nav items hidden when showAdvancedNav is false", () => {
       require("path").join(__dirname, "../../components/Layout.tsx"),
       "utf8",
     );
-    // filterVisible must gate on advanced items
-    expect(source).toContain("!item.advanced || showAdvancedNav");
+    // filterVisible must gate on advanced items via showAdvancedNav AND
+    // also allow items with an explicit per-item override (navOverridesState)
+    expect(source).toContain("item.advanced");
+    expect(source).toContain("showAdvancedNav");
+    expect(source).toContain("navOverridesState");
   });
 
   it("showAdvancedNav defaults to false when key absent from localStorage", () => {
