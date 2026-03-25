@@ -4,7 +4,7 @@
  *
  * Architecture (post-unification with useNavDefaults hook):
  *   - All visibility state in one store: nest-egg-nav-visibility
- *   - "Show advanced features" toggle writes /fire and /tax-projection into that store
+ *   - "Show advanced features" toggle writes /investment-tools into that store
  *   - isNavVisible(path, overrides, defaults) — overrides always win
  *   - showAdvancedNav is DERIVED: true iff ALL advanced paths are explicitly true
  *   - Per-item switch can turn an advanced tab on even when master toggle is off
@@ -12,6 +12,8 @@
  *   - Per-item toggles set pendingReload=true; Apply button calls window.location.reload()
  *   - "Show advanced features" toggle and "Reset to Default" reload immediately
  *   - No standalone "Advanced" button in the top nav (removed as duplicate)
+ *   - Recurring + Bills merged into /recurring-bills hub
+ *   - 9 planning items consolidated into 3 hubs (/tax-center, /life-planning, /investment-tools)
  *
  * @vitest-environment jsdom
  */
@@ -29,11 +31,7 @@ const LEGACY_KEY = "nest-egg-show-all-nav";
 const LEGACY_ADVANCED_KEY = "nest-egg-show-advanced-nav";
 // Must match ADVANCED_PATHS in PreferencesPage (all items with advanced: true in NAV_SECTIONS)
 const ADVANCED_NAV_PATHS = [
-  "/fire",
-  "/tax-projection",
-  "/estate",
-  "/loan-modeler",
-  "/charitable-giving",
+  "/investment-tools",
 ];
 
 // ── Account fixtures ──────────────────────────────────────────────────────────
@@ -183,14 +181,14 @@ describe("isItemOn: account-aware defaults (conditionalDefaults)", () => {
     expect(isItemOn({ path: "/rental-properties" }, {}, defaults)).toBe(false);
   });
 
-  it("recurring shows as ON with linked bank account", () => {
+  it("recurring-bills shows as ON with linked bank account", () => {
     const defaults = buildConditionalDefaults(withLinkedBank, null);
-    expect(isItemOn({ path: "/recurring" }, {}, defaults)).toBe(true);
+    expect(isItemOn({ path: "/recurring-bills" }, {}, defaults)).toBe(true);
   });
 
-  it("recurring shows as OFF with no linked account", () => {
+  it("recurring-bills shows as OFF with no linked account", () => {
     const defaults = buildConditionalDefaults(noAccounts, null);
-    expect(isItemOn({ path: "/recurring" }, {}, defaults)).toBe(false);
+    expect(isItemOn({ path: "/recurring-bills" }, {}, defaults)).toBe(false);
   });
 
   it("override true turns on a conditionally-off item", () => {
@@ -281,11 +279,10 @@ describe("toggleAdvancedNav: writes into shared overrides store", () => {
     const updated = toggleAdvancedNav({ "/budgets": false }, true);
     expect(updated["/budgets"]).toBe(false);
   });
-  it("toggle off then on restores both paths to true", () => {
+  it("toggle off then on restores investment-tools to true", () => {
     const off = toggleAdvancedNav({}, false);
     const on = toggleAdvancedNav(off, true);
-    expect(on["/fire"]).toBe(true);
-    expect(on["/tax-projection"]).toBe(true);
+    expect(on["/investment-tools"]).toBe(true);
   });
 });
 
@@ -335,11 +332,11 @@ describe("per-item switch independence", () => {
     expect(deriveShowAdvanced(overrides)).toBe(false);
   });
 
-  it("per-item off for /fire overrides master-on state", () => {
+  it("per-item off for /investment-tools overrides master-on state", () => {
     let overrides = toggleAdvancedNav({}, true);
-    overrides = toggleItem(overrides, "/fire", false);
+    overrides = toggleItem(overrides, "/investment-tools", false);
     const defaults = buildConditionalDefaults(noAccounts, null);
-    expect(isNavVisible("/fire", overrides, defaults)).toBe(false);
+    expect(isNavVisible("/investment-tools", overrides, defaults)).toBe(false);
     expect(deriveShowAdvanced(overrides)).toBe(false);
   });
 });
@@ -455,40 +452,29 @@ describe("NAV_SECTIONS: structure", () => {
       expect(item.alwaysOn).toBe(true);
     }
   });
-  it("conditional items include all account-gated and age-gated tabs", () => {
+  it("conditional items include all account-gated tabs", () => {
     const conditionalPaths = NAV_SECTIONS.flatMap((s) => s.items)
       .filter((i) => i.conditional)
       .map((i) => i.path)
       .sort();
     expect(conditionalPaths).toEqual([
-      "/bills",
       "/debt-payoff",
       "/education",
-      "/equity",
       "/hsa",
       "/mortgage",
-      "/recurring",
+      "/recurring-bills",
       "/rental-properties",
       "/rules",
-      "/ss-claiming",
       "/tax-deductible",
-      "/variable-income",
     ]);
   });
-  it("advanced items include /fire, /tax-projection, /estate, /loan-modeler, /charitable-giving", () => {
+  it("only /investment-tools is advanced (consolidated from 5 individual items)", () => {
     const advancedPaths = NAV_SECTIONS.flatMap((s) => s.items)
       .filter((i) => i.advanced)
-      .map((i) => i.path)
-      .sort();
-    expect(advancedPaths).toEqual([
-      "/charitable-giving",
-      "/estate",
-      "/fire",
-      "/loan-modeler",
-      "/tax-projection",
-    ]);
+      .map((i) => i.path);
+    expect(advancedPaths).toEqual(["/investment-tools"]);
   });
-  it("no spending items are advanced; Recurring, Bills, Rules are conditional", () => {
+  it("no spending items are advanced; /recurring-bills and /rules are conditional", () => {
     const spending = NAV_SECTIONS.find((s) => s.group === "Spending");
     expect(spending!.items.every((i) => !i.advanced)).toBe(true);
     expect(
@@ -496,17 +482,18 @@ describe("NAV_SECTIONS: structure", () => {
         .filter((i) => i.conditional)
         .map((i) => i.path)
         .sort(),
-    ).toEqual(["/bills", "/recurring", "/rules"]);
+    ).toEqual(["/recurring-bills", "/rules"]);
   });
   it("all items have unique paths", () => {
     const allPaths = NAV_SECTIONS.flatMap((s) => s.items).map((i) => i.path);
     expect(new Set(allPaths).size).toBe(allPaths.length);
   });
-  it("FIRE and Tax Projection are in Planning group", () => {
+  it("consolidated hubs are in Planning group", () => {
     const planning = NAV_SECTIONS.find((s) => s.group === "Planning");
     const paths = planning!.items.map((i) => i.path);
-    expect(paths).toContain("/fire");
-    expect(paths).toContain("/tax-projection");
+    expect(paths).toContain("/tax-center");
+    expect(paths).toContain("/life-planning");
+    expect(paths).toContain("/investment-tools");
   });
   it("Mortgage is in Planning group as a conditional item", () => {
     const planning = NAV_SECTIONS.find((s) => s.group === "Planning");
@@ -549,27 +536,29 @@ describe("top-nav Advanced button: removed (consolidated into Preferences)", () 
   });
 });
 
-// ── SS Optimizer visibility fix ───────────────────────────────────────────────
+// ── SS Optimizer / Life Planning hub ─────────────────────────────────────────
+// /ss-claiming was merged into /life-planning. The nav now shows /life-planning
+// unconditionally; age-gating for SS is handled inside the hub page itself.
 
-describe("SS Optimizer visibility: hidden for new users with no birthdate", () => {
-  it("hides /ss-claiming when userAge is null (no birthdate set)", () => {
+describe("Life Planning hub: always visible (SS age-gating inside hub)", () => {
+  it("/ss-claiming is no longer a top-level nav path", () => {
+    const allPaths = NAV_SECTIONS.flatMap((s) => s.items).map((i) => i.path);
+    expect(allPaths).not.toContain("/ss-claiming");
+  });
+
+  it("/ss-claiming is not in conditionalDefaults (merged into hub)", () => {
     const defaults = buildConditionalDefaults(noAccounts, null);
-    expect(defaults["/ss-claiming"]).toBe(false);
+    expect("/ss-claiming" in defaults).toBe(false);
   });
 
-  it("hides /ss-claiming for users under 50", () => {
-    const defaults = buildConditionalDefaults(noAccounts, 35);
-    expect(defaults["/ss-claiming"]).toBe(false);
-  });
-
-  it("shows /ss-claiming for users exactly 50", () => {
-    const defaults = buildConditionalDefaults(noAccounts, 50);
-    expect(defaults["/ss-claiming"]).toBe(true);
-  });
-
-  it("shows /ss-claiming for users over 50", () => {
-    const defaults = buildConditionalDefaults(noAccounts, 65);
-    expect(defaults["/ss-claiming"]).toBe(true);
+  it("/life-planning is always visible regardless of age", () => {
+    const defaultsNoAge = buildConditionalDefaults(noAccounts, null);
+    const defaultsYoung = buildConditionalDefaults(noAccounts, 30);
+    const defaultsOld = buildConditionalDefaults(noAccounts, 65);
+    // undefined means not in map → defaults to true in isNavVisible
+    expect(defaultsNoAge["/life-planning"] ?? true).toBe(true);
+    expect(defaultsYoung["/life-planning"] ?? true).toBe(true);
+    expect(defaultsOld["/life-planning"] ?? true).toBe(true);
   });
 });
 
