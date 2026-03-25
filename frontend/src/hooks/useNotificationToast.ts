@@ -28,13 +28,15 @@
  * warning and never breaks the toast or the calling component.
  */
 
-import { useToast, UseToastOptions } from "@chakra-ui/react";
+import { useToast } from "@chakra-ui/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { notificationsApi } from "../api/notifications";
 import type { NotificationCreate } from "../types/notification";
 
-export interface NotificationToastOptions extends UseToastOptions {
+type UseToastOptions = Parameters<ReturnType<typeof useToast>>[0];
+
+export interface NotificationToastOptions extends NonNullable<UseToastOptions> {
   /**
    * When provided the notification is also persisted to the backend and will
    * appear in the notification bell dropdown.  Omit for transient/error toasts
