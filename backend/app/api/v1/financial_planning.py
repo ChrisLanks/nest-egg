@@ -268,7 +268,7 @@ async def get_mortgage_analysis(
             has_mortgage=False,
         )
 
-    balance = float(account.current_balance or 0)
+    balance = abs(float(account.current_balance or 0))  # stored as negative (liability)
     rate = float(account.interest_rate or 0) / 100  # stored as percentage
     min_pmt = float(account.minimum_payment or 0)
 
