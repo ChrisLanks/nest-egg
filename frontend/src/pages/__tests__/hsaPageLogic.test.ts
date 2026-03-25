@@ -284,3 +284,110 @@ describe('HSA account helpers', () => {
     expect(total).toBeCloseTo(12345.67);
   });
 });
+
+// ── Member-filter scoping ─────────────────────────────────────────────────────
+// Mirrors the matchesMemberFilter logic in MemberFilterContext so that HSA
+// account cards never show another household member's account.
+
+interface AccountWithUser {
+  id: string;
+  account_type: string;
+  current_balance: string | number | null;
+  user_id: string;
+}
+
+/** Mimics matchesMemberFilter from MemberFilterContext */
+function matchesMemberFilter(
+  selectedMemberIds: Set<string>,
+  isAllSelected: boolean,
+  itemUserId: string | null | undefined,
+): boolean {
+  if (isAllSelected) return true;
+  if (!itemUserId) return true;
+  return selectedMemberIds.has(itemUserId);
+}
+
+function filterHsaAccountsByMember(
+  accounts: AccountWithUser[],
+  selectedMemberIds: Set<string>,
+  isAllSelected: boolean,
+): AccountWithUser[] {
+  return accounts.filter(
+    (a) =>
+      a.account_type === 'hsa' &&
+      matchesMemberFilter(selectedMemberIds, isAllSelected, a.user_id),
+  );
+}
+
+describe('HSA member-filter scoping', () => {
+  const CHRIS = 'user-chris';
+  const TEST = 'user-test';
+  const TEST2 = 'user-test2';
+
+  const allAccounts: AccountWithUser[] = [
+    { id: '1', account_type: 'hsa', current_balance: '5789.70', user_id: CHRIS },
+    { id: '2', account_type: 'hsa', current_balance: '500.00', user_id: TEST },
+    { id: '3', account_type: 'hsa', current_balance: '2000.00', user_id: TEST2 },
+    { id: '4', account_type: 'checking', current_balance: 10000, user_id: CHRIS },
+  ];
+
+  it('all-selected returns all HSA accounts', () => {
+    const result = filterHsaAccountsByMember(
+      allAccounts,
+      new Set([CHRIS, TEST, TEST2]),
+      true,
+    );
+    expect(result).toHaveLength(3);
+  });
+
+  it('single user selected hides other members HSA accounts', () => {
+    const result = filterHsaAccountsByMember(
+      allAccounts,
+      new Set([TEST]),
+      false,
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0].user_id).toBe(TEST);
+  });
+
+  it('multi-select of test+test2 excludes Chris HSA', () => {
+    const result = filterHsaAccountsByMember(
+      allAccounts,
+      new Set([TEST, TEST2]),
+      false,
+    );
+    expect(result).toHaveLength(2);
+    expect(result.every((a) => a.user_id !== CHRIS)).toBe(true);
+  });
+
+  it('selecting only Chris returns only his HSA', () => {
+    const result = filterHsaAccountsByMember(
+      allAccounts,
+      new Set([CHRIS]),
+      false,
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('1');
+  });
+
+  it('balance total respects member filter — excludes Chris when not selected', () => {
+    const filtered = filterHsaAccountsByMember(
+      allAccounts,
+      new Set([TEST, TEST2]),
+      false,
+    );
+    const total = filtered.reduce((s, a) => s + toFloat(a.current_balance), 0);
+    expect(total).toBeCloseTo(2500);
+    // Chris's $5789.70 must NOT be included
+    expect(total).toBeLessThan(5000);
+  });
+
+  it('null user_id on an account passes the filter (shared/org-level accounts)', () => {
+    const accounts: AccountWithUser[] = [
+      { id: '99', account_type: 'hsa', current_balance: 100, user_id: '' },
+    ];
+    // user_id falsy → matchesMemberFilter returns true regardless of selection
+    const result = filterHsaAccountsByMember(accounts, new Set([TEST]), false);
+    expect(result).toHaveLength(1);
+  });
+});

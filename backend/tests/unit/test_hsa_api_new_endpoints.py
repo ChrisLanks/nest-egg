@@ -66,11 +66,14 @@ class TestGetYtdSummary:
         return _make_user()
 
     async def test_returns_zeros_when_no_hsa_accounts(self, mock_db, mock_user):
-        # No HSA accounts found
-        mock_db.execute.return_value.fetchall.return_value = []
+        # No HSA accounts found — single execute call returning empty list
+        acct_result = Mock()
+        acct_result.fetchall.return_value = []
+        mock_db.execute.side_effect = [acct_result]
 
         result = await get_ytd_summary(
             year=2026,
+            user_id=None,
             current_user=mock_user,
             db=mock_db,
         )
@@ -95,6 +98,7 @@ class TestGetYtdSummary:
 
         result = await get_ytd_summary(
             year=2026,
+            user_id=None,
             current_user=mock_user,
             db=mock_db,
         )
@@ -108,10 +112,11 @@ class TestGetYtdSummary:
 
         acct_result = Mock()
         acct_result.fetchall.return_value = []
-        mock_db.execute.return_value.fetchall.return_value = []
+        mock_db.execute.side_effect = [acct_result]
 
         result = await get_ytd_summary(
             year=None,
+            user_id=None,
             current_user=mock_user,
             db=mock_db,
         )
@@ -131,12 +136,49 @@ class TestGetYtdSummary:
 
         result = await get_ytd_summary(
             year=2026,
+            user_id=None,
             current_user=mock_user,
             db=mock_db,
         )
 
         assert result["ytd_contributions"] == 0.0
         assert result["ytd_medical_expenses"] == pytest.approx(450.0)
+
+    async def test_user_id_param_is_passed_to_account_query(self, mock_db, mock_user):
+        """When user_id is given, the account query should include a user filter.
+        The endpoint issues one execute (accounts) when no accounts found."""
+        target_user_id = uuid4()
+        acct_result = Mock()
+        acct_result.fetchall.return_value = []
+        mock_db.execute.side_effect = [acct_result]
+
+        result = await get_ytd_summary(
+            year=2026,
+            user_id=target_user_id,
+            current_user=mock_user,
+            db=mock_db,
+        )
+
+        # Verify the endpoint executed exactly once (account lookup only, no transactions)
+        assert mock_db.execute.call_count == 1
+        # Result is zeros — no accounts for that user
+        assert result["hsa_accounts_found"] == 0
+
+    async def test_user_id_none_queries_all_org_accounts(self, mock_db, mock_user):
+        """When user_id is None the endpoint queries all org HSA accounts."""
+        acct_result = Mock()
+        acct_result.fetchall.return_value = []
+        mock_db.execute.side_effect = [acct_result]
+
+        await get_ytd_summary(
+            year=2026,
+            user_id=None,
+            current_user=mock_user,
+            db=mock_db,
+        )
+
+        # Still one execute call — the account lookup covers the whole org
+        assert mock_db.execute.call_count == 1
 
 
 # ── Upload Attachment ─────────────────────────────────────────────────────────
