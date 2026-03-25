@@ -154,7 +154,7 @@ function InfoTip({ label }: { label: string }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export const HsaPage = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, matchesMemberFilter, memberEffectiveUserId } = useUserView();
   const toast = useToast();
   const queryClient = useQueryClient();
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -181,10 +181,10 @@ export const HsaPage = () => {
   // ── Data fetching ────────────────────────────────────────────────────────
 
   const { data: allAccounts = [], isLoading: accountsLoading } = useQuery<Account[]>({
-    queryKey: ["accounts", selectedUserId],
+    queryKey: ["accounts", memberEffectiveUserId],
     queryFn: async () => {
       const params: Record<string, string> = {};
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (memberEffectiveUserId) params.user_id = memberEffectiveUserId;
       const res = await api.get("/accounts/", { params });
       return res.data;
     },
@@ -212,10 +212,10 @@ export const HsaPage = () => {
 
   // YTD contributions from transactions on linked HSA accounts
   const { data: ytdSummary } = useQuery<YtdSummary>({
-    queryKey: ["hsa-ytd-summary", currentYear, selectedUserId],
+    queryKey: ["hsa-ytd-summary", currentYear, memberEffectiveUserId],
     queryFn: async () => {
       const params: Record<string, unknown> = { year: currentYear };
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (memberEffectiveUserId) params.user_id = memberEffectiveUserId;
       const res = await api.get("/hsa/ytd-summary", { params });
       return res.data;
     },
@@ -230,7 +230,9 @@ export const HsaPage = () => {
 
   // ── Derived values ───────────────────────────────────────────────────────
 
-  const hsaAccounts = allAccounts.filter((a) => a.account_type === "hsa");
+  const hsaAccounts = allAccounts.filter(
+    (a) => a.account_type === "hsa" && matchesMemberFilter(a.user_id),
+  );
   // Fix NaN: current_balance comes from API as a Decimal-serialized string
   const totalHsaBalance = hsaAccounts.reduce((s, a) => s + toFloat(a.current_balance), 0);
   const hasHsaAccounts = hsaAccounts.length > 0;
