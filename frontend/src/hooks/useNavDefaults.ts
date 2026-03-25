@@ -62,14 +62,8 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "Budgets", path: "/budgets" },
       { label: "Categories & Labels", path: "/categories" },
       {
-        label: "Recurring",
-        path: "/recurring",
-        conditional: true,
-        reason: "Shown once a bank account is connected",
-      },
-      {
-        label: "Bills",
-        path: "/bills",
+        label: "Recurring & Bills",
+        path: "/recurring-bills",
         conditional: true,
         reason: "Shown once a bank account is connected",
       },
@@ -172,27 +166,14 @@ export function buildConditionalDefaults(
     (a) => a.plaid_item_id !== null || a.plaid_item_hash !== null,
   );
   const hasAnyAccounts = accounts.length > 0;
-  const hasEquityAccounts = accounts.some(
-    (a) =>
-      a.account_type === "stock_options" ||
-      a.account_type === "private_equity",
-  );
   const hasHSA = accounts.some((a) => a.account_type === "hsa");
-
-  // Show SS optimizer only for users 50+; hide when age unknown (no birthdate)
-  const showSsOptimizer = userAge !== null && userAge >= 50;
-  // FIRE: show for investors under 50 only; hide when age unknown (safer default)
-  const showFireSmart = hasInvestments && userAge !== null && userAge < 50;
-  // Tax Projection: show if user has investment accounts (capital gains relevant)
-  const showTaxProjectionSmart = hasInvestments;
 
   return {
     "/rental-properties": hasRental,
     "/education": has529,
     "/debt-payoff": hasDebt,
     "/mortgage": hasMortgage,
-    "/recurring": hasLinkedAccounts,
-    "/bills": hasLinkedAccounts,
+    "/recurring-bills": hasLinkedAccounts,
     "/rules": hasAnyAccounts,
     "/tax-deductible": hasInvestments || hasRental,
     "/hsa": hasHSA,

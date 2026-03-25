@@ -848,15 +848,10 @@ export const Layout = () => {
         "Set monthly or custom spending limits by category and get alerts when you're close",
     },
     {
-      label: "Recurring",
-      path: "/recurring",
+      label: "Recurring & Bills",
+      path: "/recurring-bills",
       tooltip:
-        "Subscriptions and bills that repeat — see what you're paying automatically each month",
-    },
-    {
-      label: "Bills",
-      path: "/bills",
-      tooltip: "Upcoming bills and due dates so you never miss a payment",
+        "Subscriptions, recurring payments, and upcoming bill due dates — all in one place",
     },
     {
       label: "Categories & Labels",

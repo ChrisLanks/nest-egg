@@ -60,6 +60,7 @@ const RecurringTransactionsPage = lazy(
   () => import("./pages/RecurringTransactionsPage"),
 );
 const BillsPage = lazy(() => import("./pages/BillsPage"));
+const RecurringBillsPage = lazy(() => import("./pages/RecurringBillsPage"));
 const TaxDeductiblePage = lazy(() => import("./pages/TaxDeductiblePage"));
 const TrendsPage = lazy(() => import("./pages/TrendsPage"));
 const ReportsPage = lazy(() => import("./pages/ReportsPage"));
@@ -217,11 +218,9 @@ function App() {
                       <Route path="/budgets" element={<BudgetsPage />} />
                       <Route path="/goals" element={<SavingsGoalsPage />} />
                       <Route path="/quick-setup" element={<QuickSetupPage />} />
-                      <Route
-                        path="/recurring"
-                        element={<RecurringTransactionsPage />}
-                      />
-                      <Route path="/bills" element={<BillsPage />} />
+                      <Route path="/recurring-bills" element={<RecurringBillsPage />} />
+                      <Route path="/recurring" element={<Navigate to="/recurring-bills" replace />} />
+                      <Route path="/bills" element={<Navigate to="/recurring-bills" replace />} />
                       <Route path="/calendar" element={<CalendarPage />} />
                       <Route
                         path="/bill-calendar"

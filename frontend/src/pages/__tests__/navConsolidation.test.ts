@@ -57,6 +57,26 @@ describe("nav consolidation — planning items", () => {
   });
 });
 
+// ── Spending section ──────────────────────────────────────────────────────────
+
+describe("nav consolidation — spending items", () => {
+  const spendingSection = NAV_SECTIONS.find((s) => s.group === "Spending");
+  const spendingPaths = spendingSection?.items.map((i) => i.path) ?? [];
+
+  it("has recurring-bills hub", () => {
+    expect(spendingPaths).toContain("/recurring-bills");
+  });
+
+  it("does NOT have old separate recurring and bills paths", () => {
+    expect(spendingPaths).not.toContain("/recurring");
+    expect(spendingPaths).not.toContain("/bills");
+  });
+
+  it("spending items reduced to 5 (was 6)", () => {
+    expect(spendingSection!.items.length).toBe(5);
+  });
+});
+
 // ── buildConditionalDefaults ──────────────────────────────────────────────────
 
 describe("buildConditionalDefaults — hub paths", () => {
@@ -83,6 +103,17 @@ describe("buildConditionalDefaults — hub paths", () => {
     expect("/variable-income" in noAccounts).toBe(false);
     expect("/loan-modeler" in noAccounts).toBe(false);
     expect("/charitable-giving" in noAccounts).toBe(false);
+    expect("/recurring" in noAccounts).toBe(false);
+    expect("/bills" in noAccounts).toBe(false);
+  });
+
+  it("recurring-bills shown only with linked accounts", () => {
+    expect(noAccounts["/recurring-bills"]).toBe(false);
+    const withLinked = buildConditionalDefaults(
+      [{ account_type: "checking", plaid_item_id: "plaid-123", plaid_item_hash: null }],
+      null,
+    );
+    expect(withLinked["/recurring-bills"]).toBe(true);
   });
 
   it("conditional items still work correctly", () => {
