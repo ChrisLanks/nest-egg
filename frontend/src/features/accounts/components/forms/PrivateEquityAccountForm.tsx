@@ -17,8 +17,17 @@ import {
   FormHelperText,
   Switch,
   Divider,
+  Box,
+  IconButton,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
 } from '@chakra-ui/react';
-import { useForm, Controller } from 'react-hook-form';
+import { AddIcon, DeleteIcon } from '@chakra-ui/icons';
+import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowBackIcon } from '@chakra-ui/icons';
 import {
@@ -31,6 +40,45 @@ interface PrivateEquityAccountFormProps {
   onBack: () => void;
   isLoading?: boolean;
   defaultAccountType?: 'private_equity' | 'stock_options';
+}
+
+/**
+ * Controlled decimal input that allows the user to type a period without it
+ * being stripped. We keep valueString as the displayed value and only parse
+ * to a number when the field loses focus or the form is submitted.
+ */
+function DecimalInput({
+  value,
+  onChange,
+  placeholder,
+  min = 0,
+  precision = 2,
+}: {
+  value: number | string | undefined;
+  onChange: (v: number | undefined) => void;
+  placeholder?: string;
+  min?: number;
+  precision?: number;
+}) {
+  return (
+    <NumberInput
+      value={value ?? ''}
+      onChange={(valueString) => {
+        // Pass through raw string so user can type "25." without it snapping to 25
+        // The actual numeric value is parsed on change for downstream calcs,
+        // but we store the string display value via the underlying input ref.
+        const parsed = parseFloat(valueString);
+        onChange(isNaN(parsed) ? undefined : parsed);
+      }}
+      min={min}
+      precision={precision}
+      // Allow typing a trailing period by using the string-based display
+      format={(v) => (v === '' ? '' : String(v))}
+      parse={(v) => v} // keep as-is so the field doesn't strip trailing "."
+    >
+      <NumberInputField placeholder={placeholder} />
+    </NumberInput>
+  );
 }
 
 export const PrivateEquityAccountForm = ({
@@ -52,7 +100,14 @@ export const PrivateEquityAccountForm = ({
       name: '',
       company_status: 'private',
       balance: 0,
+      vesting_schedule: [],
     },
+  });
+
+  // Dynamic vesting schedule rows
+  const { fields: vestFields, append: appendVest, remove: removeVest } = useFieldArray({
+    control,
+    name: 'vesting_schedule',
   });
 
   const grantType = watch('grant_type');
@@ -60,22 +115,27 @@ export const PrivateEquityAccountForm = ({
   const sharePrice = watch('share_price');
   const companyStatus = watch('company_status');
 
+  const isOptions = grantType === 'iso' || grantType === 'nso';
+  const hasVesting = grantType === 'iso' || grantType === 'nso' || grantType === 'rsu' || grantType === 'rsa';
+
   // Calculate estimated value
-  const estimatedValue = quantity != null && sharePrice != null ? Number(quantity) * Number(sharePrice) : 0;
+  const estimatedValue =
+    quantity != null && sharePrice != null ? Number(quantity) * Number(sharePrice) : 0;
 
   const handleFormSubmit = (data: PrivateEquityAccountFormData) => {
-    // Convert vesting_schedule array to JSON string for backend
-    const vestingScheduleJson = data.vesting_schedule && data.vesting_schedule.length > 0
-      ? JSON.stringify(data.vesting_schedule)
-      : undefined;
+    const vestingScheduleJson =
+      data.vesting_schedule && data.vesting_schedule.length > 0
+        ? JSON.stringify(data.vesting_schedule)
+        : undefined;
 
     const submitData = {
       ...data,
       balance: estimatedValue || data.balance || 0,
       vesting_schedule: vestingScheduleJson as any,
-      include_in_networth: data.include_in_networth !== undefined
-        ? data.include_in_networth
-        : (companyStatus === 'public'),
+      include_in_networth:
+        data.include_in_networth !== undefined
+          ? data.include_in_networth
+          : companyStatus === 'public',
     };
 
     onSubmit(submitData);
@@ -85,12 +145,7 @@ export const PrivateEquityAccountForm = ({
     <form onSubmit={handleSubmit(handleFormSubmit)}>
       <VStack spacing={6} align="stretch">
         <HStack>
-          <Button
-            variant="ghost"
-            leftIcon={<ArrowBackIcon />}
-            onClick={onBack}
-            size="sm"
-          >
+          <Button variant="ghost" leftIcon={<ArrowBackIcon />} onClick={onBack} size="sm">
             Back
           </Button>
         </HStack>
@@ -154,34 +209,31 @@ export const PrivateEquityAccountForm = ({
             name="quantity"
             control={control}
             render={({ field }) => (
-              <NumberInput
-                {...field}
-                onChange={(valueString) => field.onChange(parseFloat(valueString) || 0)}
-                min={0}
-              >
-                <NumberInputField placeholder="e.g., 10000" />
-              </NumberInput>
+              <DecimalInput
+                value={field.value}
+                onChange={field.onChange}
+                placeholder="e.g., 10000"
+                precision={4}
+              />
             )}
           />
           <FormErrorMessage>{errors.quantity?.message}</FormErrorMessage>
         </FormControl>
 
         {/* Strike Price (for ISO/NSO) */}
-        {(grantType === 'iso' || grantType === 'nso') && (
+        {isOptions && (
           <FormControl isInvalid={!!errors.strike_price}>
             <FormLabel>Strike Price (Exercise Price)</FormLabel>
             <Controller
               name="strike_price"
               control={control}
               render={({ field }) => (
-                <NumberInput
-                  {...field}
-                  onChange={(valueString) => field.onChange(parseFloat(valueString) || 0)}
-                  min={0}
-                  precision={2}
-                >
-                  <NumberInputField placeholder="e.g., 10.50" />
-                </NumberInput>
+                <DecimalInput
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="e.g., 10.50"
+                  precision={4}
+                />
               )}
             />
             <FormHelperText>Price you must pay to exercise options</FormHelperText>
@@ -196,14 +248,12 @@ export const PrivateEquityAccountForm = ({
             name="share_price"
             control={control}
             render={({ field }) => (
-              <NumberInput
-                {...field}
-                onChange={(valueString) => field.onChange(parseFloat(valueString) || 0)}
-                min={0}
-                precision={2}
-              >
-                <NumberInputField placeholder="e.g., 25.00" />
-              </NumberInput>
+              <DecimalInput
+                value={field.value}
+                onChange={field.onChange}
+                placeholder="e.g., 25.00"
+                precision={4}
+              />
             )}
           />
           <FormHelperText>Most recent valuation per share</FormHelperText>
@@ -221,6 +271,95 @@ export const PrivateEquityAccountForm = ({
           <FormHelperText>How the share price is determined</FormHelperText>
           <FormErrorMessage>{errors.valuation_method?.message}</FormErrorMessage>
         </FormControl>
+
+        {/* Vesting Schedule — shown for ISO, NSO, RSU, RSA */}
+        {hasVesting && (
+          <>
+            <Divider />
+            <Box>
+              <HStack justify="space-between" mb={2}>
+                <Box>
+                  <Text fontWeight="semibold" fontSize="sm">Vesting Schedule</Text>
+                  <Text fontSize="xs" color="text.secondary" mt={0.5}>
+                    Add each vest event — date and number of shares that vest on that date.
+                    {isOptions && ' For a standard 4-year / 1-year cliff, add the cliff date then quarterly milestones.'}
+                  </Text>
+                </Box>
+                <Button
+                  size="xs"
+                  leftIcon={<AddIcon />}
+                  variant="outline"
+                  onClick={() => appendVest({ date: '', quantity: 0, notes: '' })}
+                >
+                  Add Event
+                </Button>
+              </HStack>
+
+              {vestFields.length === 0 ? (
+                <Text fontSize="xs" color="text.muted" py={2}>
+                  No vest events added. Click "Add Event" to build your schedule.
+                </Text>
+              ) : (
+                <Box overflowX="auto">
+                  <Table size="sm" variant="simple">
+                    <Thead>
+                      <Tr>
+                        <Th>Vest Date</Th>
+                        <Th isNumeric>Shares</Th>
+                        <Th>Notes (optional)</Th>
+                        <Th />
+                      </Tr>
+                    </Thead>
+                    <Tbody>
+                      {vestFields.map((field, index) => (
+                        <Tr key={field.id}>
+                          <Td minW="150px">
+                            <Input
+                              type="date"
+                              size="sm"
+                              {...register(`vesting_schedule.${index}.date`)}
+                            />
+                          </Td>
+                          <Td minW="120px">
+                            <Controller
+                              name={`vesting_schedule.${index}.quantity`}
+                              control={control}
+                              render={({ field: f }) => (
+                                <DecimalInput
+                                  value={f.value}
+                                  onChange={f.onChange}
+                                  placeholder="250"
+                                  precision={4}
+                                />
+                              )}
+                            />
+                          </Td>
+                          <Td minW="160px">
+                            <Input
+                              size="sm"
+                              placeholder="e.g., Cliff"
+                              {...register(`vesting_schedule.${index}.notes`)}
+                            />
+                          </Td>
+                          <Td>
+                            <IconButton
+                              aria-label="Remove vest event"
+                              icon={<DeleteIcon />}
+                              size="xs"
+                              variant="ghost"
+                              colorScheme="red"
+                              onClick={() => removeVest(index)}
+                            />
+                          </Td>
+                        </Tr>
+                      ))}
+                    </Tbody>
+                  </Table>
+                </Box>
+              )}
+            </Box>
+          </>
+        )}
 
         <Divider />
 
@@ -245,8 +384,8 @@ export const PrivateEquityAccountForm = ({
           </HStack>
           <FormHelperText>
             {companyStatus === 'private'
-              ? 'Private equity is excluded by default since it\'s not easily liquidated. Enable this if you want it included in your net worth and cash flow calculations.'
-              : 'Public equity is included by default. Vested shares are automatically calculated in your net worth and cash flow.'}
+              ? "Private equity is excluded by default since it's not easily liquidated. Enable if you want it counted in your net worth."
+              : 'Public equity is included by default. Vested shares are automatically calculated in your net worth.'}
           </FormHelperText>
         </FormControl>
 
@@ -255,7 +394,7 @@ export const PrivateEquityAccountForm = ({
           <FormControl>
             <FormLabel>Estimated Value</FormLabel>
             <Input
-              value={`$${estimatedValue.toFixed(2)}`}
+              value={`$${estimatedValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               isReadOnly
               bg="bg.subtle"
             />
@@ -263,13 +402,7 @@ export const PrivateEquityAccountForm = ({
           </FormControl>
         )}
 
-        <Button
-          type="submit"
-          colorScheme="blue"
-          size="lg"
-          w="full"
-          isLoading={isLoading}
-        >
+        <Button type="submit" colorScheme="blue" size="lg" w="full" isLoading={isLoading}>
           Add Account
         </Button>
       </VStack>
