@@ -256,7 +256,7 @@ function App() {
                       <Route path="/tax-projection" element={<Navigate to="/tax-center" replace />} />
                       <Route path="/tax-buckets" element={<Navigate to="/tax-center" replace />} />
                       <Route path="/equity" element={<Navigate to="/investment-tools" replace />} />
-                      <Route path="/hsa" element={<HsaPage />} />
+                      <Route path="/hsa" element={<Navigate to="/investment-tools" replace />} />
                       <Route path="/estate" element={<Navigate to="/life-planning" replace />} />
                       <Route path="/variable-income" element={<Navigate to="/life-planning" replace />} />
                       <Route path="/loan-modeler" element={<Navigate to="/investment-tools" replace />} />

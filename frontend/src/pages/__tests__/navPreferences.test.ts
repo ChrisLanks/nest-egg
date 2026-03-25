@@ -460,7 +460,6 @@ describe("NAV_SECTIONS: structure", () => {
     expect(conditionalPaths).toEqual([
       "/debt-payoff",
       "/education",
-      "/hsa",
       "/mortgage",
       "/recurring-bills",
       "/rental-properties",

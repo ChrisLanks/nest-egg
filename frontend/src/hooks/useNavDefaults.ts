@@ -122,12 +122,6 @@ export const NAV_SECTIONS: NavSection[] = [
         reason: "Shown when you have a mortgage account",
       },
       {
-        label: "HSA Planner",
-        path: "/hsa",
-        conditional: true,
-        reason: "Shown when you have an HSA account",
-      },
-      {
         label: "Tax Center",
         path: "/tax-center",
         reason: "Tax projection, tax buckets, and charitable giving",
@@ -166,7 +160,6 @@ export function buildConditionalDefaults(
     (a) => a.plaid_item_id !== null || a.plaid_item_hash !== null,
   );
   const hasAnyAccounts = accounts.length > 0;
-  const hasHSA = accounts.some((a) => a.account_type === "hsa");
 
   return {
     "/rental-properties": hasRental,
@@ -176,7 +169,6 @@ export function buildConditionalDefaults(
     "/recurring-bills": hasLinkedAccounts,
     "/rules": hasAnyAccounts,
     "/tax-deductible": hasInvestments || hasRental,
-    "/hsa": hasHSA,
     // Consolidated hubs — always visible (contain their own conditional logic)
     "/tax-center": true,
     "/life-planning": true,

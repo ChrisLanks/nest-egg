@@ -43,7 +43,10 @@ describe("nav consolidation — planning items", () => {
     expect(planningPaths).toContain("/retirement");
     expect(planningPaths).toContain("/debt-payoff");
     expect(planningPaths).toContain("/mortgage");
-    expect(planningPaths).toContain("/hsa");
+  });
+
+  it("does NOT have /hsa (moved into Investment Tools hub)", () => {
+    expect(planningPaths).not.toContain("/hsa");
   });
 
   it("only /investment-tools is marked advanced", () => {
@@ -127,15 +130,12 @@ describe("buildConditionalDefaults — hub paths", () => {
     expect(withoutMortgage["/mortgage"]).toBe(false);
   });
 
-  it("hsa shows only when hsa account exists", () => {
-    const withHsa = buildConditionalDefaults(
+  it("/hsa is NOT in conditionalDefaults (moved into Investment Tools hub)", () => {
+    const defaults = buildConditionalDefaults(
       [{ account_type: "hsa", plaid_item_id: null, plaid_item_hash: null }],
       null,
     );
-    expect(withHsa["/hsa"]).toBe(true);
-
-    const withoutHsa = buildConditionalDefaults([], null);
-    expect(withoutHsa["/hsa"]).toBe(false);
+    expect("/hsa" in defaults).toBe(false);
   });
 });
 
