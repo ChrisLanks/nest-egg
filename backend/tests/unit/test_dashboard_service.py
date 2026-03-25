@@ -267,9 +267,6 @@ class TestDashboardService:
         # Should sum credit card + loan as absolute values
         assert total == Decimal("5000.00")
 
-    @pytest.mark.skip(
-        reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment"
-    )
     @pytest.mark.asyncio
     async def test_get_monthly_spending_current_month(self, db, test_user, test_account):
         """Should calculate spending for current month by default."""
@@ -283,6 +280,7 @@ class TestDashboardService:
             date=first_of_month,
             amount=Decimal("-100.00"),
             merchant_name="Store 1",
+            deduplication_hash=str(uuid4()),
         )
         txn2 = Transaction(
             organization_id=test_user.organization_id,
@@ -290,6 +288,7 @@ class TestDashboardService:
             date=today,
             amount=Decimal("-50.00"),
             merchant_name="Store 2",
+            deduplication_hash=str(uuid4()),
         )
         # Income transaction (should be excluded)
         txn3 = Transaction(
@@ -298,6 +297,7 @@ class TestDashboardService:
             date=today,
             amount=Decimal("1000.00"),
             merchant_name="Paycheck",
+            deduplication_hash=str(uuid4()),
         )
         db.add_all([txn1, txn2, txn3])
         await db.commit()
@@ -308,9 +308,6 @@ class TestDashboardService:
         # Should sum negative transactions as absolute value
         assert spending == Decimal("150.00")
 
-    @pytest.mark.skip(
-        reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment"
-    )
     @pytest.mark.asyncio
     async def test_get_monthly_spending_custom_date_range(self, db, test_user, test_account):
         """Should calculate spending for custom date range."""
@@ -324,6 +321,7 @@ class TestDashboardService:
             date=date(2024, 1, 15),
             amount=Decimal("-100.00"),
             merchant_name="Store",
+            deduplication_hash=str(uuid4()),
         )
         # Transaction outside range
         txn2 = Transaction(
@@ -332,6 +330,7 @@ class TestDashboardService:
             date=date(2024, 2, 1),
             amount=Decimal("-50.00"),
             merchant_name="Store",
+            deduplication_hash=str(uuid4()),
         )
         db.add_all([txn1, txn2])
         await db.commit()
@@ -344,9 +343,6 @@ class TestDashboardService:
         # Should only count txn1
         assert spending == Decimal("100.00")
 
-    @pytest.mark.skip(
-        reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment"
-    )
     @pytest.mark.asyncio
     async def test_get_monthly_spending_with_account_filter(self, db, test_user):
         """Should filter spending by account IDs."""
@@ -375,6 +371,7 @@ class TestDashboardService:
             date=date.today(),
             amount=Decimal("-100.00"),
             merchant_name="Store",
+            deduplication_hash=str(uuid4()),
         )
         txn2 = Transaction(
             organization_id=test_user.organization_id,
@@ -382,6 +379,7 @@ class TestDashboardService:
             date=date.today(),
             amount=Decimal("-50.00"),
             merchant_name="Store",
+            deduplication_hash=str(uuid4()),
         )
         db.add_all([txn1, txn2])
         await db.commit()
@@ -402,9 +400,6 @@ class TestDashboardService:
 
         assert spending == Decimal("0")
 
-    @pytest.mark.skip(
-        reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment"
-    )
     @pytest.mark.asyncio
     async def test_get_monthly_income(self, db, test_user, test_account):
         """Should calculate income for period."""
@@ -414,6 +409,7 @@ class TestDashboardService:
             date=date.today(),
             amount=Decimal("1000.00"),
             merchant_name="Paycheck",
+            deduplication_hash=str(uuid4()),
         )
         txn2 = Transaction(
             organization_id=test_user.organization_id,
@@ -421,6 +417,7 @@ class TestDashboardService:
             date=date.today(),
             amount=Decimal("500.00"),
             merchant_name="Freelance",
+            deduplication_hash=str(uuid4()),
         )
         # Expense (should be excluded)
         txn3 = Transaction(
@@ -429,6 +426,7 @@ class TestDashboardService:
             date=date.today(),
             amount=Decimal("-50.00"),
             merchant_name="Store",
+            deduplication_hash=str(uuid4()),
         )
         db.add_all([txn1, txn2, txn3])
         await db.commit()
@@ -438,9 +436,6 @@ class TestDashboardService:
 
         assert income == Decimal("1500.00")
 
-    @pytest.mark.skip(
-        reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment"
-    )
     @pytest.mark.asyncio
     async def test_get_expense_by_category(self, db, test_user, test_account):
         """Should group expenses by category."""
@@ -451,6 +446,7 @@ class TestDashboardService:
             amount=Decimal("-100.00"),
             merchant_name="Grocery Store",
             category_primary="Groceries",
+            deduplication_hash=str(uuid4()),
         )
         txn2 = Transaction(
             organization_id=test_user.organization_id,
@@ -459,6 +455,7 @@ class TestDashboardService:
             amount=Decimal("-50.00"),
             merchant_name="Another Grocery",
             category_primary="Groceries",
+            deduplication_hash=str(uuid4()),
         )
         txn3 = Transaction(
             organization_id=test_user.organization_id,
@@ -467,6 +464,7 @@ class TestDashboardService:
             amount=Decimal("-75.00"),
             merchant_name="Gas Station",
             category_primary="Transportation",
+            deduplication_hash=str(uuid4()),
         )
         db.add_all([txn1, txn2, txn3])
         await db.commit()
@@ -483,9 +481,6 @@ class TestDashboardService:
         assert categories[1]["total"] == 75.0
         assert categories[1]["count"] == 1
 
-    @pytest.mark.skip(
-        reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment"
-    )
     @pytest.mark.asyncio
     async def test_get_expense_by_category_excludes_uncategorized(
         self, db, test_user, test_account
@@ -498,6 +493,7 @@ class TestDashboardService:
             amount=Decimal("-100.00"),
             merchant_name="Store",
             category_primary="Shopping",
+            deduplication_hash=str(uuid4()),
         )
         uncategorized = Transaction(
             organization_id=test_user.organization_id,
@@ -506,6 +502,7 @@ class TestDashboardService:
             amount=Decimal("-50.00"),
             merchant_name="Other",
             category_primary=None,
+            deduplication_hash=str(uuid4()),
         )
         db.add_all([categorized, uncategorized])
         await db.commit()
@@ -517,9 +514,6 @@ class TestDashboardService:
         assert len(categories) == 1
         assert categories[0]["category"] == "Shopping"
 
-    @pytest.mark.skip(
-        reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment"
-    )
     @pytest.mark.asyncio
     async def test_get_expense_by_category_respects_limit(self, db, test_user, test_account):
         """Should limit number of categories returned."""
@@ -532,6 +526,7 @@ class TestDashboardService:
                 amount=Decimal("-10.00"),
                 merchant_name=f"Store {i}",
                 category_primary=f"Category {i}",
+                deduplication_hash=str(uuid4()),
             )
             db.add(txn)
         await db.commit()
@@ -542,9 +537,6 @@ class TestDashboardService:
         # Should return only 5
         assert len(categories) == 5
 
-    @pytest.mark.skip(
-        reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment"
-    )
     @pytest.mark.asyncio
     async def test_get_recent_transactions(self, db, test_user, test_account):
         """Should get recent transactions ordered by date."""
@@ -554,6 +546,7 @@ class TestDashboardService:
             date=date.today() - timedelta(days=30),
             amount=Decimal("-100.00"),
             merchant_name="Old Transaction",
+            deduplication_hash=str(uuid4()),
         )
         recent_txn = Transaction(
             organization_id=test_user.organization_id,
@@ -561,6 +554,7 @@ class TestDashboardService:
             date=date.today(),
             amount=Decimal("-50.00"),
             merchant_name="Recent Transaction",
+            deduplication_hash=str(uuid4()),
         )
         db.add_all([old_txn, recent_txn])
         await db.commit()
@@ -573,9 +567,6 @@ class TestDashboardService:
         assert transactions[0].id == recent_txn.id
         assert transactions[1].id == old_txn.id
 
-    @pytest.mark.skip(
-        reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment"
-    )
     @pytest.mark.asyncio
     async def test_get_recent_transactions_limit(self, db, test_user, test_account):
         """Should respect limit parameter."""
@@ -587,6 +578,7 @@ class TestDashboardService:
                 date=date.today(),
                 amount=Decimal("-10.00"),
                 merchant_name=f"Transaction {i}",
+                deduplication_hash=str(uuid4()),
             )
             db.add(txn)
         await db.commit()
@@ -596,56 +588,69 @@ class TestDashboardService:
 
         assert len(transactions) == 5
 
-    @pytest.mark.skip(
-        reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment"
-    )
     @pytest.mark.asyncio
     async def test_get_cash_flow_trend(self, db, test_user, test_account):
         """Should calculate monthly income vs expenses trend."""
-        # Create transactions across multiple months
-        # January
-        jan_income = Transaction(
+        # Use recent dates so they fall within the default 3-month window
+        today = date.today()
+        # Current month and previous month (both within 3-month range)
+        cur_month_date = date(today.year, today.month, 10)
+        # Previous month
+        if today.month == 1:
+            prev_month_date = date(today.year - 1, 12, 10)
+        else:
+            prev_month_date = date(today.year, today.month - 1, 10)
+        cur_month_key = f"{cur_month_date.year}-{cur_month_date.month:02d}"
+        prev_month_key = f"{prev_month_date.year}-{prev_month_date.month:02d}"
+
+        cur_income = Transaction(
             organization_id=test_user.organization_id,
             account_id=test_account.id,
-            date=date(2024, 1, 15),
+            date=cur_month_date,
             amount=Decimal("2000.00"),
             merchant_name="Paycheck",
+            deduplication_hash=str(uuid4()),
         )
-        jan_expense = Transaction(
+        cur_expense = Transaction(
             organization_id=test_user.organization_id,
             account_id=test_account.id,
-            date=date(2024, 1, 20),
+            date=cur_month_date,
             amount=Decimal("-1000.00"),
             merchant_name="Rent",
+            deduplication_hash=str(uuid4()),
         )
-        # February
-        feb_income = Transaction(
+        prev_income = Transaction(
             organization_id=test_user.organization_id,
             account_id=test_account.id,
-            date=date(2024, 2, 15),
+            date=prev_month_date,
             amount=Decimal("2500.00"),
             merchant_name="Paycheck",
+            deduplication_hash=str(uuid4()),
         )
-        feb_expense = Transaction(
+        prev_expense = Transaction(
             organization_id=test_user.organization_id,
             account_id=test_account.id,
-            date=date(2024, 2, 20),
+            date=prev_month_date,
             amount=Decimal("-1200.00"),
             merchant_name="Rent",
+            deduplication_hash=str(uuid4()),
         )
-        db.add_all([jan_income, jan_expense, feb_income, feb_expense])
+        db.add_all([cur_income, cur_expense, prev_income, prev_expense])
         await db.commit()
 
         service = DashboardService(db)
         trend = await service.get_cash_flow_trend(test_user.organization_id, months=3)
 
-        # Should have monthly aggregations
-        assert len(trend) > 0
-        # Find January data
-        jan_data = next((t for t in trend if t["month"] == "2024-01"), None)
-        if jan_data:
-            assert jan_data["income"] == 2000.0
-            assert jan_data["expenses"] == 1000.0
+        # Should have monthly aggregations for both months
+        assert len(trend) >= 2
+        cur_data = next((t for t in trend if t["month"] == cur_month_key), None)
+        assert cur_data is not None
+        assert cur_data["income"] == 2000.0
+        assert cur_data["expenses"] == 1000.0
+        prev_data = next((t for t in trend if t["month"] == prev_month_key), None)
+        assert prev_data is not None
+        assert prev_data["income"] == 2500.0
+        assert prev_data["expenses"] == 1200.0
 
     @pytest.mark.asyncio
     async def test_get_account_balances(self, db, test_user):
@@ -1198,9 +1203,6 @@ class TestDashboardService:
         assert total_debts == Decimal("0")
         assert balances == []
 
-    @pytest.mark.skip(
-        reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment"
-    )
     @pytest.mark.asyncio
     async def test_empty_state_no_transactions(self, db, test_user):
         """Should handle organization with no transactions."""
@@ -1472,25 +1474,20 @@ class TestDashboardServiceMocked:
 
     @pytest.mark.asyncio
     async def test_get_cash_flow_trend(self):
-        """Lines 376-415: cash flow trend grouped by month."""
-        from datetime import datetime
+        """Cash flow trend grouped by month using Python-side aggregation."""
+        from datetime import date as date_type
         from unittest.mock import AsyncMock, MagicMock
 
         db = AsyncMock()
+        # Rows have .date and .amount attributes (fetched directly from Transaction)
         mock_rows = [
-            MagicMock(
-                month=datetime(2024, 1, 1),
-                income=Decimal("5000"),
-                expenses=Decimal("-2000"),
-            ),
-            MagicMock(
-                month=datetime(2024, 2, 1),
-                income=Decimal("5500"),
-                expenses=Decimal("-2500"),
-            ),
+            MagicMock(date=date_type(2024, 1, 15), amount=Decimal("5000")),
+            MagicMock(date=date_type(2024, 1, 20), amount=Decimal("-2000")),
+            MagicMock(date=date_type(2024, 2, 15), amount=Decimal("5500")),
+            MagicMock(date=date_type(2024, 2, 20), amount=Decimal("-2500")),
         ]
         mock_result = MagicMock()
-        mock_result.__iter__ = MagicMock(return_value=iter(mock_rows))
+        mock_result.all.return_value = mock_rows
         db.execute = AsyncMock(return_value=mock_result)
 
         service = DashboardService(db)
@@ -1502,12 +1499,12 @@ class TestDashboardServiceMocked:
 
     @pytest.mark.asyncio
     async def test_get_cash_flow_trend_with_account_filter(self):
-        """Lines 388-389: trend with account_ids filter."""
+        """Trend with account_ids filter returns empty when no matching rows."""
         from unittest.mock import AsyncMock, MagicMock
 
         db = AsyncMock()
         mock_result = MagicMock()
-        mock_result.__iter__ = MagicMock(return_value=iter([]))
+        mock_result.all.return_value = []
         db.execute = AsyncMock(return_value=mock_result)
 
         service = DashboardService(db)
@@ -1516,20 +1513,16 @@ class TestDashboardServiceMocked:
 
     @pytest.mark.asyncio
     async def test_get_cash_flow_trend_none_values(self):
-        """Lines 409-411: handles None income/expenses in trend rows."""
-        from datetime import datetime
+        """Handles None amount in trend rows gracefully (treated as 0)."""
+        from datetime import date as date_type
         from unittest.mock import AsyncMock, MagicMock
 
         db = AsyncMock()
         mock_rows = [
-            MagicMock(
-                month=datetime(2024, 3, 1),
-                income=None,
-                expenses=None,
-            ),
+            MagicMock(date=date_type(2024, 3, 1), amount=None),
         ]
         mock_result = MagicMock()
-        mock_result.__iter__ = MagicMock(return_value=iter(mock_rows))
+        mock_result.all.return_value = mock_rows
         db.execute = AsyncMock(return_value=mock_result)
 
         service = DashboardService(db)

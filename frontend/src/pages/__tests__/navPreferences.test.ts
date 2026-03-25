@@ -187,11 +187,6 @@ describe("isItemOn: account-aware defaults (conditionalDefaults)", () => {
     expect(isItemOn({ path: "/recurring" }, {}, defaults)).toBe(false);
   });
 
-  it("investment-health shows as ON with brokerage account", () => {
-    const defaults = buildConditionalDefaults(withBrokerage, null);
-    expect(isItemOn({ path: "/investment-health" }, {}, defaults)).toBe(true);
-  });
-
   it("override true turns on a conditionally-off item", () => {
     const defaults = buildConditionalDefaults(noAccounts, null);
     expect(
@@ -358,11 +353,11 @@ describe("pending reload: per-item toggle does NOT reload immediately", () => {
 
   it("multiple toggles accumulate in localStorage before apply", () => {
     const first = toggleItem({}, "/mortgage", true);
-    toggleItem(first, "/investment-health", false);
+    toggleItem(first, "/rental-properties", false);
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)!);
     expect(stored).toMatchObject({
       "/mortgage": true,
-      "/investment-health": false,
+      "/rental-properties": false,
     });
   });
 
@@ -423,11 +418,11 @@ describe("reset to defaults", () => {
       false,
     );
   });
-  it("post-reset: investment-health ON with brokerage", () => {
+  it("post-reset: rental-properties ON with rental account", () => {
     resetToDefaults();
-    const defaults = buildConditionalDefaults(withBrokerage, null);
+    const defaults = buildConditionalDefaults(withRental, null);
     expect(
-      isItemOn({ path: "/investment-health" }, loadOverrides(), defaults),
+      isItemOn({ path: "/rental-properties" }, loadOverrides(), defaults),
     ).toBe(true);
   });
   it("post-reset: rental-properties OFF without rental account", () => {
@@ -461,7 +456,6 @@ describe("NAV_SECTIONS: structure", () => {
       "/bills",
       "/debt-payoff",
       "/education",
-      "/investment-health",
       "/mortgage",
       "/recurring",
       "/rental-properties",

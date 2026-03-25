@@ -159,7 +159,7 @@ class TestGetPropertyPnl:
             )
 
         assert result == pnl_data
-        instance.get_property_pnl.assert_awaited_once_with(user.organization_id, account_id, 2025)
+        instance.get_property_pnl.assert_awaited_once_with(user.organization_id, account_id, 2025, user_id=user.id)
 
     @pytest.mark.asyncio
     async def test_defaults_year_to_current(self):
@@ -176,7 +176,7 @@ class TestGetPropertyPnl:
             instance.get_property_pnl = AsyncMock(return_value={})
             await get_property_pnl(account_id=account_id, year=None, current_user=user, db=mock_db)
 
-        instance.get_property_pnl.assert_awaited_once_with(user.organization_id, account_id, 2026)
+        instance.get_property_pnl.assert_awaited_once_with(user.organization_id, account_id, 2026, user_id=user.id)
 
     @pytest.mark.asyncio
     async def test_raises_404_when_error_in_result(self):
@@ -225,6 +225,7 @@ class TestUpdateRentalFields:
             is_rental_property=True,
             rental_monthly_income=Decimal("2000"),
             rental_address="123 Main St",
+            user_id=user.id,
         )
 
     @pytest.mark.asyncio
@@ -268,4 +269,5 @@ class TestUpdateRentalFields:
             is_rental_property=None,
             rental_monthly_income=None,
             rental_address="456 Oak Ave",
+            user_id=user.id,
         )

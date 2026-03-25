@@ -221,7 +221,7 @@ class NotificationService:
                 and_(
                     Notification.id == notification_id,
                     Notification.organization_id == user.organization_id,
-                    Notification.user_id == user.id,
+                    or_(Notification.user_id == user.id, Notification.user_id.is_(None)),
                 )
             )
         )
@@ -247,7 +247,7 @@ class NotificationService:
                 and_(
                     Notification.id == notification_id,
                     Notification.organization_id == user.organization_id,
-                    Notification.user_id == user.id,
+                    or_(Notification.user_id == user.id, Notification.user_id.is_(None)),
                 )
             )
         )
@@ -279,7 +279,7 @@ class NotificationService:
             .where(
                 and_(
                     Notification.organization_id == user.organization_id,
-                    Notification.user_id == user.id,
+                    or_(Notification.user_id == user.id, Notification.user_id.is_(None)),
                     Notification.is_read.is_(False),
                 )
             )

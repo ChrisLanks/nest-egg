@@ -295,9 +295,7 @@ class TestHistoricalSnapshotsEndpointUserFilter:
             )
 
             mock_verify.assert_called_once_with(
-                user_id=uid,
-                organization_id=mock_user.organization_id,
-                db=mock_db,
+                mock_db, uid, mock_user.organization_id
             )
 
     @pytest.mark.asyncio

@@ -101,12 +101,6 @@ export const NAV_SECTIONS: NavSection[] = [
         conditional: true,
         reason: "Shown when you have a rental property account",
       },
-      {
-        label: "Investment Health",
-        path: "/investment-health",
-        conditional: true,
-        reason: "Shown when you have investment accounts",
-      },
     ],
   },
   {
@@ -175,16 +169,15 @@ export function buildConditionalDefaults(
   );
   const hasAnyAccounts = accounts.length > 0;
 
-  // Show SS optimizer only for users 50+ (hide for new users with no birthdate)
+  // Show SS optimizer only for users 50+; hide when age unknown (no birthdate)
   const showSsOptimizer = userAge !== null && userAge >= 50;
-  // FIRE: show if user has investments (age-agnostic — many people FIRE in their 50s)
-  const showFireSmart = hasInvestments;
+  // FIRE: show for investors under 50 only; hide when age unknown (safer default)
+  const showFireSmart = hasInvestments && userAge !== null && userAge < 50;
   // Tax Projection: show if user has investment accounts (capital gains relevant)
   const showTaxProjectionSmart = hasInvestments;
 
   return {
     "/rental-properties": hasRental,
-    "/investment-health": hasInvestments,
     "/education": has529,
     "/debt-payoff": hasDebt,
     "/mortgage": hasMortgage,

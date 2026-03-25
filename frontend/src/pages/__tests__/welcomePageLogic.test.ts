@@ -4,6 +4,8 @@
  * - Payload uses `name` field matching OrganizationUpdate schema
  */
 
+import { describe, it, expect } from "vitest";
+
 describe("WelcomePage endpoint fixes", () => {
   it("household settings call uses /settings/organization not /household/settings", () => {
     const source = require("fs").readFileSync(
@@ -84,7 +86,7 @@ describe("WelcomePage endpoint fixes", () => {
       require("path").join(__dirname, "../WelcomePage.tsx"),
       "utf8"
     );
-    expect(source).toContain("Just me — skip for now");
+    expect(source).toContain("Continue without inviting");
   });
 
   it("STEP_MAP has distinct values for budget and goals", () => {

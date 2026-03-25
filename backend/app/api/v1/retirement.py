@@ -929,11 +929,13 @@ async def compare_scenarios(
     """
     items = []
     skipped: list[str] = []
+    not_found: list[str] = []
     for scenario_id in data.scenario_ids:
         scenario = await RetirementPlannerService.get_scenario(
             db=db, scenario_id=scenario_id, organization_id=str(current_user.organization_id)
         )
         if not scenario:
+            not_found.append(str(scenario_id))
             skipped.append(str(scenario_id))
             continue
 
@@ -967,6 +969,9 @@ async def compare_scenarios(
                 projections=[ProjectionDataPoint(**p) for p in projections],
             )
         )
+
+    if not_found and len(not_found) == len(data.scenario_ids):
+        raise HTTPException(status_code=404, detail="Scenario not found")
 
     if not items:
         raise HTTPException(

@@ -236,10 +236,6 @@ function App() {
                         path="/roth-conversion"
                         element={<RothConversionPage />}
                       />
-                      <Route
-                        path="/investment-health"
-                        element={<Navigate to="/investments" replace />}
-                      />
                       <Route path="/mortgage" element={<MortgagePage />} />
                       <Route path="/ss-claiming" element={<SSClaimingPage />} />
                       <Route

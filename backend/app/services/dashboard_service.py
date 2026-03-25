@@ -376,9 +376,6 @@ class DashboardService:
         end_date = date.today()
         start_date = end_date - timedelta(days=months * 30)
 
-        # Get transactions grouped by month
-        month_expr = func.date_trunc("month", Transaction.date)
-
         conditions = [
             Transaction.organization_id == organization_id,
             Transaction.date >= start_date,
@@ -388,29 +385,33 @@ class DashboardService:
             conditions.append(Transaction.account_id.in_(account_ids))
 
         result = await self.db.execute(
-            select(
-                month_expr.label("month"),
-                func.sum(case((Transaction.amount > 0, Transaction.amount), else_=0)).label(
-                    "income"
-                ),
-                func.sum(case((Transaction.amount < 0, Transaction.amount), else_=0)).label(
-                    "expenses"
-                ),
-            )
-            .where(and_(*conditions))
-            .group_by(month_expr)
-            .order_by(month_expr)
+            select(Transaction.date, Transaction.amount).where(and_(*conditions))
         )
+        rows = result.all()
 
-        trend = []
-        for row in result:
-            trend.append(
-                {
-                    "month": row.month.strftime("%Y-%m") if row.month else "",
-                    "income": float(row.income or 0),
-                    "expenses": abs(float(row.expenses or 0)),
-                }
-            )
+        # Group by month on the Python side (works in both SQLite and PostgreSQL)
+        monthly: Dict[str, Dict[str, float]] = {}
+        for row in rows:
+            txn_date = row.date
+            if isinstance(txn_date, str):
+                txn_date = date.fromisoformat(txn_date)
+            month_key = f"{txn_date.year}-{txn_date.month:02d}"
+            if month_key not in monthly:
+                monthly[month_key] = {"income": 0.0, "expenses": 0.0}
+            amount = float(row.amount or 0)
+            if amount > 0:
+                monthly[month_key]["income"] += amount
+            else:
+                monthly[month_key]["expenses"] += amount
+
+        trend = [
+            {
+                "month": month_key,
+                "income": monthly[month_key]["income"],
+                "expenses": abs(monthly[month_key]["expenses"]),
+            }
+            for month_key in sorted(monthly)
+        ]
 
         return trend
 

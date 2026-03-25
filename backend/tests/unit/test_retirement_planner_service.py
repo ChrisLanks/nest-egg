@@ -308,17 +308,17 @@ class TestGetScenarioSummaryWithScores:
     async def test_enriches_with_scores(self, mock_db):
         scenario = _make_scenario()
         latest = MagicMock()
+        latest.scenario_id = scenario.id
         latest.readiness_score = 85
         latest.success_rate = Decimal("0.82")
 
-        with patch.object(
-            RetirementPlannerService,
-            "get_latest_result",
-            new=AsyncMock(return_value=latest),
-        ):
-            result = await RetirementPlannerService.get_scenario_summary_with_scores(
-                mock_db, [scenario]
-            )
+        mock_rows = MagicMock()
+        mock_rows.scalars.return_value.all.return_value = [latest]
+        mock_db.execute = AsyncMock(return_value=mock_rows)
+
+        result = await RetirementPlannerService.get_scenario_summary_with_scores(
+            mock_db, [scenario]
+        )
 
         assert len(result) == 1
         assert result[0]["readiness_score"] == 85
@@ -328,14 +328,13 @@ class TestGetScenarioSummaryWithScores:
     async def test_no_latest_result(self, mock_db):
         scenario = _make_scenario()
 
-        with patch.object(
-            RetirementPlannerService,
-            "get_latest_result",
-            new=AsyncMock(return_value=None),
-        ):
-            result = await RetirementPlannerService.get_scenario_summary_with_scores(
-                mock_db, [scenario]
-            )
+        mock_rows = MagicMock()
+        mock_rows.scalars.return_value.all.return_value = []
+        mock_db.execute = AsyncMock(return_value=mock_rows)
+
+        result = await RetirementPlannerService.get_scenario_summary_with_scores(
+            mock_db, [scenario]
+        )
 
         assert result[0]["readiness_score"] is None
         assert result[0]["success_rate"] is None

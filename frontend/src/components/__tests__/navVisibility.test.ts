@@ -155,34 +155,6 @@ describe("buildConditionalDefaults: /rental-properties", () => {
 
 // ── investment-gated paths ────────────────────────────────────────────────────
 
-describe("buildConditionalDefaults: /investment-health", () => {
-  it("hidden with no investment accounts", () => {
-    expect(
-      buildConditionalDefaults([checking()], null)["/investment-health"],
-    ).toBe(false);
-  });
-  it("shown with brokerage", () => {
-    expect(
-      buildConditionalDefaults([brokerage()], null)["/investment-health"],
-    ).toBe(true);
-  });
-  it("shown with 401k", () => {
-    expect(buildConditionalDefaults([k401()], null)["/investment-health"]).toBe(
-      true,
-    );
-  });
-  it("shown with IRA", () => {
-    expect(buildConditionalDefaults([ira()], null)["/investment-health"]).toBe(
-      true,
-    );
-  });
-  it("shown with crypto", () => {
-    expect(
-      buildConditionalDefaults([crypto()], null)["/investment-health"],
-    ).toBe(true);
-  });
-});
-
 describe("buildConditionalDefaults: /tax-deductible", () => {
   it("hidden with no investments or rental", () => {
     expect(
@@ -265,8 +237,8 @@ describe("buildConditionalDefaults: /rules", () => {
 // ── /ss-claiming (age-gated) ──────────────────────────────────────────────────
 
 describe("buildConditionalDefaults: /ss-claiming", () => {
-  it("shown when userAge is null (no birthdate set)", () => {
-    expect(buildConditionalDefaults([], null)["/ss-claiming"]).toBe(true);
+  it("hidden when userAge is null (no birthdate set)", () => {
+    expect(buildConditionalDefaults([], null)["/ss-claiming"]).toBe(false);
   });
   it("shown for age 50", () => {
     expect(buildConditionalDefaults([], 50)["/ss-claiming"]).toBe(true);

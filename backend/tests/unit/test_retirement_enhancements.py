@@ -38,6 +38,7 @@ class TestSliderRanges:
         schema = RetirementScenarioCreate(
             name="Late Retirement",
             retirement_age=95,
+            life_expectancy=96,
             annual_spending_retirement=Decimal("50000"),
         )
         assert schema.retirement_age == 95
@@ -62,10 +63,11 @@ class TestSliderRanges:
         schema = RetirementScenarioCreate(
             name="Short Plan",
             retirement_age=15,
-            life_expectancy=15,
+            life_expectancy=16,
+            social_security_start_age=None,
             annual_spending_retirement=Decimal("30000"),
         )
-        assert schema.life_expectancy == 15
+        assert schema.life_expectancy == 16
 
     def test_life_expectancy_max_120(self):
         schema = RetirementScenarioCreate(
