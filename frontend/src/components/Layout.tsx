@@ -639,7 +639,7 @@ export const Layout = () => {
       : isOtherUserView
         ? "another member's view"
         : "your personal view";
-    toast({
+    notificationToast({
       duration: 10000,
       isClosable: true,
       position: "bottom-right",
@@ -675,7 +675,7 @@ export const Layout = () => {
         </Box>
       ),
     });
-  }, [user, isCombinedView, isOtherUserView, toast]);
+  }, [user, isCombinedView, isOtherUserView, notificationToast]);
 
   useEffect(() => {
     if (accountsLoading) return;
@@ -819,7 +819,7 @@ export const Layout = () => {
     isSsAge,
     showAdvancedNav,
     accountsLoading,
-    toast,
+    notificationToast,
   ]);
 
   // All nav items with default visibility
