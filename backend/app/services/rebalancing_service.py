@@ -171,3 +171,94 @@ class RebalancingService:
                 )
 
         return drift_items, trade_recs, needs_rebalancing, max_drift
+
+    @staticmethod
+    def calculate_drift_simple(
+        current_allocations: dict[str, float],
+        target_allocations: dict[str, float],
+    ) -> list[dict]:
+        """
+        Calculates drift of each asset class from target.
+
+        Returns list of {asset_class, current_pct, target_pct, drift_pct, severity, needs_action}
+
+        Severity thresholds:
+        - "ok"       : |drift| < warning_threshold
+        - "warning"  : warning_threshold <= |drift| < critical_threshold
+        - "critical" : |drift| >= critical_threshold
+        """
+        try:
+            from app.constants.financial import PORTFOLIO
+
+            warning_threshold = float(getattr(PORTFOLIO, "DRIFT_THRESHOLD_WARNING_PCT", 5.0))
+            critical_threshold = float(getattr(PORTFOLIO, "DRIFT_THRESHOLD_CRITICAL_PCT", 10.0))
+        except (ImportError, AttributeError):
+            warning_threshold = 5.0
+            critical_threshold = 10.0
+
+        results = []
+        all_classes = set(current_allocations) | set(target_allocations)
+        for asset_class in sorted(all_classes):
+            current = current_allocations.get(asset_class, 0.0)
+            target = target_allocations.get(asset_class, 0.0)
+            drift = current - target
+            abs_drift = abs(drift)
+            severity = "ok"
+            if abs_drift >= critical_threshold:
+                severity = "critical"
+            elif abs_drift >= warning_threshold:
+                severity = "warning"
+            results.append(
+                {
+                    "asset_class": asset_class,
+                    "current_pct": round(current, 2),
+                    "target_pct": round(target, 2),
+                    "drift_pct": round(drift, 2),
+                    "severity": severity,
+                    "needs_action": abs_drift >= warning_threshold,
+                }
+            )
+        return results
+
+    @staticmethod
+    def generate_tax_aware_trades(
+        current_allocations: dict[str, float],
+        target_allocations: dict[str, float],
+        account_tax_treatments: list[dict],
+        total_portfolio_value: float,
+    ) -> list[dict]:
+        """
+        Generates rebalancing trades preferring tax-advantaged accounts.
+
+        Tax preference order: tax_free > pre_tax > taxable (avoid taxable events).
+        Returns list of {action, asset_class, amount, preferred_account_treatment, reason}
+
+        Trades smaller than $100 are skipped as not worth the friction.
+        """
+        trades = []
+
+        for asset_class in sorted(set(current_allocations) | set(target_allocations)):
+            current_val = current_allocations.get(asset_class, 0.0) / 100 * total_portfolio_value
+            target_val = target_allocations.get(asset_class, 0.0) / 100 * total_portfolio_value
+            delta = target_val - current_val
+
+            if abs(delta) < 100:  # Skip tiny trades
+                continue
+
+            action = "buy" if delta > 0 else "sell"
+            # Prefer tax-advantaged for sells (avoids capital gains)
+            preferred_treatment = "pre_tax" if action == "sell" else "tax_free"
+            trades.append(
+                {
+                    "action": action,
+                    "asset_class": asset_class,
+                    "amount": round(abs(delta), 2),
+                    "preferred_account_treatment": preferred_treatment,
+                    "reason": (
+                        f"{'Increase' if action == 'buy' else 'Reduce'} {asset_class} "
+                        f"by ${abs(delta):,.0f}. "
+                        f"Prefer {preferred_treatment} accounts to minimize tax impact."
+                    ),
+                }
+            )
+        return trades

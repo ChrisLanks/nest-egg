@@ -1083,3 +1083,261 @@ class NET_WORTH_BENCHMARKS:
     # How many years before the static data is considered stale for UI warning
     STALE_AFTER_YEARS: int = 3
     DEBT_PAYOFF_RESERVE_MIN = Decimal("1000")  # Minimum reserve regardless of debt size
+
+
+# =========================================================================
+# EQUITY COMPENSATION
+# =========================================================================
+
+
+class EQUITY:
+    """Stock options and equity compensation constants."""
+
+    AMT_EXEMPTION_SINGLE = 137_000
+    AMT_EXEMPTION_MARRIED = 274_000
+    AMT_PHASEOUT_SINGLE = 1_049_850
+    AMT_PHASEOUT_MARRIED = 2_099_850
+    AMT_RATE_26_THRESHOLD = 220_700
+    AMT_RATE_26 = Decimal("0.26")
+    AMT_RATE_28 = Decimal("0.28")
+    ISO_DISQUALIFYING_DISPOSITION_DAYS = 730
+    NSO_TAX_TREATMENT = "ordinary_income"
+    RSU_TAX_EVENT = "ordinary_income"
+    QSBS_EXCLUSION_RATE = Decimal("0.50")
+
+
+# =========================================================================
+# HEALTH SAVINGS ACCOUNT
+# =========================================================================
+
+
+class HSA:
+    """Health Savings Account optimization constants."""
+
+    INVESTMENT_THRESHOLD = Decimal("2000")
+    DEFAULT_MEDICAL_EXPENSE_GROWTH = Decimal("0.06")
+    MEDICARE_CUTOFF_AGE = 65
+    NON_QUALIFIED_PENALTY_RATE = Decimal("0.20")
+    INVESTMENT_RETURN_DEFAULT = Decimal("0.06")
+    HDHP_MIN_DEDUCTIBLE_INDIVIDUAL = 1_650
+    HDHP_MIN_DEDUCTIBLE_FAMILY = 3_300
+    HDHP_MAX_OOP_INDIVIDUAL = 8_300
+    HDHP_MAX_OOP_FAMILY = 16_600
+
+
+# =========================================================================
+# TREASURY SECURITIES
+# =========================================================================
+
+
+class TREASURY:
+    """I-Bond, T-Bill, T-Note, and TIPS constants."""
+
+    I_BOND_ANNUAL_LIMIT_ELECTRONIC = 10_000
+    I_BOND_ANNUAL_LIMIT_PAPER_TAX_REFUND = 5_000
+    I_BOND_MIN_HOLD_MONTHS = 12
+    I_BOND_EARLY_REDEMPTION_PENALTY_MONTHS = 3
+    I_BOND_MAX_TERM_YEARS = 30
+    TIPS_DEFLATION_FLOOR = Decimal("1.0")
+    TBILL_MATURITIES_WEEKS = [4, 8, 13, 17, 26, 52]
+    TNOTE_MATURITIES_YEARS = [2, 3, 5, 7, 10]
+    TBOND_MATURITIES_YEARS = [20, 30]
+
+
+# =========================================================================
+# ESTATE PLANNING
+# =========================================================================
+
+
+class ESTATE:
+    """Estate and beneficiary planning constants (2026 figures)."""
+
+    FEDERAL_EXEMPTION = 13_990_000
+    FEDERAL_TAX_RATE = Decimal("0.40")
+    ANNUAL_GIFT_EXCLUSION = 19_000
+    ANNUAL_GIFT_EXCLUSION_MARRIED = 38_000
+    PORTABILITY_ELECTION_DEADLINE_MONTHS = 9
+    # Note: TCJA exemption sunsets after 2025; if not extended, drops to ~$7M
+    TCJA_SUNSET_RISK = True
+
+
+# =========================================================================
+# STRESS TESTING
+# =========================================================================
+
+
+class STRESS_TEST:
+    """Historical market stress scenario parameters (hardcoded)."""
+
+    SCENARIOS: dict = {
+        "market_crash_30": {
+            "label": "30% Market Drop",
+            "equity_drop": Decimal("-0.30"),
+            "bond_change": Decimal("0.05"),
+            "duration_years": 1.0,
+        },
+        "dot_com_2000": {
+            "label": "Dot-Com Bust (2000–2002)",
+            "equity_drop": Decimal("-0.49"),
+            "bond_change": Decimal("0.12"),
+            "duration_years": 2.5,
+        },
+        "gfc_2008": {
+            "label": "Financial Crisis (2008–2009)",
+            "equity_drop": Decimal("-0.57"),
+            "bond_change": Decimal("0.08"),
+            "duration_years": 1.5,
+        },
+        "covid_2020": {
+            "label": "COVID Crash (Feb–Mar 2020)",
+            "equity_drop": Decimal("-0.34"),
+            "bond_change": Decimal("0.08"),
+            "duration_years": 0.15,
+        },
+        "stagflation_1970s": {
+            "label": "1970s Stagflation",
+            "equity_drop": Decimal("-0.45"),
+            "inflation_spike": Decimal("0.14"),
+            "bond_change": Decimal("-0.10"),
+            "duration_years": 10.0,
+        },
+        "rate_shock_200bps": {
+            "label": "+200bps Rate Shock",
+            "equity_drop": Decimal("-0.10"),
+            "bond_change": None,  # Calculated dynamically from duration
+            "rate_increase_bps": 200,
+            "duration_years": 0.5,
+        },
+    }
+    BOND_PRICE_SENSITIVITY_PER_YEAR_PER_100BPS = Decimal("-0.01")
+
+
+# =========================================================================
+# CASH FLOW TIMING
+# =========================================================================
+
+
+class CASH_FLOW_TIMING:
+    """Paycheck and bill timing constants."""
+
+    PAYCHECK_FREQUENCIES = {
+        "weekly": 52,
+        "biweekly": 26,
+        "semimonthly": 24,
+        "monthly": 12,
+    }
+    DEFAULT_FREQUENCY = "biweekly"
+    LOW_BALANCE_WARNING_USD = Decimal("500")
+    BILL_WARNING_DAYS_BEFORE_SHORTFALL = 3
+
+
+# =========================================================================
+# PENSION MODELING
+# =========================================================================
+
+
+class PENSION:
+    """Defined benefit pension modeling constants (2026)."""
+
+    COLA_DEFAULT_RATE = Decimal("0.02")
+    SURVIVOR_100_COST_PCT = Decimal("0.10")
+    SURVIVOR_50_COST_PCT = Decimal("0.05")
+    WEP_MAX_MONTHLY_REDUCTION = Decimal("587")
+    GPO_REDUCTION_RATE = Decimal("0.667")
+    LUMP_SUM_HURDLE_RATE = Decimal("0.045")
+    WEP_SUBSTANTIAL_EARNINGS_YEARS_FULL_EXEMPTION = 30
+    WEP_SUBSTANTIAL_EARNINGS_MINIMUM_WAGE_MULTIPLE = 2  # 2x minimum wage threshold
+    PENSION_FULLY_TAXABLE_DEFAULT = True
+
+
+# =========================================================================
+# VARIABLE INCOME
+# =========================================================================
+
+
+class VARIABLE_INCOME:
+    """Variable and self-employment income planning constants."""
+
+    SMOOTHING_MONTHS = 12
+    EMERGENCY_FUND_MONTHS_MINIMUM = 9
+    QUARTERLY_TAX_DUE_MONTHS = [4, 6, 9, 1]
+    SE_TAX_RATE = Decimal("0.153")
+    SE_TAX_DEDUCTIBLE_HALF = Decimal("0.50")
+    QBI_DEDUCTION_RATE = Decimal("0.20")
+    QBI_THRESHOLD_SINGLE = 197_300
+    QBI_THRESHOLD_MARRIED = 394_600
+    SAFE_HARBOR_110_PCT_INCOME_THRESHOLD = 150_000
+    SAFE_HARBOR_RATE_NORMAL = Decimal("1.00")
+    SAFE_HARBOR_RATE_HIGH_INCOME = Decimal("1.10")
+
+
+# =========================================================================
+# LENDING
+# =========================================================================
+
+
+class LENDING:
+    """Loan origination and affordability constants."""
+
+    MAX_DTI_CONVENTIONAL = Decimal("0.43")
+    MAX_DTI_FHA = Decimal("0.50")
+    MAX_DTI_VA = Decimal("0.41")
+    FRONT_END_DTI_LIMIT = Decimal("0.28")
+    PRIME_CREDIT_SCORE_THRESHOLD = 720
+    POINTS_BREAKEVEN_MONTHS = 60
+    AUTO_DEPRECIATION_NEW_ANNUAL = Decimal("0.15")
+    AUTO_DEPRECIATION_USED_ANNUAL = Decimal("0.10")
+    LEASE_MONEY_FACTOR_TO_APR = 2400
+    STUDENT_LOAN_IDR_CAP_PCT = Decimal("0.10")
+
+
+# =========================================================================
+# CHARITABLE GIVING
+# =========================================================================
+
+
+class CHARITABLE:
+    """Charitable giving optimization constants (2026)."""
+
+    QCD_MAX_ANNUAL = 108_000
+    QCD_ELIGIBLE_AGE = Decimal("70.5")
+    BUNCHING_HORIZON_YEARS = 3
+    DEDUCTION_LIMIT_CASH_PCT_AGI = Decimal("0.60")
+    DEDUCTION_LIMIT_PROPERTY_PCT_AGI = Decimal("0.30")
+    DEDUCTION_LIMIT_APPRECIATED_PCT_AGI = Decimal("0.30")
+    CARRYFORWARD_YEARS = 5
+    APPRECIATED_SECURITY_AVOIDS_LTCG = True
+
+
+# =========================================================================
+# JOINT SOCIAL SECURITY
+# =========================================================================
+
+
+class JOINT_SS:
+    """Joint Social Security optimization constants."""
+
+    SPOUSAL_BENEFIT_PCT = Decimal("0.50")
+    SURVIVOR_BENEFIT_PCT = Decimal("1.00")
+    SURVIVOR_BENEFIT_MIN_AGE = 60
+    DIVORCED_SPOUSE_MIN_MARRIAGE_YEARS = 10
+    DUAL_ENTITLEMENT_RULE = True
+    GPO_REDUCTION_RATE = Decimal("0.667")
+    WEP_SUBSTANTIAL_EARNINGS_FULL_EXEMPTION_YEARS = 30
+    RESTRICTED_APPLICATION_BIRTH_YEAR_CUTOFF = 1954
+
+
+# =========================================================================
+# TAX BUCKET ANALYSIS
+# =========================================================================
+
+
+class TAX_BUCKETS:
+    """Tax bucket analysis and RMD tax bomb constants."""
+
+    PRE_TAX_WARNING_THRESHOLD_PCT = Decimal("0.85")
+    RMD_BOMB_MULTIPLE_OF_SPENDING = Decimal("2.0")
+    OPTIMAL_CONVERSION_BRACKET = Decimal("0.22")
+    PROJECTION_DEFAULT_YEARS = 10
+    INCOME_GROWTH_DEFAULT = Decimal("0.025")
+    ROTH_LADDER_SEASONING_YEARS = 5

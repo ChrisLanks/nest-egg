@@ -492,6 +492,23 @@ class Account(Base):
     # NULL is treated as 0% (no adjustment).
     valuation_adjustment_pct = Column(Numeric(5, 2), nullable=True)
 
+    # Equity AMT tracking (ISO)
+    iso_exercise_basis = Column(Numeric(15, 2), nullable=True)  # Cumulative ISO exercised for AMT
+
+    # Backdoor Roth tracking
+    form_8606_basis = Column(Numeric(15, 2), nullable=True)  # Cumulative nondeductible IRA contributions
+    after_tax_401k_balance = Column(Numeric(15, 2), nullable=True)  # After-tax sub-account within 401k
+    mega_backdoor_eligible = Column(Boolean, nullable=True)  # Plan allows in-service withdrawals
+
+    # Pension detail fields
+    pension_cola_rate = Column(Numeric(5, 3), nullable=True)
+    pension_survivor_pct = Column(Numeric(5, 2), nullable=True)
+    pension_lump_sum_value = Column(Numeric(15, 2), nullable=True)
+    pension_type = Column(String(50), nullable=True)
+    pension_employer_name = Column(String(255), nullable=True)
+    pension_years_of_service = Column(Numeric(5, 1), nullable=True)
+    pension_formula_pct_per_year = Column(Numeric(5, 3), nullable=True)
+
     # Timestamps
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
     updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)

@@ -112,6 +112,13 @@ const RothConversionPage = lazy(() => import("./pages/RothConversionPage"));
 const MortgagePage = lazy(() => import("./pages/MortgagePage"));
 const SSClaimingPage = lazy(() => import("./pages/SSClaimingPage"));
 const TaxProjectionPage = lazy(() => import("./pages/TaxProjectionPage"));
+const TaxBucketsPage = lazy(() => import("./pages/TaxBucketsPage"));
+const EquityPage = lazy(() => import("./pages/EquityPage"));
+const HsaPage = lazy(() => import("./pages/HsaPage"));
+const EstatePage = lazy(() => import("./pages/EstatePage"));
+const VariableIncomePage = lazy(() => import("./pages/VariableIncomePage"));
+const LoanModelerPage = lazy(() => import("./pages/LoanModelerPage"));
+const CharitableGivingPage = lazy(() => import("./pages/CharitableGivingPage"));
 const NetWorthTimelinePage = lazy(() => import("./pages/NetWorthTimelinePage"));
 const WelcomePage = lazy(() => import("./pages/WelcomePage"));
 const VerifyEmailPage = lazy(() => import("./pages/VerifyEmailPage"));
@@ -241,6 +248,25 @@ function App() {
                       <Route
                         path="/tax-projection"
                         element={<TaxProjectionPage />}
+                      />
+                      <Route
+                        path="/tax-buckets"
+                        element={<TaxBucketsPage />}
+                      />
+                      <Route path="/equity" element={<EquityPage />} />
+                      <Route path="/hsa" element={<HsaPage />} />
+                      <Route path="/estate" element={<EstatePage />} />
+                      <Route
+                        path="/variable-income"
+                        element={<VariableIncomePage />}
+                      />
+                      <Route
+                        path="/loan-modeler"
+                        element={<LoanModelerPage />}
+                      />
+                      <Route
+                        path="/charitable-giving"
+                        element={<CharitableGivingPage />}
                       />
                       <Route
                         path="/rental-properties"

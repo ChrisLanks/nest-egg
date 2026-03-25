@@ -75,10 +75,13 @@ class NotificationPreferencesUpdate(BaseModel):
     weekly_recap: Optional[bool] = None
     equity_alerts: Optional[bool] = None
     crypto_alerts: Optional[bool] = None
+    bond_alerts: Optional[bool] = None
+    planning_alerts: Optional[bool] = None
+    portfolio_alerts: Optional[bool] = None
 
 
 class NotificationPreferencesResponse(BaseModel):
-    """Response schema for notification preferences (all 9 categories)."""
+    """Response schema for notification preferences (all 12 categories)."""
 
     account_syncs: Optional[bool] = True
     account_activity: Optional[bool] = True
@@ -89,6 +92,9 @@ class NotificationPreferencesResponse(BaseModel):
     weekly_recap: Optional[bool] = True
     equity_alerts: Optional[bool] = True
     crypto_alerts: Optional[bool] = True
+    bond_alerts: Optional[bool] = True
+    planning_alerts: Optional[bool] = True
+    portfolio_alerts: Optional[bool] = True
 
 
 class DashboardWidget(BaseModel):

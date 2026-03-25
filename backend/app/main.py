@@ -54,7 +54,13 @@ from app.api.v1 import (
     savings_goals,
     smart_insights,
     subscriptions,
+    capital_gains_harvesting,
+    estate,
+    hsa,
+    net_worth_attribution,
+    stress_test,
     tax_advisor,
+    tax_buckets,
     tax_lots,
     teller,
     transaction_merges,
@@ -631,6 +637,12 @@ app.include_router(
     dependencies=_guest_dep,
 )
 app.include_router(
+    tax_buckets.router,
+    prefix="/api/v1",
+    tags=["Tax Buckets"],
+    dependencies=_guest_dep,
+)
+app.include_router(
     enhanced_trends.router,
     prefix="/api/v1/trends",
     tags=["Enhanced Trends"],
@@ -646,5 +658,35 @@ app.include_router(
     financial_planning.router,
     prefix="/api/v1/financial-planning",
     tags=["Financial Planning"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    capital_gains_harvesting.router,
+    prefix="/api/v1/capital-gains-harvesting",
+    tags=["Capital Gains Harvesting"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    stress_test.router,
+    prefix="/api/v1/stress-test",
+    tags=["Portfolio Stress Testing"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    net_worth_attribution.router,
+    prefix="/api/v1/net-worth-attribution",
+    tags=["Net Worth Attribution"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    hsa.router,
+    prefix="/api/v1/hsa",
+    tags=["HSA Optimization"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    estate.router,
+    prefix="/api/v1/estate",
+    tags=["Estate Planning"],
     dependencies=_guest_dep,
 )

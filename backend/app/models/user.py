@@ -12,6 +12,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     UniqueConstraint,
 )
@@ -136,6 +137,15 @@ class User(Base):
     # Per-category notification preferences — {category: bool}; missing key = enabled
     # Categories: account_syncs, account_activity, budget_alerts, milestones, household
     notification_preferences = Column(JSON, nullable=True, default=dict)
+
+    # Paycheck and income profile
+    paycheck_frequency = Column(String(20), nullable=True)  # weekly/biweekly/semi_monthly/monthly
+    next_paycheck_date = Column(Date, nullable=True)
+    income_type = Column(String(20), nullable=True)  # salary/variable/mixed
+    is_self_employed = Column(Boolean, default=False, nullable=True)
+    state_of_residence = Column(String(2), nullable=True)
+    target_retirement_state = Column(String(2), nullable=True)
+    minimum_monthly_budget = Column(Numeric(12, 2), nullable=True)
 
     last_login_at = Column(DateTime)
     login_count = Column(Integer, default=0, nullable=False, server_default="0")

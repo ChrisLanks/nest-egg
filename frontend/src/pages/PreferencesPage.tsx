@@ -80,6 +80,9 @@ type NotificationPrefs = {
   weekly_recap?: boolean;
   equity_alerts?: boolean;
   crypto_alerts?: boolean;
+  bond_alerts?: boolean;
+  planning_alerts?: boolean;
+  portfolio_alerts?: boolean;
 };
 
 const NOTIFICATION_CATEGORIES: {
@@ -137,6 +140,23 @@ const NOTIFICATION_CATEGORIES: {
     key: "crypto_alerts",
     label: "Crypto Price Alerts",
     description: "Price movement alerts for tracked cryptocurrency holdings.",
+  },
+  {
+    key: "bond_alerts",
+    label: "Bond & Treasury Alerts",
+    description: "Upcoming I-Bond, T-Bill, T-Note, and TIPS maturity reminders.",
+  },
+  {
+    key: "planning_alerts",
+    label: "Planning Alerts",
+    description:
+      "Missing beneficiary designations, pension election deadlines, and QCD opportunities.",
+  },
+  {
+    key: "portfolio_alerts",
+    label: "Portfolio Alerts",
+    description:
+      "Rebalance drift, tax bucket imbalance, and tax-loss harvesting opportunities.",
   },
 ];
 

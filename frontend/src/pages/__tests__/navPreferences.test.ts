@@ -456,20 +456,29 @@ describe("NAV_SECTIONS: structure", () => {
       "/bills",
       "/debt-payoff",
       "/education",
+      "/equity",
+      "/hsa",
       "/mortgage",
       "/recurring",
       "/rental-properties",
       "/rules",
       "/ss-claiming",
       "/tax-deductible",
+      "/variable-income",
     ]);
   });
-  it("advanced items are exactly /fire and /tax-projection", () => {
+  it("advanced items include /fire, /tax-projection, /estate, /loan-modeler, /charitable-giving", () => {
     const advancedPaths = NAV_SECTIONS.flatMap((s) => s.items)
       .filter((i) => i.advanced)
       .map((i) => i.path)
       .sort();
-    expect(advancedPaths).toEqual(["/fire", "/tax-projection"]);
+    expect(advancedPaths).toEqual([
+      "/charitable-giving",
+      "/estate",
+      "/fire",
+      "/loan-modeler",
+      "/tax-projection",
+    ]);
   });
   it("no spending items are advanced; Recurring, Bills, Rules are conditional", () => {
     const spending = NAV_SECTIONS.find((s) => s.group === "Spending");

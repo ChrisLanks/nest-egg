@@ -31,6 +31,8 @@ NOTIFICATION_CATEGORY_TYPES: dict[str, list[str]] = {
     ],
     "budget_alerts": [
         NotificationType.BUDGET_ALERT,
+        NotificationType.HSA_CONTRIBUTION_LIMIT,
+        NotificationType.BILL_DUE_BEFORE_PAYCHECK,
     ],
     "goal_alerts": [
         NotificationType.GOAL_COMPLETED,
@@ -41,6 +43,8 @@ NOTIFICATION_CATEGORY_TYPES: dict[str, list[str]] = {
         NotificationType.ALL_TIME_HIGH,
         NotificationType.FIRE_COAST_FI,
         NotificationType.FIRE_INDEPENDENT,
+        NotificationType.RMD_TAX_BOMB_WARNING,
+        NotificationType.PRO_RATA_WARNING,
     ],
     "household": [
         NotificationType.HOUSEHOLD_MEMBER_JOINED,
@@ -52,9 +56,23 @@ NOTIFICATION_CATEGORY_TYPES: dict[str, list[str]] = {
     ],
     "equity_alerts": [
         NotificationType.EQUITY_VESTING,
+        NotificationType.EQUITY_AMT_WARNING,
     ],
     "crypto_alerts": [
         NotificationType.CRYPTO_PRICE_ALERT,
+    ],
+    "bond_alerts": [
+        NotificationType.BOND_MATURITY_UPCOMING,
+    ],
+    "planning_alerts": [
+        NotificationType.BENEFICIARY_MISSING,
+        NotificationType.PENSION_ELECTION_DEADLINE,
+        NotificationType.QCD_OPPORTUNITY,
+    ],
+    "portfolio_alerts": [
+        NotificationType.REBALANCE_DRIFT_ALERT,
+        NotificationType.TAX_BUCKET_IMBALANCE,
+        NotificationType.HARVEST_OPPORTUNITY,
     ],
 }
 

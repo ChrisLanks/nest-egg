@@ -737,7 +737,7 @@ class TestNotificationTypesComplete:
 
     def test_all_15_notification_types_exist(self):
         """Should have 20 total notification types."""
-        assert len(NotificationType) == 20
+        assert len(NotificationType) == 32
 
     def test_account_connected_type_exists(self):
         """ACCOUNT_CONNECTED should exist (was missing from prior migration)."""

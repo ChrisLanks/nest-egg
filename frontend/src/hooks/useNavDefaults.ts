@@ -145,6 +145,42 @@ export const NAV_SECTIONS: NavSection[] = [
         advanced: true,
         reason: "Advanced — shown with investment accounts",
       },
+      {
+        label: "Equity",
+        path: "/equity",
+        conditional: true,
+        reason: "Shown when you have stock options or equity grants",
+      },
+      {
+        label: "HSA Planner",
+        path: "/hsa",
+        conditional: true,
+        reason: "Shown when you have an HSA account",
+      },
+      {
+        label: "Estate Plan",
+        path: "/estate",
+        advanced: true,
+        reason: "Advanced — estate and beneficiary planning",
+      },
+      {
+        label: "Variable Income",
+        path: "/variable-income",
+        conditional: true,
+        reason: "Shown for self-employed or variable income earners",
+      },
+      {
+        label: "Loan Modeler",
+        path: "/loan-modeler",
+        advanced: true,
+        reason: "Advanced — loan affordability and buy vs lease analysis",
+      },
+      {
+        label: "Charitable Giving",
+        path: "/charitable-giving",
+        advanced: true,
+        reason: "Advanced — tax-optimized charitable giving strategy",
+      },
     ],
   },
 ];
@@ -168,6 +204,12 @@ export function buildConditionalDefaults(
     (a) => a.plaid_item_id !== null || a.plaid_item_hash !== null,
   );
   const hasAnyAccounts = accounts.length > 0;
+  const hasEquityAccounts = accounts.some(
+    (a) =>
+      a.account_type === "stock_options" ||
+      a.account_type === "private_equity",
+  );
+  const hasHSA = accounts.some((a) => a.account_type === "hsa");
 
   // Show SS optimizer only for users 50+; hide when age unknown (no birthdate)
   const showSsOptimizer = userAge !== null && userAge >= 50;
@@ -188,6 +230,12 @@ export function buildConditionalDefaults(
     "/ss-claiming": showSsOptimizer,
     "/fire": showFireSmart,
     "/tax-projection": showTaxProjectionSmart,
+    "/equity": hasEquityAccounts,
+    "/hsa": hasHSA,
+    "/estate": true,
+    "/variable-income": false,   // Will be true once userProfile income_type is available; default off for now
+    "/loan-modeler": true,
+    "/charitable-giving": true,
   };
 }
 

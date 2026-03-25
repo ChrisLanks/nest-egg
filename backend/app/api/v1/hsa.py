@@ -1,0 +1,212 @@
+"""HSA optimization API endpoints."""
+
+import logging
+from datetime import date
+from decimal import Decimal
+from typing import Optional
+from uuid import UUID
+
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query
+from pydantic import BaseModel
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
+from app.dependencies import get_current_user
+from app.models.hsa_receipt import HsaReceipt
+from app.models.user import User
+from app.services.hsa_optimization_service import HsaOptimizationService
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(tags=["HSA Optimization"])
+
+
+# ── Pydantic schemas ──────────────────────────────────────────────────────────
+
+
+class HsaReceiptCreate(BaseModel):
+    account_id: Optional[UUID] = None
+    expense_date: date
+    amount: Decimal
+    description: str
+    category: Optional[str] = None
+    tax_year: int
+    notes: Optional[str] = None
+
+
+class HsaReceiptUpdate(BaseModel):
+    is_reimbursed: Optional[bool] = None
+    reimbursed_at: Optional[date] = None
+    notes: Optional[str] = None
+
+
+# ── Calculation endpoints ─────────────────────────────────────────────────────
+
+
+@router.get(
+    "/contribution-headroom",
+    summary="HSA contribution headroom",
+    description="Returns remaining HSA contribution room for the year.",
+)
+async def get_contribution_headroom(
+    is_family: bool = Query(False, description="True if enrolled in a family HDHP plan"),
+    age: int = Query(..., description="Account holder age"),
+    year: Optional[int] = Query(None, description="Tax year (defaults to current year)"),
+    ytd_contributions: float = Query(0.0, description="Year-to-date contributions (USD)"),
+    current_user: User = Depends(get_current_user),
+):
+    """Returns remaining HSA contribution room for the year."""
+    import datetime
+    tax_year = year or datetime.date.today().year
+    return HsaOptimizationService.calculate_contribution_headroom(
+        ytd_contributions=Decimal(str(ytd_contributions)),
+        is_family_plan=is_family,
+        age=age,
+        year=tax_year,
+    )
+
+
+@router.get(
+    "/projection",
+    summary="HSA invest vs spend projection",
+    description=(
+        "Projects HSA balance under two strategies: "
+        "pay-as-you-go vs invest and pay medical expenses out-of-pocket."
+    ),
+)
+async def get_hsa_projection(
+    years: int = Query(20, description="Projection horizon (years)"),
+    annual_contribution: float = Query(..., description="Annual HSA contribution (USD)"),
+    annual_medical: float = Query(..., description="Annual medical expenses (USD)"),
+    current_balance: float = Query(0.0, description="Current HSA balance (USD)"),
+    investment_return: Optional[float] = Query(None, description="Annual investment return (default 6%)"),
+    current_user: User = Depends(get_current_user),
+):
+    """Projects HSA invest vs spend strategy over the given horizon."""
+    return HsaOptimizationService.project_invest_strategy(
+        current_balance=Decimal(str(current_balance)),
+        annual_contribution=Decimal(str(annual_contribution)),
+        annual_medical_expenses=Decimal(str(annual_medical)),
+        years=years,
+        investment_return=Decimal(str(investment_return)) if investment_return is not None else None,
+    )
+
+
+# ── Receipt CRUD ──────────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/receipts",
+    summary="List HSA receipts",
+)
+async def list_receipts(
+    tax_year: Optional[int] = Query(None, description="Filter by tax year"),
+    is_reimbursed: Optional[bool] = Query(None, description="Filter by reimbursement status"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Returns all HSA receipts for the current user."""
+    stmt = select(HsaReceipt).where(
+        HsaReceipt.organization_id == current_user.organization_id,
+        HsaReceipt.user_id == current_user.id,
+    )
+    if tax_year is not None:
+        stmt = stmt.where(HsaReceipt.tax_year == tax_year)
+    if is_reimbursed is not None:
+        stmt = stmt.where(HsaReceipt.is_reimbursed == is_reimbursed)
+    stmt = stmt.order_by(HsaReceipt.expense_date.desc())
+
+    result = await db.execute(stmt)
+    receipts = result.scalars().all()
+    return [
+        {
+            "id": str(r.id),
+            "account_id": str(r.account_id) if r.account_id else None,
+            "expense_date": r.expense_date.isoformat(),
+            "amount": float(r.amount),
+            "description": r.description,
+            "category": r.category,
+            "is_reimbursed": r.is_reimbursed,
+            "reimbursed_at": r.reimbursed_at.isoformat() if r.reimbursed_at else None,
+            "tax_year": r.tax_year,
+            "notes": r.notes,
+            "created_at": r.created_at.isoformat(),
+        }
+        for r in receipts
+    ]
+
+
+@router.post(
+    "/receipts",
+    summary="Create HSA receipt",
+    status_code=201,
+)
+async def create_receipt(
+    body: HsaReceiptCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Creates a new HSA receipt record."""
+    receipt = HsaReceipt(
+        organization_id=current_user.organization_id,
+        user_id=current_user.id,
+        account_id=body.account_id,
+        expense_date=body.expense_date,
+        amount=body.amount,
+        description=body.description,
+        category=body.category,
+        tax_year=body.tax_year,
+        notes=body.notes,
+        is_reimbursed=False,
+    )
+    db.add(receipt)
+    await db.commit()
+    await db.refresh(receipt)
+    return {
+        "id": str(receipt.id),
+        "amount": float(receipt.amount),
+        "description": receipt.description,
+        "tax_year": receipt.tax_year,
+        "is_reimbursed": receipt.is_reimbursed,
+        "created_at": receipt.created_at.isoformat(),
+    }
+
+
+@router.patch(
+    "/receipts/{receipt_id}",
+    summary="Update HSA receipt reimbursement status",
+)
+async def update_receipt(
+    receipt_id: UUID = Path(...),
+    body: HsaReceiptUpdate = Body(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Updates the reimbursement status or notes on an HSA receipt."""
+    result = await db.execute(
+        select(HsaReceipt).where(
+            HsaReceipt.id == receipt_id,
+            HsaReceipt.organization_id == current_user.organization_id,
+            HsaReceipt.user_id == current_user.id,
+        )
+    )
+    receipt = result.scalar_one_or_none()
+    if not receipt:
+        raise HTTPException(status_code=404, detail="HSA receipt not found")
+
+    if body.is_reimbursed is not None:
+        receipt.is_reimbursed = body.is_reimbursed
+    if body.reimbursed_at is not None:
+        receipt.reimbursed_at = body.reimbursed_at
+    if body.notes is not None:
+        receipt.notes = body.notes
+
+    await db.commit()
+    await db.refresh(receipt)
+    return {
+        "id": str(receipt.id),
+        "is_reimbursed": receipt.is_reimbursed,
+        "reimbursed_at": receipt.reimbursed_at.isoformat() if receipt.reimbursed_at else None,
+        "notes": receipt.notes,
+    }

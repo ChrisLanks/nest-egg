@@ -23,6 +23,18 @@ export enum NotificationType {
   WEEKLY_RECAP = "weekly_recap",
   EQUITY_VESTING = "equity_vesting",
   CRYPTO_PRICE_ALERT = "crypto_price_alert",
+  EQUITY_AMT_WARNING = "equity_amt_warning",
+  HSA_CONTRIBUTION_LIMIT = "hsa_contribution_limit",
+  BOND_MATURITY_UPCOMING = "bond_maturity_upcoming",
+  BENEFICIARY_MISSING = "beneficiary_missing",
+  TAX_BUCKET_IMBALANCE = "tax_bucket_imbalance",
+  HARVEST_OPPORTUNITY = "harvest_opportunity",
+  PRO_RATA_WARNING = "pro_rata_warning",
+  RMD_TAX_BOMB_WARNING = "rmd_tax_bomb_warning",
+  BILL_DUE_BEFORE_PAYCHECK = "bill_due_before_paycheck",
+  PENSION_ELECTION_DEADLINE = "pension_election_deadline",
+  REBALANCE_DRIFT_ALERT = "rebalance_drift_alert",
+  QCD_OPPORTUNITY = "qcd_opportunity",
 }
 
 export enum NotificationPriority {
