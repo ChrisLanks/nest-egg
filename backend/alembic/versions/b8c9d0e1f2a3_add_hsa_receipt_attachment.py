@@ -1,7 +1,7 @@
 """Add file attachment columns to hsa_receipts.
 
-Revision ID: a1b2c3d4e5f6
-Revises: z8a9b0c1d2e3
+Revision ID: b8c9d0e1f2a3
+Revises: p1q2r3s4t5u6
 Create Date: 2026-03-25
 
 Adds file_key, file_name, and file_content_type to support receipt image/PDF
@@ -13,8 +13,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = "a1b2c3d4e5f6"
-down_revision: Union[str, None] = "z8a9b0c1d2e3"
+revision: str = "b8c9d0e1f2a3"
+down_revision: Union[str, None] = "p1q2r3s4t5u6"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

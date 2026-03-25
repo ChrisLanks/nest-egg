@@ -15,7 +15,6 @@ import {
   Button,
   Card,
   CardBody,
-  CardHeader,
   Container,
   Divider,
   FormControl,
@@ -213,9 +212,11 @@ export const HsaPage = () => {
 
   // YTD contributions from transactions on linked HSA accounts
   const { data: ytdSummary } = useQuery<YtdSummary>({
-    queryKey: ["hsa-ytd-summary", currentYear],
+    queryKey: ["hsa-ytd-summary", currentYear, selectedUserId],
     queryFn: async () => {
-      const res = await api.get("/hsa/ytd-summary", { params: { year: currentYear } });
+      const params: Record<string, unknown> = { year: currentYear };
+      if (selectedUserId) params.user_id = selectedUserId;
+      const res = await api.get("/hsa/ytd-summary", { params });
       return res.data;
     },
   });

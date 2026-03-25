@@ -241,6 +241,7 @@ async def update_receipt(
 )
 async def get_ytd_summary(
     year: Optional[int] = Query(None, description="Tax year (defaults to current year)"),
+    user_id: Optional[UUID] = Query(None, description="Filter to a specific household member"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -249,13 +250,14 @@ async def get_ytd_summary(
     start = date(tax_year, 1, 1)
     end = date(tax_year, 12, 31)
 
-    # Find all HSA accounts for this org
-    acct_result = await db.execute(
-        select(Account.id).where(
-            Account.organization_id == current_user.organization_id,
-            Account.account_type == AccountType.HSA,
-        )
+    # Find HSA accounts scoped to org (and optionally a specific user)
+    acct_stmt = select(Account.id).where(
+        Account.organization_id == current_user.organization_id,
+        Account.account_type == AccountType.HSA,
     )
+    if user_id:
+        acct_stmt = acct_stmt.where(Account.user_id == user_id)
+    acct_result = await db.execute(acct_stmt)
     hsa_account_ids = [row[0] for row in acct_result.fetchall()]
 
     if not hsa_account_ids:
