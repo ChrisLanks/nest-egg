@@ -17,7 +17,6 @@ import {
   Collapse,
   Tooltip,
   useColorModeValue,
-  useToast,
 } from "@chakra-ui/react";
 
 import {
@@ -59,6 +58,8 @@ import {
 } from "../utils/permissionBannerUtils";
 import { ACCOUNT_TYPE_SIDEBAR_CONFIG } from "../constants/accountTypeGroups";
 import { useNavDefaults } from "../hooks/useNavDefaults";
+import { useNotificationToast } from "../hooks/useNotificationToast";
+import { NotificationType, NotificationPriority } from "../types/notification";
 
 interface Account {
   id: string;
@@ -623,7 +624,8 @@ export const Layout = () => {
   };
 
   // Feature discovery: toast once when conditional nav items first unlock
-  const toast = useToast();
+  // useNotificationToast bridges these into the bell dropdown as well
+  const notificationToast = useNotificationToast();
 
   // First-login view orientation — fires once on the very first session
   useEffect(() => {
@@ -689,7 +691,7 @@ export const Layout = () => {
       if (!shown[key]) {
         shown[key] = true;
         localStorage.setItem(DISCOVERY_KEY, JSON.stringify(shown));
-        toast({
+        notificationToast({
           duration: 8000,
           isClosable: true,
           position: "bottom-right",
@@ -729,6 +731,15 @@ export const Layout = () => {
               </HStack>
             </Box>
           ),
+          notification: {
+            type: NotificationType.NAV_FEATURE_UNLOCKED,
+            priority: NotificationPriority.MEDIUM,
+            title,
+            message: description,
+            action_url: path,
+            action_label: "Explore",
+            expires_in_days: 30,
+          },
         });
       }
     };

@@ -47,6 +47,7 @@ class NotificationType(str, enum.Enum):
     PENSION_ELECTION_DEADLINE = "pension_election_deadline"
     REBALANCE_DRIFT_ALERT = "rebalance_drift_alert"
     QCD_OPPORTUNITY = "qcd_opportunity"
+    NAV_FEATURE_UNLOCKED = "nav_feature_unlocked"
 
 
 class NotificationPriority(str, enum.Enum):

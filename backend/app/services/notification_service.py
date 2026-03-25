@@ -45,6 +45,7 @@ NOTIFICATION_CATEGORY_TYPES: dict[str, list[str]] = {
         NotificationType.FIRE_INDEPENDENT,
         NotificationType.RMD_TAX_BOMB_WARNING,
         NotificationType.PRO_RATA_WARNING,
+        NotificationType.NAV_FEATURE_UNLOCKED,
     ],
     "household": [
         NotificationType.HOUSEHOLD_MEMBER_JOINED,

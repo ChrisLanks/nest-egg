@@ -35,6 +35,7 @@ export enum NotificationType {
   PENSION_ELECTION_DEADLINE = "pension_election_deadline",
   REBALANCE_DRIFT_ALERT = "rebalance_drift_alert",
   QCD_OPPORTUNITY = "qcd_opportunity",
+  NAV_FEATURE_UNLOCKED = "nav_feature_unlocked",
 }
 
 export enum NotificationPriority {
