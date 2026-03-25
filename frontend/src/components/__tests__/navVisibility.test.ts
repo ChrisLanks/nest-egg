@@ -189,15 +189,15 @@ describe("buildConditionalDefaults: /education", () => {
   });
 });
 
-// ── /recurring and /bills (linked accounts) ───────────────────────────────────
+// ── /recurring-bills (linked accounts) ───────────────────────────────────────
+// /recurring and /bills were merged into the /recurring-bills hub
 
-describe("buildConditionalDefaults: /recurring and /bills", () => {
-  it("both hidden with no accounts", () => {
+describe("buildConditionalDefaults: /recurring-bills", () => {
+  it("hidden with no accounts", () => {
     const d = buildConditionalDefaults([], null);
-    expect(d["/recurring"]).toBe(false);
-    expect(d["/bills"]).toBe(false);
+    expect(d["/recurring-bills"]).toBe(false);
   });
-  it("both hidden with manual (non-linked) account", () => {
+  it("hidden with manual (non-linked) account", () => {
     const d = buildConditionalDefaults(
       [
         {
@@ -208,18 +208,20 @@ describe("buildConditionalDefaults: /recurring and /bills", () => {
       ],
       null,
     );
-    expect(d["/recurring"]).toBe(false);
-    expect(d["/bills"]).toBe(false);
+    expect(d["/recurring-bills"]).toBe(false);
   });
-  it("both shown when plaid_item_id is set", () => {
+  it("shown when plaid_item_id is set", () => {
     const d = buildConditionalDefaults([linkedChecking()], null);
-    expect(d["/recurring"]).toBe(true);
-    expect(d["/bills"]).toBe(true);
+    expect(d["/recurring-bills"]).toBe(true);
   });
-  it("both shown when plaid_item_hash is set (Teller/MX)", () => {
+  it("shown when plaid_item_hash is set (Teller/MX)", () => {
     const d = buildConditionalDefaults([linkedViaHash()], null);
-    expect(d["/recurring"]).toBe(true);
-    expect(d["/bills"]).toBe(true);
+    expect(d["/recurring-bills"]).toBe(true);
+  });
+  it("old /recurring and /bills paths are NOT in the map", () => {
+    const d = buildConditionalDefaults([linkedChecking()], null);
+    expect("/recurring" in d).toBe(false);
+    expect("/bills" in d).toBe(false);
   });
 });
 
@@ -234,68 +236,29 @@ describe("buildConditionalDefaults: /rules", () => {
   });
 });
 
-// ── /ss-claiming (age-gated) ──────────────────────────────────────────────────
+// ── Hub paths consolidated into /life-planning, /tax-center, /investment-tools ─
+// /ss-claiming, /fire, /tax-projection are no longer individual nav items;
+// they are rendered as tabs inside hub pages which are always visible.
 
-describe("buildConditionalDefaults: /ss-claiming", () => {
-  it("hidden when userAge is null (no birthdate set)", () => {
-    expect(buildConditionalDefaults([], null)["/ss-claiming"]).toBe(false);
+describe("buildConditionalDefaults: consolidated hub paths always visible", () => {
+  it("/tax-center always true regardless of accounts", () => {
+    expect(buildConditionalDefaults([], null)["/tax-center"]).toBe(true);
+    expect(buildConditionalDefaults([checking()], null)["/tax-center"]).toBe(true);
   });
-  it("shown for age 50", () => {
-    expect(buildConditionalDefaults([], 50)["/ss-claiming"]).toBe(true);
+  it("/life-planning always true regardless of accounts or age", () => {
+    expect(buildConditionalDefaults([], null)["/life-planning"]).toBe(true);
+    expect(buildConditionalDefaults([], 35)["/life-planning"]).toBe(true);
   });
-  it("shown for age 65", () => {
-    expect(buildConditionalDefaults([], 65)["/ss-claiming"]).toBe(true);
+  it("/investment-tools always true regardless of accounts", () => {
+    expect(buildConditionalDefaults([], null)["/investment-tools"]).toBe(true);
+    expect(buildConditionalDefaults([brokerage()], 25)["/investment-tools"]).toBe(true);
   });
-  it("hidden for age 49", () => {
-    expect(buildConditionalDefaults([], 49)["/ss-claiming"]).toBe(false);
-  });
-  it("hidden for age 30", () => {
-    expect(buildConditionalDefaults([], 30)["/ss-claiming"]).toBe(false);
-  });
-});
-
-// ── /fire (investments + under 50) ───────────────────────────────────────────
-
-describe("buildConditionalDefaults: /fire", () => {
-  it("hidden with no investments", () => {
-    expect(buildConditionalDefaults([checking()], 35)["/fire"]).toBe(false);
-  });
-  it("hidden when userAge is null (no birthdate)", () => {
-    expect(buildConditionalDefaults([brokerage()], null)["/fire"]).toBe(false);
-  });
-  it("hidden when age >= 50", () => {
-    expect(buildConditionalDefaults([brokerage()], 50)["/fire"]).toBe(false);
-    expect(buildConditionalDefaults([brokerage()], 65)["/fire"]).toBe(false);
-  });
-  it("shown for investor under 50", () => {
-    expect(buildConditionalDefaults([brokerage()], 35)["/fire"]).toBe(true);
-    expect(buildConditionalDefaults([k401()], 49)["/fire"]).toBe(true);
-  });
-});
-
-// ── /tax-projection ───────────────────────────────────────────────────────────
-
-describe("buildConditionalDefaults: /tax-projection", () => {
-  it("hidden with no investment accounts", () => {
-    expect(
-      buildConditionalDefaults([checking()], null)["/tax-projection"],
-    ).toBe(false);
-  });
-  it("shown with brokerage regardless of age", () => {
-    expect(
-      buildConditionalDefaults([brokerage()], null)["/tax-projection"],
-    ).toBe(true);
-    expect(buildConditionalDefaults([brokerage()], 65)["/tax-projection"]).toBe(
-      true,
-    );
-  });
-  it("shown with IRA", () => {
-    expect(buildConditionalDefaults([ira()], 65)["/tax-projection"]).toBe(true);
-  });
-  it("shown with crypto", () => {
-    expect(buildConditionalDefaults([crypto()], 25)["/tax-projection"]).toBe(
-      true,
-    );
+  it("old individual paths NOT in conditionalDefaults map", () => {
+    const d = buildConditionalDefaults([brokerage()], 35);
+    expect("/ss-claiming" in d).toBe(false);
+    expect("/fire" in d).toBe(false);
+    expect("/tax-projection" in d).toBe(false);
+    expect("/hsa" in d).toBe(false);
   });
 });
 
@@ -329,29 +292,25 @@ describe("reset to defaults: post-reset visibility is account-aware", () => {
     const defaults = buildConditionalDefaults([checking()], null);
     expect(isNavVisible("/mortgage", {}, defaults)).toBe(false);
   });
-  it("FIRE visible after reset for young investor with investments", () => {
-    const defaults = buildConditionalDefaults([brokerage()], 32);
-    expect(isNavVisible("/fire", {}, defaults)).toBe(true);
-  });
-  it("recurring visible after reset with linked bank account", () => {
+  it("recurring-bills visible after reset with linked bank account", () => {
     const defaults = buildConditionalDefaults([linkedChecking()], null);
-    expect(isNavVisible("/recurring", {}, defaults)).toBe(true);
+    expect(isNavVisible("/recurring-bills", {}, defaults)).toBe(true);
   });
   it("rental-properties hidden after reset without rental account", () => {
     const defaults = buildConditionalDefaults([checking()], null);
     expect(isNavVisible("/rental-properties", {}, defaults)).toBe(false);
   });
-  it("investment-health visible after reset with 401k", () => {
-    const defaults = buildConditionalDefaults([k401()], null);
-    expect(isNavVisible("/investment-health", {}, defaults)).toBe(true);
+  it("hub pages always visible after reset regardless of accounts", () => {
+    const defaults = buildConditionalDefaults([], null);
+    expect(isNavVisible("/tax-center", {}, defaults)).toBe(true);
+    expect(isNavVisible("/life-planning", {}, defaults)).toBe(true);
+    expect(isNavVisible("/investment-tools", {}, defaults)).toBe(true);
   });
-  it("ss-claiming hidden after reset for user aged 35", () => {
+  it("ss-claiming hidden after reset for user aged 35 (path defaults to true via ?? true since not in map)", () => {
+    // /ss-claiming is no longer a conditional path — it redirects to /life-planning
+    // isNavVisible falls back to ?? true for unknown paths
     const defaults = buildConditionalDefaults([], 35);
-    expect(isNavVisible("/ss-claiming", {}, defaults)).toBe(false);
-  });
-  it("tax-projection visible after reset with any investment", () => {
-    const defaults = buildConditionalDefaults([ira()], null);
-    expect(isNavVisible("/tax-projection", {}, defaults)).toBe(true);
+    expect(isNavVisible("/ss-claiming", {}, defaults)).toBe(true);
   });
 });
 

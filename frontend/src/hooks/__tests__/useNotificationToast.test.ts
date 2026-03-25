@@ -35,7 +35,8 @@ describe("useNotificationToast source structure", () => {
   });
 
   it("extends UseToastOptions from Chakra", () => {
-    expect(hookSrc).toContain("extends UseToastOptions");
+    // Wrapped in NonNullable<> to avoid null/undefined noise on optional fields
+    expect(hookSrc).toMatch(/extends.*UseToastOptions/);
   });
 
   it("shows the Chakra toast before persisting (toast called first)", () => {

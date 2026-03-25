@@ -10,6 +10,9 @@ import {
   Icon,
   Button,
   HStack,
+  Input,
+  InputGroup,
+  InputLeftElement,
 } from "@chakra-ui/react";
 import {
   FiDollarSign,
@@ -22,8 +25,10 @@ import {
   FiShield,
   FiAward,
   FiPackage,
+  FiSearch,
 } from "react-icons/fi";
 import { ArrowBackIcon } from "@chakra-ui/icons";
+import { useState } from "react";
 import {
   type AccountType,
   ACCOUNT_TYPES,
@@ -308,10 +313,73 @@ interface ManualAccountTypeStepProps {
   onBack: () => void;
 }
 
+const CATEGORY_LABELS: Record<string, string> = {
+  basic: "Basic Accounts",
+  investment: "Investment Accounts",
+  alternative: "Alternative Investments",
+  securities: "Securities",
+  insurance: "Insurance & Annuities",
+  business: "Business",
+  property: "Property & Vehicles",
+};
+
+const CATEGORY_ORDER = [
+  "basic",
+  "investment",
+  "alternative",
+  "securities",
+  "insurance",
+  "business",
+  "property",
+] as const;
+
 export const ManualAccountTypeStep = ({
   onSelectType,
   onBack,
 }: ManualAccountTypeStepProps) => {
+  const [query, setQuery] = useState("");
+
+  const filtered = query.trim()
+    ? accountTypeOptions.filter(
+        (o) =>
+          o.label.toLowerCase().includes(query.toLowerCase()) ||
+          o.description.toLowerCase().includes(query.toLowerCase()),
+      )
+    : null; // null = show all categories
+
+  const renderCard = (option: AccountTypeOption) => (
+    <Box
+      key={option.type}
+      as="button"
+      onClick={() => onSelectType(option.type, option.category)}
+      p={4}
+      borderWidth={2}
+      borderRadius="md"
+      borderColor="border.default"
+      _hover={{
+        borderColor: "brand.500",
+        bg: "brand.subtle",
+        transform: "translateY(-2px)",
+        shadow: "md",
+      }}
+      transition="all 0.2s"
+      cursor="pointer"
+      textAlign="left"
+    >
+      <HStack spacing={3} align="start">
+        <Icon as={option.icon} boxSize={5} color="brand.500" mt={1} />
+        <VStack align="start" spacing={1} flex={1}>
+          <Text fontWeight="bold" fontSize="sm">
+            {option.label}
+          </Text>
+          <Text fontSize="xs" color="text.secondary">
+            {option.description}
+          </Text>
+        </VStack>
+      </HStack>
+    </Box>
+  );
+
   return (
     <VStack spacing={6} align="stretch">
       <HStack>
@@ -329,306 +397,53 @@ export const ManualAccountTypeStep = ({
         Select the type of account you want to add
       </Text>
 
-      {/* Basic Accounts */}
-      <Box>
-        <Text fontSize="sm" fontWeight="bold" color="text.heading" mb={3}>
-          Basic Accounts
-        </Text>
-        <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
-          {accountTypeOptions
-            .filter((option) => option.category === "basic")
-            .map((option) => (
-              <Box
-                key={option.type}
-                as="button"
-                onClick={() => onSelectType(option.type, option.category)}
-                p={4}
-                borderWidth={2}
-                borderRadius="md"
-                borderColor="border.default"
-                _hover={{
-                  borderColor: "brand.500",
-                  bg: "brand.subtle",
-                  transform: "translateY(-2px)",
-                  shadow: "md",
-                }}
-                transition="all 0.2s"
-                cursor="pointer"
-                textAlign="left"
-              >
-                <HStack spacing={3} align="start">
-                  <Icon as={option.icon} boxSize={5} color="brand.500" mt={1} />
-                  <VStack align="start" spacing={1} flex={1}>
-                    <Text fontWeight="bold" fontSize="sm">
-                      {option.label}
-                    </Text>
-                    <Text fontSize="xs" color="text.secondary">
-                      {option.description}
-                    </Text>
-                  </VStack>
-                </HStack>
-              </Box>
-            ))}
-        </SimpleGrid>
-      </Box>
+      {/* Search */}
+      <InputGroup>
+        <InputLeftElement pointerEvents="none">
+          <Icon as={FiSearch} color="text.muted" />
+        </InputLeftElement>
+        <Input
+          placeholder="Search account types…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          autoFocus
+        />
+      </InputGroup>
 
-      {/* Investment Accounts */}
-      <Box>
-        <Text fontSize="sm" fontWeight="bold" color="text.heading" mb={3}>
-          Investment Accounts
-        </Text>
-        <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
-          {accountTypeOptions
-            .filter((option) => option.category === "investment")
-            .map((option) => (
-              <Box
-                key={option.type}
-                as="button"
-                onClick={() => onSelectType(option.type, option.category)}
-                p={4}
-                borderWidth={2}
-                borderRadius="md"
-                borderColor="border.default"
-                _hover={{
-                  borderColor: "brand.500",
-                  bg: "brand.subtle",
-                  transform: "translateY(-2px)",
-                  shadow: "md",
-                }}
-                transition="all 0.2s"
-                cursor="pointer"
-                textAlign="left"
-              >
-                <HStack spacing={3} align="start">
-                  <Icon as={option.icon} boxSize={5} color="brand.500" mt={1} />
-                  <VStack align="start" spacing={1} flex={1}>
-                    <Text fontWeight="bold" fontSize="sm">
-                      {option.label}
-                    </Text>
-                    <Text fontSize="xs" color="text.secondary">
-                      {option.description}
-                    </Text>
-                  </VStack>
-                </HStack>
-              </Box>
-            ))}
-        </SimpleGrid>
-      </Box>
+      {/* Search results */}
+      {filtered !== null && (
+        <>
+          {filtered.length === 0 ? (
+            <Text fontSize="sm" color="text.secondary" textAlign="center" py={4}>
+              No account types match "{query}"
+            </Text>
+          ) : (
+            <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
+              {filtered.map(renderCard)}
+            </SimpleGrid>
+          )}
+        </>
+      )}
 
-      {/* Alternative Investments */}
-      <Box>
-        <Text fontSize="sm" fontWeight="bold" color="text.heading" mb={3}>
-          Alternative Investments
-        </Text>
-        <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
-          {accountTypeOptions
-            .filter((option) => option.category === "alternative")
-            .map((option) => (
-              <Box
-                key={option.type}
-                as="button"
-                onClick={() => onSelectType(option.type, option.category)}
-                p={4}
-                borderWidth={2}
-                borderRadius="md"
-                borderColor="border.default"
-                _hover={{
-                  borderColor: "brand.500",
-                  bg: "brand.subtle",
-                  transform: "translateY(-2px)",
-                  shadow: "md",
-                }}
-                transition="all 0.2s"
-                cursor="pointer"
-                textAlign="left"
-              >
-                <HStack spacing={3} align="start">
-                  <Icon as={option.icon} boxSize={5} color="brand.500" mt={1} />
-                  <VStack align="start" spacing={1} flex={1}>
-                    <Text fontWeight="bold" fontSize="sm">
-                      {option.label}
-                    </Text>
-                    <Text fontSize="xs" color="text.secondary">
-                      {option.description}
-                    </Text>
-                  </VStack>
-                </HStack>
+      {/* Categorised list (shown when not searching) */}
+      {filtered === null && (
+        <>
+          {CATEGORY_ORDER.map((cat) => {
+            const items = accountTypeOptions.filter((o) => o.category === cat);
+            if (items.length === 0) return null;
+            return (
+              <Box key={cat}>
+                <Text fontSize="sm" fontWeight="bold" color="text.heading" mb={3}>
+                  {CATEGORY_LABELS[cat]}
+                </Text>
+                <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
+                  {items.map(renderCard)}
+                </SimpleGrid>
               </Box>
-            ))}
-        </SimpleGrid>
-      </Box>
-
-      {/* Securities */}
-      <Box>
-        <Text fontSize="sm" fontWeight="bold" color="text.heading" mb={3}>
-          Securities
-        </Text>
-        <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
-          {accountTypeOptions
-            .filter((option) => option.category === "securities")
-            .map((option) => (
-              <Box
-                key={option.type}
-                as="button"
-                onClick={() => onSelectType(option.type, option.category)}
-                p={4}
-                borderWidth={2}
-                borderRadius="md"
-                borderColor="border.default"
-                _hover={{
-                  borderColor: "brand.500",
-                  bg: "brand.subtle",
-                  transform: "translateY(-2px)",
-                  shadow: "md",
-                }}
-                transition="all 0.2s"
-                cursor="pointer"
-                textAlign="left"
-              >
-                <HStack spacing={3} align="start">
-                  <Icon as={option.icon} boxSize={5} color="brand.500" mt={1} />
-                  <VStack align="start" spacing={1} flex={1}>
-                    <Text fontWeight="bold" fontSize="sm">
-                      {option.label}
-                    </Text>
-                    <Text fontSize="xs" color="text.secondary">
-                      {option.description}
-                    </Text>
-                  </VStack>
-                </HStack>
-              </Box>
-            ))}
-        </SimpleGrid>
-      </Box>
-
-      {/* Insurance & Annuities */}
-      <Box>
-        <Text fontSize="sm" fontWeight="bold" color="text.heading" mb={3}>
-          Insurance & Annuities
-        </Text>
-        <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
-          {accountTypeOptions
-            .filter((option) => option.category === "insurance")
-            .map((option) => (
-              <Box
-                key={option.type}
-                as="button"
-                onClick={() => onSelectType(option.type, option.category)}
-                p={4}
-                borderWidth={2}
-                borderRadius="md"
-                borderColor="border.default"
-                _hover={{
-                  borderColor: "brand.500",
-                  bg: "brand.subtle",
-                  transform: "translateY(-2px)",
-                  shadow: "md",
-                }}
-                transition="all 0.2s"
-                cursor="pointer"
-                textAlign="left"
-              >
-                <HStack spacing={3} align="start">
-                  <Icon as={option.icon} boxSize={5} color="brand.500" mt={1} />
-                  <VStack align="start" spacing={1} flex={1}>
-                    <Text fontWeight="bold" fontSize="sm">
-                      {option.label}
-                    </Text>
-                    <Text fontSize="xs" color="text.secondary">
-                      {option.description}
-                    </Text>
-                  </VStack>
-                </HStack>
-              </Box>
-            ))}
-        </SimpleGrid>
-      </Box>
-
-      {/* Business */}
-      <Box>
-        <Text fontSize="sm" fontWeight="bold" color="text.heading" mb={3}>
-          Business
-        </Text>
-        <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
-          {accountTypeOptions
-            .filter((option) => option.category === "business")
-            .map((option) => (
-              <Box
-                key={option.type}
-                as="button"
-                onClick={() => onSelectType(option.type, option.category)}
-                p={4}
-                borderWidth={2}
-                borderRadius="md"
-                borderColor="border.default"
-                _hover={{
-                  borderColor: "brand.500",
-                  bg: "brand.subtle",
-                  transform: "translateY(-2px)",
-                  shadow: "md",
-                }}
-                transition="all 0.2s"
-                cursor="pointer"
-                textAlign="left"
-              >
-                <HStack spacing={3} align="start">
-                  <Icon as={option.icon} boxSize={5} color="brand.500" mt={1} />
-                  <VStack align="start" spacing={1} flex={1}>
-                    <Text fontWeight="bold" fontSize="sm">
-                      {option.label}
-                    </Text>
-                    <Text fontSize="xs" color="text.secondary">
-                      {option.description}
-                    </Text>
-                  </VStack>
-                </HStack>
-              </Box>
-            ))}
-        </SimpleGrid>
-      </Box>
-
-      {/* Property Accounts */}
-      <Box>
-        <Text fontSize="sm" fontWeight="bold" color="text.heading" mb={3}>
-          Property & Vehicles
-        </Text>
-        <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
-          {accountTypeOptions
-            .filter((option) => option.category === "property")
-            .map((option) => (
-              <Box
-                key={option.type}
-                as="button"
-                onClick={() => onSelectType(option.type, option.category)}
-                p={4}
-                borderWidth={2}
-                borderRadius="md"
-                borderColor="border.default"
-                _hover={{
-                  borderColor: "brand.500",
-                  bg: "brand.subtle",
-                  transform: "translateY(-2px)",
-                  shadow: "md",
-                }}
-                transition="all 0.2s"
-                cursor="pointer"
-                textAlign="left"
-              >
-                <HStack spacing={3} align="start">
-                  <Icon as={option.icon} boxSize={5} color="brand.500" mt={1} />
-                  <VStack align="start" spacing={1} flex={1}>
-                    <Text fontWeight="bold" fontSize="sm">
-                      {option.label}
-                    </Text>
-                    <Text fontSize="xs" color="text.secondary">
-                      {option.description}
-                    </Text>
-                  </VStack>
-                </HStack>
-              </Box>
-            ))}
-        </SimpleGrid>
-      </Box>
+            );
+          })}
+        </>
+      )}
     </VStack>
   );
 };
