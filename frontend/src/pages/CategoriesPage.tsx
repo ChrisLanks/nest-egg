@@ -1,5 +1,5 @@
 /**
- * Categories management page with hierarchical support
+ * Categories and Labels management page with hierarchical support
  */
 
 import {
@@ -39,6 +39,12 @@ import {
   AlertDialogCloseButton,
   Alert,
   AlertIcon,
+  Tabs,
+  TabList,
+  Tab,
+  TabPanels,
+  TabPanel,
+  AlertDescription,
 } from "@chakra-ui/react";
 import React, { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -67,7 +73,19 @@ interface CategoryWithChildren extends Category {
   children?: Category[];
 }
 
-export const CategoriesPage = () => {
+interface Label {
+  id: string;
+  name: string;
+  color?: string;
+  is_income?: boolean | null;
+  is_system?: boolean;
+  parent_label_id?: string | null;
+  transaction_count?: number;
+}
+
+// ── Categories Tab ───────────────────────────────────────────────────────────
+
+const CategoriesTab = () => {
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(
     null,
@@ -80,7 +98,6 @@ export const CategoriesPage = () => {
   });
   const toast = useToast();
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const { canWriteResource, selectedUserId } = useUserView();
   const canEdit = canWriteResource("category");
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -405,123 +422,107 @@ export const CategoriesPage = () => {
   };
 
   if (isLoading) {
-    return (
-      <Container maxW="container.xl" py={8}>
-        <VStack spacing={6} align="stretch">
-          <Heading size="lg">Categories</Heading>
-          <TableSkeleton />
-        </VStack>
-      </Container>
-    );
+    return <TableSkeleton />;
   }
 
   if (isError) {
     return (
-      <Container maxW="container.xl" py={8}>
-        <Alert status="error" borderRadius="md">
-          <AlertIcon />
-          Failed to load categories. Please refresh and try again.
-        </Alert>
-      </Container>
+      <Alert status="error" borderRadius="md">
+        <AlertIcon />
+        Failed to load categories. Please refresh and try again.
+      </Alert>
     );
   }
 
   return (
-    <Container maxW="container.xl" py={8}>
-      <VStack spacing={6} align="stretch">
-        <HStack justify="space-between" align="start">
-          <Box>
-            <Heading size="lg">Categories</Heading>
-            <Text color="text.secondary" mt={2}>
-              Manage custom categories with hierarchical organization (max 2
-              levels). Separate from labels.
-            </Text>
-          </Box>
-          <HStack spacing={2}>
-            <Button
-              colorScheme="brand"
-              isDisabled={!canEdit}
-              onClick={handleCreate}
-            >
-              Create Category
-            </Button>
-            <Button variant="ghost" onClick={() => navigate("/transactions")}>
-              Back to Transactions
-            </Button>
-          </HStack>
-        </HStack>
+    <>
+      <HStack justify="space-between" align="start">
+        <Box>
+          <Heading size="lg">Categories</Heading>
+          <Text color="text.secondary" mt={2}>
+            Manage custom categories with hierarchical organization (max 2
+            levels). Separate from labels.
+          </Text>
+        </Box>
+        <Button
+          colorScheme="brand"
+          isDisabled={!canEdit}
+          onClick={handleCreate}
+        >
+          Create Category
+        </Button>
+      </HStack>
 
-        {customCategories.length === 0 && plaidCategories.length === 0 ? (
-          <EmptyState
-            icon={FiTag}
-            title="No categories yet"
-            description="Create categories to organize your transactions and track spending patterns."
-            actionLabel="Create Your First Category"
-            onAction={handleCreate}
-          />
-        ) : (
-          <Box
-            bg="bg.surface"
-            borderRadius="lg"
-            boxShadow="sm"
-            overflowX="auto"
-          >
-            <Table variant="simple" size="sm">
-              <Thead bg="bg.subtle">
-                <Tr>
-                  <Th>Category Name</Th>
-                  <Th width="150px">Transactions</Th>
-                  <Th width="200px">Actions</Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {/* Custom Categories (hierarchical) */}
-                {customCategories.length > 0 && (
-                  <>
-                    <Tr bg="bg.muted">
-                      <Td colSpan={3}>
-                        <Text
-                          fontWeight="bold"
-                          fontSize="sm"
-                          color="text.heading"
-                        >
-                          Custom Categories
-                        </Text>
-                      </Td>
-                    </Tr>
-                    {customCategories.map((category) =>
-                      renderCategoryRow(category),
-                    )}
-                  </>
-                )}
+      {customCategories.length === 0 && plaidCategories.length === 0 ? (
+        <EmptyState
+          icon={FiTag}
+          title="No categories yet"
+          description="Create categories to organize your transactions and track spending patterns."
+          actionLabel="Create Your First Category"
+          onAction={handleCreate}
+        />
+      ) : (
+        <Box
+          bg="bg.surface"
+          borderRadius="lg"
+          boxShadow="sm"
+          overflowX="auto"
+        >
+          <Table variant="simple" size="sm">
+            <Thead bg="bg.subtle">
+              <Tr>
+                <Th>Category Name</Th>
+                <Th width="150px">Transactions</Th>
+                <Th width="200px">Actions</Th>
+              </Tr>
+            </Thead>
+            <Tbody>
+              {/* Custom Categories (hierarchical) */}
+              {customCategories.length > 0 && (
+                <>
+                  <Tr bg="bg.muted">
+                    <Td colSpan={3}>
+                      <Text
+                        fontWeight="bold"
+                        fontSize="sm"
+                        color="text.heading"
+                      >
+                        Custom Categories
+                      </Text>
+                    </Td>
+                  </Tr>
+                  {customCategories.map((category) =>
+                    renderCategoryRow(category),
+                  )}
+                </>
+              )}
 
-                {/* Plaid Categories (flat) */}
-                {plaidCategories.length > 0 && (
-                  <>
-                    <Tr bg="bg.muted">
-                      <Td colSpan={3}>
-                        <Text
-                          fontWeight="bold"
-                          fontSize="sm"
-                          color="text.heading"
-                        >
-                          Provider Categories (click "Make Custom" to edit)
-                          <HelpHint
-                            hint={helpContent.categories.providerCategories}
-                          />
-                        </Text>
-                      </Td>
-                    </Tr>
-                    {plaidCategories.map((category) =>
-                      renderCategoryRow(category),
-                    )}
-                  </>
-                )}
-              </Tbody>
-            </Table>
-          </Box>
-        )}
-      </VStack>
+              {/* Plaid Categories (flat) */}
+              {plaidCategories.length > 0 && (
+                <>
+                  <Tr bg="bg.muted">
+                    <Td colSpan={3}>
+                      <Text
+                        fontWeight="bold"
+                        fontSize="sm"
+                        color="text.heading"
+                      >
+                        Provider Categories (click "Make Custom" to edit)
+                        <HelpHint
+                          hint={helpContent.categories.providerCategories}
+                        />
+                      </Text>
+                    </Td>
+                  </Tr>
+                  {plaidCategories.map((category) =>
+                    renderCategoryRow(category),
+                  )}
+                </>
+              )}
+            </Tbody>
+          </Table>
+        </Box>
+      )}
 
       {/* Create Modal */}
       <Modal isOpen={isCreateOpen} onClose={onCreateClose}>
@@ -707,6 +708,594 @@ export const CategoriesPage = () => {
           </AlertDialogContent>
         </AlertDialogOverlay>
       </AlertDialog>
+    </>
+  );
+};
+
+// ── Labels Tab ───────────────────────────────────────────────────────────────
+
+type LabelIncomeState = "income" | "expense" | "any";
+
+function incomeStateToValue(state: LabelIncomeState): boolean | null {
+  if (state === "income") return true;
+  if (state === "expense") return false;
+  return null;
+}
+
+function valueToIncomeState(value: boolean | null | undefined): LabelIncomeState {
+  if (value === true) return "income";
+  if (value === false) return "expense";
+  return "any";
+}
+
+const LabelsTab = () => {
+  const [editingLabel, setEditingLabel] = useState<Label | null>(null);
+  const [labelToDelete, setLabelToDelete] = useState<Label | null>(null);
+  const [labelFormData, setLabelFormData] = useState({
+    name: "",
+    color: "#3B82F6",
+    incomeState: "any" as LabelIncomeState,
+    parent_label_id: "",
+  });
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const { canWriteResource } = useUserView();
+  const canEdit = canWriteResource("category");
+  const cancelRef = useRef<HTMLButtonElement>(null);
+
+  const {
+    isOpen: isCreateOpen,
+    onOpen: onCreateOpen,
+    onClose: onCreateClose,
+  } = useDisclosure();
+  const {
+    isOpen: isEditOpen,
+    onOpen: onEditOpen,
+    onClose: onEditClose,
+  } = useDisclosure();
+  const {
+    isOpen: isDeleteAlertOpen,
+    onOpen: onDeleteAlertOpen,
+    onClose: onDeleteAlertClose,
+  } = useDisclosure();
+
+  const { data: labels, isLoading, isError } = useQuery({
+    queryKey: ["labels-all"],
+    queryFn: async () => {
+      const response = await api.get<Label[]>("/labels/");
+      return response.data;
+    },
+  });
+
+  // Root labels for the parent dropdown (max 2 levels)
+  const rootLabels = useMemo(() => {
+    return labels?.filter((l) => !l.parent_label_id) || [];
+  }, [labels]);
+
+  const invalidateLabels = () => {
+    queryClient.invalidateQueries({ queryKey: ["labels-all"] });
+    queryClient.invalidateQueries({ queryKey: ["categories"] });
+  };
+
+  const createLabelMutation = useMutation({
+    mutationFn: async (data: typeof labelFormData) => {
+      const payload: Record<string, unknown> = {
+        name: data.name,
+        color: data.color || null,
+        is_income: incomeStateToValue(data.incomeState),
+        parent_label_id: data.parent_label_id || null,
+      };
+      const response = await api.post("/labels/", payload);
+      return response.data;
+    },
+    onSuccess: () => {
+      invalidateLabels();
+      toast({ title: "Label created", status: "success", duration: 3000 });
+      onCreateClose();
+      resetLabelForm();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to create label",
+        description: error.response?.data?.detail || "An error occurred",
+        status: "error",
+        duration: 5000,
+      });
+    },
+  });
+
+  const updateLabelMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: typeof labelFormData }) => {
+      const payload: Record<string, unknown> = {
+        name: data.name || undefined,
+        color: data.color || undefined,
+        is_income: incomeStateToValue(data.incomeState),
+      };
+      const response = await api.patch(`/labels/${id}`, payload);
+      return response.data;
+    },
+    onSuccess: () => {
+      invalidateLabels();
+      toast({ title: "Label updated", status: "success", duration: 3000 });
+      onEditClose();
+      setEditingLabel(null);
+      resetLabelForm();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to update label",
+        description: error.response?.data?.detail || "An error occurred",
+        status: "error",
+        duration: 5000,
+      });
+    },
+  });
+
+  const deleteLabelMutation = useMutation({
+    mutationFn: async (labelId: string) => {
+      await api.delete(`/labels/${labelId}`);
+    },
+    onSuccess: () => {
+      invalidateLabels();
+      toast({ title: "Label deleted", status: "success", duration: 3000 });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to delete label",
+        description: error.response?.data?.detail || "An error occurred",
+        status: "error",
+        duration: 5000,
+      });
+    },
+  });
+
+  const resetLabelForm = () => {
+    setLabelFormData({
+      name: "",
+      color: "#3B82F6",
+      incomeState: "any",
+      parent_label_id: "",
+    });
+  };
+
+  const handleCreateLabel = () => {
+    resetLabelForm();
+    onCreateOpen();
+  };
+
+  const handleEditLabel = (label: Label) => {
+    setEditingLabel(label);
+    setLabelFormData({
+      name: label.name,
+      color: label.color || "#3B82F6",
+      incomeState: valueToIncomeState(label.is_income),
+      parent_label_id: label.parent_label_id || "",
+    });
+    onEditOpen();
+  };
+
+  const handleSubmitCreateLabel = () => {
+    if (!labelFormData.name.trim()) {
+      toast({ title: "Name is required", status: "warning", duration: 3000 });
+      return;
+    }
+    createLabelMutation.mutate(labelFormData);
+  };
+
+  const handleSubmitEditLabel = () => {
+    if (!editingLabel || !labelFormData.name.trim()) {
+      toast({ title: "Name is required", status: "warning", duration: 3000 });
+      return;
+    }
+    updateLabelMutation.mutate({ id: editingLabel.id, data: labelFormData });
+  };
+
+  const handleDeleteLabel = (label: Label) => {
+    if (label.is_system) {
+      toast({
+        title: "Cannot delete system label",
+        description: "System labels cannot be removed.",
+        status: "warning",
+        duration: 3000,
+      });
+      return;
+    }
+    setLabelToDelete(label);
+    onDeleteAlertOpen();
+  };
+
+  const confirmDeleteLabel = () => {
+    if (labelToDelete?.id) {
+      deleteLabelMutation.mutate(labelToDelete.id);
+    }
+    onDeleteAlertClose();
+    setLabelToDelete(null);
+  };
+
+  const getParentName = (label: Label): string => {
+    if (!label.parent_label_id) return "—";
+    const parent = labels?.find((l) => l.id === label.parent_label_id);
+    return parent?.name || "—";
+  };
+
+  const getTypeLabel = (label: Label): string => {
+    if (label.is_income === true) return "Income";
+    if (label.is_income === false) return "Expense";
+    return "Any";
+  };
+
+  if (isLoading) {
+    return <TableSkeleton />;
+  }
+
+  if (isError) {
+    return (
+      <Alert status="error" borderRadius="md">
+        <AlertIcon />
+        Failed to load labels. Please refresh and try again.
+      </Alert>
+    );
+  }
+
+  const LabelFormFields = () => (
+    <VStack spacing={4}>
+      <FormControl isRequired>
+        <FormLabel>Label Name</FormLabel>
+        <Input
+          value={labelFormData.name}
+          onChange={(e) =>
+            setLabelFormData({ ...labelFormData, name: e.target.value })
+          }
+          placeholder="Enter label name"
+          autoFocus
+        />
+      </FormControl>
+
+      <FormControl>
+        <FormLabel>Type</FormLabel>
+        <Select
+          value={labelFormData.incomeState}
+          onChange={(e) =>
+            setLabelFormData({
+              ...labelFormData,
+              incomeState: e.target.value as LabelIncomeState,
+            })
+          }
+        >
+          <option value="any">Any (Income or Expense)</option>
+          <option value="income">Income</option>
+          <option value="expense">Expense</option>
+        </Select>
+      </FormControl>
+
+      <FormControl>
+        <FormLabel>Color</FormLabel>
+        <Input
+          type="color"
+          value={labelFormData.color}
+          onChange={(e) =>
+            setLabelFormData({ ...labelFormData, color: e.target.value })
+          }
+        />
+      </FormControl>
+    </VStack>
+  );
+
+  return (
+    <>
+      <HStack justify="space-between" align="start">
+        <Box>
+          <Heading size="lg">Labels</Heading>
+          <Text color="text.secondary" mt={2}>
+            Manage freeform tags applied to transactions across categories.
+          </Text>
+        </Box>
+        <Button
+          colorScheme="brand"
+          isDisabled={!canEdit}
+          onClick={handleCreateLabel}
+        >
+          Create Label
+        </Button>
+      </HStack>
+
+      {!labels || labels.length === 0 ? (
+        <EmptyState
+          icon={FiTag}
+          title="No labels yet"
+          description="Create labels to tag transactions for cross-cutting purposes like tax deductibility or business expenses."
+          actionLabel="Create Your First Label"
+          onAction={handleCreateLabel}
+        />
+      ) : (
+        <Box
+          bg="bg.surface"
+          borderRadius="lg"
+          boxShadow="sm"
+          overflowX="auto"
+        >
+          <Table variant="simple" size="sm">
+            <Thead bg="bg.subtle">
+              <Tr>
+                <Th>Name</Th>
+                <Th width="120px">Type</Th>
+                <Th width="150px">Parent</Th>
+                <Th width="150px">Actions</Th>
+              </Tr>
+            </Thead>
+            <Tbody>
+              {labels.map((label) => (
+                <Tr key={label.id} _hover={{ bg: "bg.subtle" }}>
+                  <Td>
+                    <HStack spacing={2}>
+                      {label.parent_label_id && (
+                        <ChevronRightIcon ml={4} color="text.muted" />
+                      )}
+                      <Box
+                        w={3}
+                        h={3}
+                        borderRadius="sm"
+                        bg={label.color || "gray.400"}
+                        flexShrink={0}
+                      />
+                      <Text fontWeight={label.parent_label_id ? "normal" : "semibold"}>
+                        {label.name}
+                      </Text>
+                      {label.is_system && (
+                        <Text fontSize="xs" color="text.muted">
+                          (system)
+                        </Text>
+                      )}
+                    </HStack>
+                  </Td>
+                  <Td>
+                    <Text fontSize="sm" color="text.secondary">
+                      {getTypeLabel(label)}
+                    </Text>
+                  </Td>
+                  <Td>
+                    <Text fontSize="sm" color="text.secondary">
+                      {getParentName(label)}
+                    </Text>
+                  </Td>
+                  <Td>
+                    <HStack spacing={2}>
+                      <IconButton
+                        icon={<EditIcon />}
+                        aria-label="Edit label"
+                        size="sm"
+                        variant="ghost"
+                        isDisabled={!canEdit}
+                        onClick={() => handleEditLabel(label)}
+                      />
+                      <IconButton
+                        icon={<DeleteIcon />}
+                        aria-label="Delete label"
+                        size="sm"
+                        variant="ghost"
+                        colorScheme="red"
+                        isDisabled={!canEdit || !!label.is_system}
+                        onClick={() => handleDeleteLabel(label)}
+                        isLoading={deleteLabelMutation.isPending}
+                      />
+                    </HStack>
+                  </Td>
+                </Tr>
+              ))}
+            </Tbody>
+          </Table>
+        </Box>
+      )}
+
+      {/* Create Label Modal */}
+      <Modal isOpen={isCreateOpen} onClose={onCreateClose}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Create New Label</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={4}>
+              <FormControl isRequired>
+                <FormLabel>Label Name</FormLabel>
+                <Input
+                  value={labelFormData.name}
+                  onChange={(e) =>
+                    setLabelFormData({ ...labelFormData, name: e.target.value })
+                  }
+                  placeholder="Enter label name"
+                  autoFocus
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Type</FormLabel>
+                <Select
+                  value={labelFormData.incomeState}
+                  onChange={(e) =>
+                    setLabelFormData({
+                      ...labelFormData,
+                      incomeState: e.target.value as LabelIncomeState,
+                    })
+                  }
+                >
+                  <option value="any">Any (Income or Expense)</option>
+                  <option value="income">Income</option>
+                  <option value="expense">Expense</option>
+                </Select>
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Parent Label (Optional)</FormLabel>
+                <Select
+                  value={labelFormData.parent_label_id}
+                  onChange={(e) =>
+                    setLabelFormData({
+                      ...labelFormData,
+                      parent_label_id: e.target.value,
+                    })
+                  }
+                  placeholder="None (Root level)"
+                >
+                  {rootLabels.map((label) => (
+                    <option key={label.id} value={label.id}>
+                      {label.name}
+                    </option>
+                  ))}
+                </Select>
+                <Text fontSize="xs" color="text.muted" mt={1}>
+                  Labels can only be nested 2 levels deep (parent → child)
+                </Text>
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Color</FormLabel>
+                <Input
+                  type="color"
+                  value={labelFormData.color}
+                  onChange={(e) =>
+                    setLabelFormData({ ...labelFormData, color: e.target.value })
+                  }
+                />
+              </FormControl>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onCreateClose}>
+              Cancel
+            </Button>
+            <Button
+              colorScheme="brand"
+              onClick={handleSubmitCreateLabel}
+              isLoading={createLabelMutation.isPending}
+            >
+              Create
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Edit Label Modal */}
+      <Modal isOpen={isEditOpen} onClose={onEditClose}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Edit Label</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <LabelFormFields />
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onEditClose}>
+              Cancel
+            </Button>
+            <Button
+              colorScheme="brand"
+              onClick={handleSubmitEditLabel}
+              isLoading={updateLabelMutation.isPending}
+            >
+              Save Changes
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Delete Label Confirmation Dialog */}
+      <AlertDialog
+        isOpen={isDeleteAlertOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={onDeleteAlertClose}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete Label
+            </AlertDialogHeader>
+            <AlertDialogCloseButton />
+            <AlertDialogBody>
+              Are you sure you want to delete{" "}
+              <strong>"{labelToDelete?.name}"</strong>?
+              {labelToDelete && (labelToDelete.transaction_count ?? 0) > 0 && (
+                <Text mt={2} color="orange.600">
+                  This label is used by {labelToDelete.transaction_count}{" "}
+                  transaction(s). It will be removed from all of them.
+                </Text>
+              )}
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={onDeleteAlertClose}>
+                Cancel
+              </Button>
+              <Button
+                colorScheme="red"
+                onClick={confirmDeleteLabel}
+                ml={3}
+                isLoading={deleteLabelMutation.isPending}
+              >
+                Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
+    </>
+  );
+};
+
+// ── Banner text ──────────────────────────────────────────────────────────────
+
+const CATEGORIES_BANNER =
+  "Categories classify what a transaction is — Groceries, Dining, Utilities. They come from your bank (provider categories) or you can create custom ones. Used in budgets, trends, and reports.";
+
+const LABELS_BANNER =
+  'Labels are freeform tags you apply to transactions for cross-cutting purposes — "Business Expense", "Tax Deductible", "Freelance Income". A transaction can have multiple labels. Used in the Variable Income Planner, Tax Deductible page, and Rules.';
+
+// ── Page ─────────────────────────────────────────────────────────────────────
+
+export const CategoriesPage = () => {
+  const navigate = useNavigate();
+  const [tabIndex, setTabIndex] = useState(0);
+
+  const bannerText = tabIndex === 0 ? CATEGORIES_BANNER : LABELS_BANNER;
+
+  return (
+    <Container maxW="container.xl" py={8}>
+      <VStack spacing={6} align="stretch">
+        <HStack justify="space-between" align="start">
+          <Box>
+            <Heading size="lg">Categories &amp; Labels</Heading>
+            <Text color="text.secondary" mt={1}>
+              Organize your transactions with categories and cross-cutting labels.
+            </Text>
+          </Box>
+          <Button variant="ghost" onClick={() => navigate("/transactions")}>
+            Back to Transactions
+          </Button>
+        </HStack>
+
+        <Tabs index={tabIndex} onChange={setTabIndex} colorScheme="brand">
+          <TabList>
+            <Tab>Categories</Tab>
+            <Tab>Labels</Tab>
+          </TabList>
+
+          <Alert status="info" borderRadius="md" mt={4}>
+            <AlertIcon />
+            <AlertDescription>{bannerText}</AlertDescription>
+          </Alert>
+
+          <TabPanels mt={4}>
+            <TabPanel px={0}>
+              <VStack spacing={6} align="stretch">
+                <CategoriesTab />
+              </VStack>
+            </TabPanel>
+            <TabPanel px={0}>
+              <VStack spacing={6} align="stretch">
+                <LabelsTab />
+              </VStack>
+            </TabPanel>
+          </TabPanels>
+        </Tabs>
+      </VStack>
     </Container>
   );
 };

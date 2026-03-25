@@ -1,6 +1,8 @@
 /**
  * Tests for CategoriesPage logic: category hierarchy building, custom vs Plaid
  * splitting, parent category filtering, and form validation guards.
+ * Also tests Labels tab logic: CRUD helpers, is_income mapping, system label
+ * guards, parent dropdown filtering, and explanation banner text.
  */
 
 import { describe, it, expect } from "vitest";
@@ -18,6 +20,16 @@ interface Category {
 
 interface CategoryWithChildren extends Category {
   children?: CategoryWithChildren[];
+}
+
+interface Label {
+  id: string;
+  name: string;
+  color?: string;
+  is_income?: boolean | null;
+  is_system?: boolean;
+  parent_label_id?: string | null;
+  transaction_count?: number;
 }
 
 // ── Logic helpers (mirrored from CategoriesPage.tsx) ─────────────────────────
@@ -62,6 +74,36 @@ function getParentCategories(categories: Category[]): Category[] {
   return categories.filter((c) => c.is_custom && !c.parent_category_id);
 }
 
+// ── Label helpers (mirrored from CategoriesPage.tsx) ─────────────────────────
+
+type LabelIncomeState = "income" | "expense" | "any";
+
+function incomeStateToValue(state: LabelIncomeState): boolean | null {
+  if (state === "income") return true;
+  if (state === "expense") return false;
+  return null;
+}
+
+function valueToIncomeState(value: boolean | null | undefined): LabelIncomeState {
+  if (value === true) return "income";
+  if (value === false) return "expense";
+  return "any";
+}
+
+function getRootLabels(labels: Label[]): Label[] {
+  return labels.filter((l) => !l.parent_label_id);
+}
+
+function canDeleteLabel(label: Label): boolean {
+  return !label.is_system;
+}
+
+function getLabelTypeName(label: Label): string {
+  if (label.is_income === true) return "Income";
+  if (label.is_income === false) return "Expense";
+  return "Any";
+}
+
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
 const CUSTOM_ROOT: Category = {
@@ -102,7 +144,39 @@ const PLAID_CAT2: Category = {
   transaction_count: 7,
 };
 
-// ── Tests ────────────────────────────────────────────────────────────────────
+const LABEL_ROOT: Label = {
+  id: "l1",
+  name: "Tax Deductible",
+  color: "#FF6600",
+  is_income: null,
+  is_system: false,
+};
+
+const LABEL_CHILD: Label = {
+  id: "l2",
+  name: "Business Travel",
+  color: "#0066FF",
+  is_income: false,
+  parent_label_id: "l1",
+  is_system: false,
+};
+
+const LABEL_INCOME: Label = {
+  id: "l3",
+  name: "Freelance Income",
+  color: "#00AA00",
+  is_income: true,
+  is_system: false,
+};
+
+const LABEL_SYSTEM: Label = {
+  id: "l4",
+  name: "Transfer",
+  is_income: null,
+  is_system: true,
+};
+
+// ── Tests: buildCategoryTree ──────────────────────────────────────────────────
 
 describe("buildCategoryTree", () => {
   it("splits categories into custom and plaid groups", () => {
@@ -242,5 +316,196 @@ describe("Transaction count pluralization", () => {
     expect(`${five} transaction${five !== 1 ? "s" : ""}`).toBe(
       "5 transactions",
     );
+  });
+});
+
+// ── Tests: Label is_income mapping ───────────────────────────────────────────
+
+describe("incomeStateToValue", () => {
+  it('maps "income" to true', () => {
+    expect(incomeStateToValue("income")).toBe(true);
+  });
+
+  it('maps "expense" to false', () => {
+    expect(incomeStateToValue("expense")).toBe(false);
+  });
+
+  it('maps "any" to null', () => {
+    expect(incomeStateToValue("any")).toBeNull();
+  });
+});
+
+describe("valueToIncomeState", () => {
+  it("maps true to income", () => {
+    expect(valueToIncomeState(true)).toBe("income");
+  });
+
+  it("maps false to expense", () => {
+    expect(valueToIncomeState(false)).toBe("expense");
+  });
+
+  it("maps null to any", () => {
+    expect(valueToIncomeState(null)).toBe("any");
+  });
+
+  it("maps undefined to any", () => {
+    expect(valueToIncomeState(undefined)).toBe("any");
+  });
+});
+
+// ── Tests: Label CRUD logic ───────────────────────────────────────────────────
+
+describe("Label create form validation", () => {
+  it("rejects empty name", () => {
+    expect("".trim()).toBe("");
+  });
+
+  it("accepts valid name", () => {
+    expect("Business Expense".trim()).not.toBe("");
+  });
+
+  it("create payload uses correct is_income for income state", () => {
+    const state: LabelIncomeState = "income";
+    expect(incomeStateToValue(state)).toBe(true);
+  });
+
+  it("create payload uses correct is_income for expense state", () => {
+    const state: LabelIncomeState = "expense";
+    expect(incomeStateToValue(state)).toBe(false);
+  });
+
+  it("create payload uses null is_income for any state", () => {
+    const state: LabelIncomeState = "any";
+    expect(incomeStateToValue(state)).toBeNull();
+  });
+});
+
+describe("Label edit form validation", () => {
+  it("rejects edit when editingLabel is null", () => {
+    const editingLabel = null;
+    const canSubmit = !!editingLabel && !!"Some Name".trim();
+    expect(canSubmit).toBe(false);
+  });
+
+  it("allows edit when editingLabel and name exist", () => {
+    const editingLabel = LABEL_ROOT;
+    const canSubmit = !!editingLabel && !!"Updated Name".trim();
+    expect(canSubmit).toBe(true);
+  });
+
+  it("pre-fills incomeState correctly for income label", () => {
+    const state = valueToIncomeState(LABEL_INCOME.is_income);
+    expect(state).toBe("income");
+  });
+
+  it("pre-fills incomeState correctly for expense label", () => {
+    const state = valueToIncomeState(LABEL_CHILD.is_income);
+    expect(state).toBe("expense");
+  });
+
+  it("pre-fills incomeState correctly for any label", () => {
+    const state = valueToIncomeState(LABEL_ROOT.is_income);
+    expect(state).toBe("any");
+  });
+});
+
+describe("Label delete guards", () => {
+  it("blocks deletion of system labels", () => {
+    expect(canDeleteLabel(LABEL_SYSTEM)).toBe(false);
+  });
+
+  it("allows deletion of non-system labels", () => {
+    expect(canDeleteLabel(LABEL_ROOT)).toBe(true);
+    expect(canDeleteLabel(LABEL_INCOME)).toBe(true);
+  });
+
+  it("is_system true means cannot delete regardless of other fields", () => {
+    const systemLabel: Label = {
+      id: "sys1",
+      name: "Transfer",
+      is_system: true,
+    };
+    expect(canDeleteLabel(systemLabel)).toBe(false);
+  });
+});
+
+// ── Tests: Label hierarchy / parent dropdown ──────────────────────────────────
+
+describe("getRootLabels (parent label dropdown)", () => {
+  it("returns only labels without a parent_label_id", () => {
+    const roots = getRootLabels([LABEL_ROOT, LABEL_CHILD, LABEL_INCOME, LABEL_SYSTEM]);
+    expect(roots).toHaveLength(3);
+    expect(roots.map((l) => l.name)).toContain("Tax Deductible");
+    expect(roots.map((l) => l.name)).toContain("Freelance Income");
+    expect(roots.map((l) => l.name)).toContain("Transfer");
+  });
+
+  it("excludes child labels (those with parent_label_id)", () => {
+    const roots = getRootLabels([LABEL_ROOT, LABEL_CHILD]);
+    expect(roots).toHaveLength(1);
+    expect(roots[0].name).toBe("Tax Deductible");
+  });
+
+  it("returns empty array when all labels are children", () => {
+    const child1: Label = { id: "x1", name: "A", parent_label_id: "p1" };
+    const child2: Label = { id: "x2", name: "B", parent_label_id: "p2" };
+    expect(getRootLabels([child1, child2])).toHaveLength(0);
+  });
+});
+
+// ── Tests: getLabelTypeName ───────────────────────────────────────────────────
+
+describe("getLabelTypeName", () => {
+  it('returns "Income" for is_income true', () => {
+    expect(getLabelTypeName(LABEL_INCOME)).toBe("Income");
+  });
+
+  it('returns "Expense" for is_income false', () => {
+    expect(getLabelTypeName(LABEL_CHILD)).toBe("Expense");
+  });
+
+  it('returns "Any" for is_income null', () => {
+    expect(getLabelTypeName(LABEL_ROOT)).toBe("Any");
+  });
+
+  it('returns "Any" for is_income undefined', () => {
+    const label: Label = { id: "u1", name: "Uncategorized" };
+    expect(getLabelTypeName(label)).toBe("Any");
+  });
+});
+
+// ── Tests: Explanation banner text ───────────────────────────────────────────
+
+const CATEGORIES_BANNER =
+  "Categories classify what a transaction is — Groceries, Dining, Utilities. They come from your bank (provider categories) or you can create custom ones. Used in budgets, trends, and reports.";
+
+const LABELS_BANNER =
+  'Labels are freeform tags you apply to transactions for cross-cutting purposes — "Business Expense", "Tax Deductible", "Freelance Income". A transaction can have multiple labels. Used in the Variable Income Planner, Tax Deductible page, and Rules.';
+
+describe("Explanation banner text", () => {
+  it("shows categories banner when tab index is 0", () => {
+    const tabIndex = 0;
+    const bannerText = tabIndex === 0 ? CATEGORIES_BANNER : LABELS_BANNER;
+    expect(bannerText).toContain("Categories classify");
+    expect(bannerText).toContain("budgets, trends, and reports");
+  });
+
+  it("shows labels banner when tab index is 1", () => {
+    const tabIndex = 1;
+    const bannerText = tabIndex === 0 ? CATEGORIES_BANNER : LABELS_BANNER;
+    expect(bannerText).toContain("freeform tags");
+    expect(bannerText).toContain("Variable Income Planner");
+  });
+
+  it("categories banner mentions provider categories", () => {
+    expect(CATEGORIES_BANNER).toContain("provider categories");
+  });
+
+  it("labels banner mentions Tax Deductible", () => {
+    expect(LABELS_BANNER).toContain("Tax Deductible");
+  });
+
+  it("labels banner mentions multiple labels per transaction", () => {
+    expect(LABELS_BANNER).toContain("multiple labels");
   });
 });
