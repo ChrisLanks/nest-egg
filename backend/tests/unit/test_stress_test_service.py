@@ -99,15 +99,29 @@ class TestRunScenario:
 # ── run_all_scenarios ─────────────────────────────────────────────────────
 
 
+def _empty_db_mock(mock_db):
+    """Set mock_db.execute to return empty holdings (pass 1) and empty accounts (pass 2)."""
+    holding_result = MagicMock()
+    holding_result.all.return_value = []
+    balance_result = MagicMock()
+    balance_result.scalars.return_value.all.return_value = []
+    mock_db.execute = AsyncMock(side_effect=[holding_result, balance_result])
+
+
+def _holding_db_mock(mock_db, holding_rows):
+    """Set mock_db.execute for pass 1 (holdings) with given rows, pass 2 empty accounts."""
+    holding_result = MagicMock()
+    holding_result.all.return_value = holding_rows
+    balance_result = MagicMock()
+    balance_result.scalars.return_value.all.return_value = []
+    mock_db.execute = AsyncMock(side_effect=[holding_result, balance_result])
+
+
 class TestRunAllScenarios:
     @pytest.mark.asyncio
     async def test_run_all_scenarios_returns_all(self, mock_db, org_id):
         """All 6 scenarios are returned."""
-        # Mock get_portfolio_composition to return a fixed portfolio
-        mock_result = MagicMock()
-        mock_result.all.return_value = []  # empty holdings
-        mock_db.execute = AsyncMock(return_value=mock_result)
-
+        _empty_db_mock(mock_db)
         results = await StressTestService.run_all_scenarios(
             db=mock_db,
             organization_id=org_id,
@@ -118,10 +132,7 @@ class TestRunAllScenarios:
     @pytest.mark.asyncio
     async def test_run_all_scenarios_sorted_worst_first(self, mock_db, org_id):
         """Results are sorted from worst (most negative) to best pct_change."""
-        mock_result = MagicMock()
-        mock_result.all.return_value = []
-        mock_db.execute = AsyncMock(return_value=mock_result)
-
+        _empty_db_mock(mock_db)
         results = await StressTestService.run_all_scenarios(
             db=mock_db,
             organization_id=org_id,
@@ -137,10 +148,7 @@ class TestGetPortfolioComposition:
     @pytest.mark.asyncio
     async def test_empty_portfolio(self, mock_db, org_id):
         """Empty portfolio returns zeros."""
-        mock_result = MagicMock()
-        mock_result.all.return_value = []
-        mock_db.execute = AsyncMock(return_value=mock_result)
-
+        _empty_db_mock(mock_db)
         result = await StressTestService.get_portfolio_composition(
             db=mock_db,
             organization_id=org_id,
@@ -164,10 +172,7 @@ class TestGetPortfolioComposition:
         account.account_type = AccountType.BROKERAGE
         account.is_active = True
 
-        mock_result = MagicMock()
-        mock_result.all.return_value = [(holding, account)]
-        mock_db.execute = AsyncMock(return_value=mock_result)
-
+        _holding_db_mock(mock_db, [(holding, account)])
         result = await StressTestService.get_portfolio_composition(
             db=mock_db,
             organization_id=org_id,
@@ -189,10 +194,7 @@ class TestGetPortfolioComposition:
         account.account_type = AccountType.BROKERAGE
         account.is_active = True
 
-        mock_result = MagicMock()
-        mock_result.all.return_value = [(holding, account)]
-        mock_db.execute = AsyncMock(return_value=mock_result)
-
+        _holding_db_mock(mock_db, [(holding, account)])
         result = await StressTestService.get_portfolio_composition(
             db=mock_db,
             organization_id=org_id,
@@ -214,10 +216,7 @@ class TestGetPortfolioComposition:
         account.account_type = AccountType.BROKERAGE
         account.is_active = True
 
-        mock_result = MagicMock()
-        mock_result.all.return_value = [(holding, account)]
-        mock_db.execute = AsyncMock(return_value=mock_result)
-
+        _holding_db_mock(mock_db, [(holding, account)])
         result = await StressTestService.get_portfolio_composition(
             db=mock_db,
             organization_id=org_id,
@@ -239,10 +238,7 @@ class TestGetPortfolioComposition:
         account.account_type = AccountType.RETIREMENT_401K
         account.is_active = True
 
-        mock_result = MagicMock()
-        mock_result.all.return_value = [(holding, account)]
-        mock_db.execute = AsyncMock(return_value=mock_result)
-
+        _holding_db_mock(mock_db, [(holding, account)])
         result = await StressTestService.get_portfolio_composition(
             db=mock_db,
             organization_id=org_id,
@@ -263,10 +259,7 @@ class TestGetPortfolioComposition:
         account.account_type = AccountType.BROKERAGE
         account.is_active = True
 
-        mock_result = MagicMock()
-        mock_result.all.return_value = [(holding, account)]
-        mock_db.execute = AsyncMock(return_value=mock_result)
-
+        _holding_db_mock(mock_db, [(holding, account)])
         result = await StressTestService.get_portfolio_composition(
             db=mock_db,
             organization_id=org_id,
@@ -288,15 +281,70 @@ class TestGetPortfolioComposition:
         account.account_type = AccountType.BOND
         account.is_active = True
 
-        mock_result = MagicMock()
-        mock_result.all.return_value = [(holding, account)]
-        mock_db.execute = AsyncMock(return_value=mock_result)
-
+        _holding_db_mock(mock_db, [(holding, account)])
         result = await StressTestService.get_portfolio_composition(
             db=mock_db,
             organization_id=org_id,
         )
         assert result["bonds"] == pytest.approx(20000.0)
+
+    @pytest.mark.asyncio
+    async def test_balance_only_account_counted_when_no_holdings(self, mock_db, org_id):
+        """Accounts with no holdings use current_balance, classified by account type."""
+        from app.models.account import AccountType
+
+        account = MagicMock()
+        account.id = uuid4()
+        account.account_type = AccountType.RETIREMENT_401K
+        account.current_balance = Decimal("50000")
+        account.is_active = True
+
+        # Pass 1: no holdings at all
+        holding_result = MagicMock()
+        holding_result.all.return_value = []
+        # Pass 2: one investment account with a balance
+        balance_result = MagicMock()
+        balance_result.scalars.return_value.all.return_value = [account]
+        mock_db.execute = AsyncMock(side_effect=[holding_result, balance_result])
+
+        result = await StressTestService.get_portfolio_composition(
+            db=mock_db,
+            organization_id=org_id,
+        )
+        assert result["equity"] == pytest.approx(50000.0)
+        assert result["other"] == pytest.approx(0.0)
+        assert result["total"] == pytest.approx(50000.0)
+
+    @pytest.mark.asyncio
+    async def test_balance_not_double_counted_when_holdings_exist(self, mock_db, org_id):
+        """Account already counted via holdings is not also counted via balance."""
+        from app.models.account import AccountType
+
+        acct_id = uuid4()
+        holding = MagicMock()
+        holding.current_total_value = Decimal("500")
+        holding.asset_type = "etf"
+        holding.asset_class = None
+
+        account = MagicMock()
+        account.id = acct_id
+        account.account_type = AccountType.BROKERAGE
+        account.current_balance = Decimal("500")
+        account.is_active = True
+
+        holding_result = MagicMock()
+        holding_result.all.return_value = [(holding, account)]
+        balance_result = MagicMock()
+        balance_result.scalars.return_value.all.return_value = [account]
+        mock_db.execute = AsyncMock(side_effect=[holding_result, balance_result])
+
+        result = await StressTestService.get_portfolio_composition(
+            db=mock_db,
+            organization_id=org_id,
+        )
+        # $500 counted once, not $1000
+        assert result["equity"] == pytest.approx(500.0)
+        assert result["total"] == pytest.approx(500.0)
 
     @pytest.mark.asyncio
     async def test_sep_ira_classifies_as_equity(self, mock_db, org_id):
@@ -312,10 +360,7 @@ class TestGetPortfolioComposition:
         account.account_type = AccountType.RETIREMENT_SEP_IRA
         account.is_active = True
 
-        mock_result = MagicMock()
-        mock_result.all.return_value = [(holding, account)]
-        mock_db.execute = AsyncMock(return_value=mock_result)
-
+        _holding_db_mock(mock_db, [(holding, account)])
         result = await StressTestService.get_portfolio_composition(
             db=mock_db,
             organization_id=org_id,

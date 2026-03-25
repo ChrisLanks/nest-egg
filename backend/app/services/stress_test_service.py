@@ -8,7 +8,7 @@ from __future__ import annotations
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, func, cast, String
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.financial import STRESS_TEST
@@ -55,13 +55,33 @@ class StressTestService:
     """Runs historical market stress scenarios against a user's portfolio."""
 
     @staticmethod
+    def _classify_account(account: Account) -> str:
+        """Returns 'equity', 'bond', or 'other' for an account type."""
+        if account.account_type in BOND_ACCOUNT_TYPES:
+            return "bond"
+        if account.account_type in EQUITY_ACCOUNT_TYPES:
+            return "equity"
+        return "other"
+
+    @staticmethod
     async def get_portfolio_composition(
         db: AsyncSession,
         organization_id: UUID,
         user_id: UUID | None = None,
     ) -> dict:
-        """Returns portfolio split into equity, bond, and other buckets by market value."""
-        stmt = (
+        """Returns portfolio split into equity, bond, and other buckets by market value.
+
+        Two-pass strategy:
+        1. Aggregate from individual holdings (most accurate — uses asset_type/asset_class).
+        2. For accounts that have NO holdings (e.g. manual accounts tracked by balance only),
+           fall back to current_balance classified by account type.
+        """
+        equity_value = Decimal("0")
+        bond_value = Decimal("0")
+        other_value = Decimal("0")
+
+        # ── Pass 1: holdings ───────────────────────────────────────────────
+        holding_stmt = (
             select(Holding, Account)
             .join(Account, Holding.account_id == Account.id)
             .where(
@@ -70,16 +90,14 @@ class StressTestService:
             )
         )
         if user_id:
-            stmt = stmt.where(Account.user_id == user_id)
+            holding_stmt = holding_stmt.where(Account.user_id == user_id)
 
-        result = await db.execute(stmt)
-        rows = result.all()
+        holding_result = await db.execute(holding_stmt)
+        holding_rows = holding_result.all()
 
-        equity_value = Decimal("0")
-        bond_value = Decimal("0")
-        other_value = Decimal("0")
-
-        for holding, account in rows:
+        accounts_with_holdings: set[UUID] = set()
+        for holding, account in holding_rows:
+            accounts_with_holdings.add(account.id)
             value = holding.current_total_value or Decimal("0")
             asset_type = (holding.asset_type or "").lower().strip()
             asset_class = (holding.asset_class or "").lower().strip()
@@ -100,6 +118,33 @@ class StressTestService:
                 equity_value += value
             else:
                 other_value += value
+
+        # ── Pass 2: balance-only accounts (no holdings rows) ───────────────
+        # Excludes non-investment account types (checking, savings, credit, loans, etc.)
+        INVESTMENT_ACCOUNT_TYPES = EQUITY_ACCOUNT_TYPES | BOND_ACCOUNT_TYPES
+
+        balance_stmt = select(Account).where(
+            Account.organization_id == organization_id,
+            Account.is_active == True,
+            cast(Account.account_type, String).in_(
+                [t.name for t in INVESTMENT_ACCOUNT_TYPES]
+            ),
+        )
+        if user_id:
+            balance_stmt = balance_stmt.where(Account.user_id == user_id)
+
+        balance_result = await db.execute(balance_stmt)
+        all_investment_accounts = balance_result.scalars().all()
+
+        for account in all_investment_accounts:
+            if account.id in accounts_with_holdings:
+                continue  # already counted via holdings
+            balance = account.current_balance or Decimal("0")
+            bucket = StressTestService._classify_account(account)
+            if bucket == "bond":
+                bond_value += balance
+            elif bucket == "equity":
+                equity_value += balance
 
         total = equity_value + bond_value + other_value
         return {
