@@ -45,6 +45,11 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { lazy, Suspense, useState } from "react";
 
+const TAB_KEY = "nest-egg-tab-net-worth";
+const getInitialTab = () => {
+  try { return parseInt(localStorage.getItem(TAB_KEY) ?? "0", 10) || 0; } catch { return 0; }
+};
+
 const NetWorthForecastTab = lazy(() =>
   import("./NetWorthForecastTab").then((m) => ({
     default: m.NetWorthForecastTab,
@@ -163,6 +168,12 @@ export default function NetWorthTimelinePage() {
   const tooltipBg = useColorModeValue("#FFFFFF", "#2D3748");
   const tooltipBorder = useColorModeValue("#E2E8F0", "#4A5568");
 
+  const [tabIndex, setTabIndex] = useState(getInitialTab);
+  const handleTabChange = (idx: number) => {
+    setTabIndex(idx);
+    try { localStorage.setItem(TAB_KEY, String(idx)); } catch {}
+  };
+
   const [timeRange, setTimeRange] = useState<TimeRange>("1Y");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
@@ -236,7 +247,7 @@ export default function NetWorthTimelinePage() {
           Historical breakdown and future forecast of your net worth.
         </Text>
       </Box>
-      <Tabs colorScheme="brand" variant="enclosed" px={6}>
+      <Tabs colorScheme="brand" variant="enclosed" px={6} index={tabIndex} onChange={handleTabChange}>
         <TabList>
           <Tab fontSize="sm">Historical</Tab>
           <Tab fontSize="sm">Forecast</Tab>

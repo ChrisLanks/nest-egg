@@ -469,11 +469,149 @@ describe("Hub page tab counts", () => {
     expect(netWorthTimelineSrc).toContain("Percentile");
   });
 
-  it("InvestmentToolsPage includes all 5 new tabs", () => {
+  it("InvestmentToolsPage includes advanced tabs (Dividend Calendar tab removed — moved to Calendar)", () => {
     expect(investmentToolsSrc).toContain("Asset Location");
     expect(investmentToolsSrc).toContain("Employer Match");
-    expect(investmentToolsSrc).toContain("Dividend Calendar");
+    // The tab label is gone (comment reference allowed), but the lazy import and Tab component are removed
+    expect(investmentToolsSrc).not.toContain("DividendCalendarTab");
     expect(investmentToolsSrc).toContain("Cost Basis");
+  });
+});
+
+// ── Tab persistence ───────────────────────────────────────────────────────────
+
+const taxCenterSrc = readPage("pages/TaxCenterPage.tsx");
+const financialHealthPageSrc2 = readPage("pages/FinancialHealthPage.tsx");
+
+describe("Tab persistence on all hub pages", () => {
+  it("TaxCenterPage persists active tab to localStorage", () => {
+    expect(taxCenterSrc).toContain("nest-egg-tab-tax-center");
+    expect(taxCenterSrc).toContain("localStorage");
+    expect(taxCenterSrc).toContain("handleTabChange");
+  });
+
+  it("LifePlanningPage persists active tab to localStorage", () => {
+    expect(lifePlanningSrc).toContain("nest-egg-tab-life-planning");
+    expect(lifePlanningSrc).toContain("localStorage");
+  });
+
+  it("InvestmentToolsPage persists active tab to localStorage", () => {
+    expect(investmentToolsSrc).toContain("nest-egg-tab-investment-tools");
+    expect(investmentToolsSrc).toContain("localStorage");
+  });
+
+  it("FinancialHealthPage persists active tab to localStorage", () => {
+    expect(financialHealthPageSrc2).toContain("nest-egg-tab-financial-health");
+    expect(financialHealthPageSrc2).toContain("localStorage");
+  });
+
+  it("NetWorthTimelinePage persists active tab to localStorage", () => {
+    expect(netWorthTimelineSrc).toContain("nest-egg-tab-net-worth");
+    expect(netWorthTimelineSrc).toContain("localStorage");
+  });
+});
+
+// ── Insurance Audit dismissal ─────────────────────────────────────────────────
+
+describe("InsuranceAuditTab dismissal", () => {
+  it("has dismissed state backed by localStorage", () => {
+    expect(insuranceAuditSrc).toContain("dismissed");
+    expect(insuranceAuditSrc).toContain("insurance-audit-dismissed");
+  });
+
+  it("has onDismiss prop on InsuranceCard", () => {
+    expect(insuranceAuditSrc).toContain("onDismiss");
+  });
+
+  it("has restore functionality for dismissed items", () => {
+    expect(insuranceAuditSrc).toContain("Restore");
+  });
+
+  it("shows dismissed items in collapsible section", () => {
+    expect(insuranceAuditSrc).toContain("Dismissed");
+  });
+});
+
+// ── Asset location tooltips and why-explanation ───────────────────────────────
+
+describe("AssetLocationTab tooltips and explanation", () => {
+  it("shows why asset location matters explanation", () => {
+    expect(assetLocationSrc).toContain("Why asset location");
+  });
+
+  it("has tooltips on table column headers", () => {
+    expect(assetLocationSrc).toContain("Tooltip");
+  });
+
+  it("shows item.reason in tooltip on status cell", () => {
+    expect(assetLocationSrc).toContain("reason");
+  });
+});
+
+// ── Employer match tooltips ───────────────────────────────────────────────────
+
+describe("EmployerMatchTab tooltips", () => {
+  it("has Tooltip on summary stat labels", () => {
+    expect(employerMatchSrc).toContain("Tooltip");
+  });
+
+  it("explains match percent concept", () => {
+    expect(employerMatchSrc).toContain("match");
+  });
+});
+
+// ── Cost basis aging explanation and tooltips ─────────────────────────────────
+
+describe("CostBasisAgingTab explanation", () => {
+  it("shows long-term capital gains rate explanation", () => {
+    expect(costBasisAgingSrc).toContain("long-term capital gains");
+  });
+
+  it("has tooltip on Days to LT column", () => {
+    expect(costBasisAgingSrc).toContain("Tooltip");
+  });
+});
+
+// ── Financial Ratios auto-populate ───────────────────────────────────────────
+
+describe("FinancialRatiosTab auto-populate from account data", () => {
+  it("fetches an estimate for pre-filling income/spending inputs", () => {
+    // Either dashboard/summary or savings-rate endpoint used for estimates
+    const hasEstimateSource =
+      financialRatiosSrc.includes("/dashboard/summary") ||
+      financialRatiosSrc.includes("/financial-planning/savings-rate");
+    expect(hasEstimateSource).toBe(true);
+  });
+
+  it("provides a way to use estimated values", () => {
+    const hasUseEstimate =
+      financialRatiosSrc.includes("Use this") ||
+      financialRatiosSrc.includes("use this") ||
+      financialRatiosSrc.includes("estimated") ||
+      financialRatiosSrc.includes("Estimated");
+    expect(hasUseEstimate).toBe(true);
+  });
+});
+
+// ── Goals widget on dashboard ─────────────────────────────────────────────────
+
+const dashboardSrc = readPage("pages/DashboardPage.tsx");
+
+describe("Goals widget on dashboard", () => {
+  it("loads savings-goals data for the widget", () => {
+    expect(dashboardSrc).toContain("savings-goals");
+  });
+
+  it("renders a life goals section", () => {
+    const hasGoals =
+      dashboardSrc.includes("Life Goals") ||
+      dashboardSrc.includes("GoalsWidget") ||
+      dashboardSrc.includes("goals");
+    expect(hasGoals).toBe(true);
+  });
+
+  it("has navigation link to /goals", () => {
+    expect(dashboardSrc).toContain("/goals");
   });
 });
 

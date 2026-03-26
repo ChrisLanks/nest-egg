@@ -4,30 +4,30 @@
 
 import {
   Alert,
-  AlertDescription,
   AlertIcon,
   Badge,
   Box,
+  Button,
   Card,
   CardBody,
   CardHeader,
   Collapse,
   Heading,
   HStack,
-  List,
-  ListIcon,
-  ListItem,
+  IconButton,
   SimpleGrid,
   Stat,
   StatLabel,
   StatNumber,
   Text,
   UnorderedList,
+  ListItem,
   VStack,
   useDisclosure,
-  Button,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { FiX } from "react-icons/fi";
 import api from "../services/api";
 import { useCurrency } from "../contexts/CurrencyContext";
 
@@ -66,14 +66,16 @@ const scoreColor = (score: number): string => {
 
 interface InsuranceCardProps {
   item: InsuranceCoverageItem;
+  onDismiss?: () => void;
+  isDismissed?: boolean;
 }
 
-const InsuranceCard = ({ item }: InsuranceCardProps) => {
+const InsuranceCard = ({ item, onDismiss, isDismissed }: InsuranceCardProps) => {
   const { isOpen, onToggle } = useDisclosure();
   const { formatCurrency } = useCurrency();
 
   return (
-    <Card>
+    <Card opacity={isDismissed ? 0.5 : 1} transition="opacity 0.2s">
       <CardHeader py={3} px={4}>
         <HStack justify="space-between" flexWrap="wrap" gap={2}>
           <HStack spacing={2}>
@@ -83,9 +85,30 @@ const InsuranceCard = ({ item }: InsuranceCardProps) => {
               {item.priority}
             </Badge>
           </HStack>
-          <Badge colorScheme={item.has_coverage ? "green" : "red"} fontSize="sm">
-            {item.has_coverage ? "Covered" : "Not Covered"}
-          </Badge>
+          <HStack spacing={2}>
+            {isDismissed ? (
+              <>
+                <Badge colorScheme="gray" fontSize="sm">Dismissed</Badge>
+                <Button size="xs" variant="ghost" colorScheme="gray" onClick={onDismiss}>
+                  Restore
+                </Button>
+              </>
+            ) : (
+              <>
+                <Badge colorScheme={item.has_coverage ? "green" : "red"} fontSize="sm">
+                  {item.has_coverage ? "Covered" : "Not Covered"}
+                </Badge>
+                <IconButton
+                  aria-label="Dismiss insurance item"
+                  icon={<FiX />}
+                  size="xs"
+                  variant="ghost"
+                  colorScheme="gray"
+                  onClick={onDismiss}
+                />
+              </>
+            )}
+          </HStack>
         </HStack>
       </CardHeader>
       <CardBody pt={0} px={4} pb={4}>
@@ -131,11 +154,36 @@ const InsuranceCard = ({ item }: InsuranceCardProps) => {
 
 export const InsuranceAuditTab = () => {
   const { formatCurrency } = useCurrency();
+  const { isOpen: isDismissedOpen, onToggle: onDismissedToggle } = useDisclosure();
+
+  const [dismissed, setDismissed] = useState<Set<string>>(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem("insurance-audit-dismissed") ?? "[]"));
+    } catch {
+      return new Set();
+    }
+  });
+
+  const handleDismiss = (type: string) => {
+    const next = new Set(dismissed);
+    if (next.has(type)) {
+      next.delete(type);
+    } else {
+      next.add(type);
+    }
+    setDismissed(next);
+    try {
+      localStorage.setItem("insurance-audit-dismissed", JSON.stringify([...next]));
+    } catch {}
+  };
 
   const { data, isLoading, error } = useQuery<InsuranceAuditResponse>({
     queryKey: ["insurance-audit"],
     queryFn: () => api.get("/estate/insurance-audit").then((r) => r.data),
   });
+
+  const activeItems = data?.coverage_items.filter((i) => !dismissed.has(i.insurance_type)) ?? [];
+  const dismissedItems = data?.coverage_items.filter((i) => dismissed.has(i.insurance_type)) ?? [];
 
   return (
     <VStack spacing={6} align="stretch">
@@ -171,10 +219,45 @@ export const InsuranceAuditTab = () => {
             </Stat>
           </SimpleGrid>
 
-          {/* Coverage cards */}
-          {data.coverage_items.map((item) => (
-            <InsuranceCard key={item.insurance_type} item={item} />
+          {/* Active coverage cards */}
+          {activeItems.map((item) => (
+            <InsuranceCard
+              key={item.insurance_type}
+              item={item}
+              isDismissed={false}
+              onDismiss={() => handleDismiss(item.insurance_type)}
+            />
           ))}
+
+          {/* Dismissed items collapsible section */}
+          {dismissedItems.length > 0 && (
+            <Box>
+              <Button
+                size="sm"
+                variant="ghost"
+                colorScheme="gray"
+                onClick={onDismissedToggle}
+                px={0}
+                color="text.secondary"
+              >
+                {isDismissedOpen
+                  ? `Hide dismissed items (${dismissedItems.length}) ▲`
+                  : `Dismissed items (${dismissedItems.length}) ▼`}
+              </Button>
+              <Collapse in={isDismissedOpen}>
+                <VStack spacing={3} mt={3} align="stretch">
+                  {dismissedItems.map((item) => (
+                    <InsuranceCard
+                      key={item.insurance_type}
+                      item={item}
+                      isDismissed={true}
+                      onDismiss={() => handleDismiss(item.insurance_type)}
+                    />
+                  ))}
+                </VStack>
+              </Collapse>
+            </Box>
+          )}
         </>
       )}
     </VStack>

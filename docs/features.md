@@ -879,6 +879,34 @@ Two tabs: Financial Ratios (DTI, savings rate, housing ratio, current ratio), Li
 - Integrated into the main Calendar page as a toggleable "Dividends" event category (teal color)
 - Toggle persists in localStorage alongside bill/subscription/income preferences
 
+### Tab Persistence
+
+All five hub pages (Tax Center, Life Planning, Investment Tools, Financial Health, Net Worth Timeline) remember the last active tab across page refreshes using `localStorage`. Keys are `nest-egg-tab-{slug}`. Falls back to tab 0 gracefully when localStorage is unavailable.
+
+### Insurance Audit Dismissal
+
+Individual insurance coverage cards can be dismissed (acknowledged) via the ✕ button in the card header. Dismissed items are stored in `localStorage` under `insurance-audit-dismissed` and shown collapsed in a separate "Dismissed items" section at the bottom. Any item can be restored at any time.
+
+### Asset Location — Why It Matters
+
+The Asset Location tab now includes an expandable "Why asset location matters" explanation at the top and tooltips on all key column headers. Hovering the Optimal/Suboptimal status badge shows the specific reason for that asset's recommendation.
+
+### Employer Match Tooltips
+
+All stat labels in the Employer Match tab have plain-English tooltips explaining match percent, salary limit, annual match value, and the left-on-table calculation.
+
+### Cost Basis Aging — Context Banner
+
+An info banner at the top of the Cost Basis tab explains short-term vs long-term capital gains rate treatment and the significance of the "Approaching" bucket.
+
+### Financial Ratios — Auto-Estimated Income/Spending
+
+The Financial Ratios tab fetches a spending estimate from account data and pre-populates placeholder values in the income and spending inputs. A "Use this" button instantly applies the estimate.
+
+### Goals Widget on Dashboard
+
+A Life Goals widget near the top of the Overview page shows active goal count, overall progress bar, and a "View Goals →" link. When no goals exist, shows a subtle "Set your first goal →" prompt.
+
 ### Dev Seed Data (`POST /api/v1/dev/seed-planning-data`)
 
 - Creates representative demo data (6 accounts, 8 holdings, 5 tax lots, 12 dividend records) for local development

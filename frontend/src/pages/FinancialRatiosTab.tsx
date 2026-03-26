@@ -8,21 +8,19 @@ import {
   AlertIcon,
   Badge,
   Box,
+  Button,
   Card,
   CardBody,
   FormControl,
+  FormHelperText,
   FormLabel,
   Heading,
   HStack,
-  List,
-  ListIcon,
-  ListItem,
   NumberInput,
   NumberInputField,
   Progress,
   SimpleGrid,
   Stat,
-  StatHelpText,
   StatLabel,
   StatNumber,
   Text,
@@ -56,6 +54,14 @@ interface FinancialRatiosResponse {
   tips: string[];
 }
 
+interface DashboardSummary {
+  monthly_income: number;
+  monthly_spending: number;
+  monthly_net: number;
+  total_assets: number;
+  total_debts: number;
+}
+
 const gradeColorScheme = (grade: string): string => {
   switch (grade) {
     case "A": return "green";
@@ -86,10 +92,31 @@ const fmtCompact = (v: number) =>
     maximumFractionDigits: 1,
   }).format(v);
 
+const fmtRound = (v: number) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(Math.round(v));
+
 export const FinancialRatiosTab = () => {
   const { formatCurrency } = useCurrency();
   const [monthlyIncome, setMonthlyIncome] = useState<number | undefined>(undefined);
   const [monthlySpending, setMonthlySpending] = useState<number | undefined>(undefined);
+
+  // Fetch dashboard summary for auto-population hints
+  const { data: summary } = useQuery<DashboardSummary>({
+    queryKey: ["dashboard-summary-for-ratios"],
+    queryFn: () => api.get("/dashboard/summary").then((r) => r.data),
+    staleTime: 5 * 60_000,
+  });
+
+  const estimatedIncome = summary?.monthly_income && summary.monthly_income > 0
+    ? summary.monthly_income
+    : undefined;
+  const estimatedSpending = summary?.monthly_spending && summary.monthly_spending > 0
+    ? summary.monthly_spending
+    : undefined;
 
   const params = new URLSearchParams();
   if (monthlyIncome !== undefined) params.set("monthly_income", String(monthlyIncome));
@@ -108,26 +135,70 @@ export const FinancialRatiosTab = () => {
         <CardBody>
           <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
             <FormControl>
-              <FormLabel fontSize="sm">Monthly Income ($) <Text as="span" color="text.secondary" fontSize="xs">— optional</Text></FormLabel>
+              <FormLabel fontSize="sm">
+                Monthly Income ($){" "}
+                <Text as="span" color="text.secondary" fontSize="xs">— optional</Text>
+              </FormLabel>
               <NumberInput
                 value={monthlyIncome ?? ""}
                 min={0}
                 onChange={(_, v) => setMonthlyIncome(isNaN(v) ? undefined : v)}
                 size="sm"
               >
-                <NumberInputField placeholder="e.g. 8000" />
+                <NumberInputField
+                  placeholder={
+                    estimatedIncome
+                      ? `~${fmtRound(estimatedIncome)} (recent avg)`
+                      : "e.g. 8000"
+                  }
+                />
               </NumberInput>
+              {estimatedIncome && monthlyIncome === undefined && (
+                <FormHelperText fontSize="xs">
+                  Recent average: {fmtRound(estimatedIncome)}{" "}
+                  <Button
+                    size="xs"
+                    variant="link"
+                    colorScheme="blue"
+                    onClick={() => setMonthlyIncome(Math.round(estimatedIncome))}
+                  >
+                    Use this
+                  </Button>
+                </FormHelperText>
+              )}
             </FormControl>
             <FormControl>
-              <FormLabel fontSize="sm">Monthly Spending ($) <Text as="span" color="text.secondary" fontSize="xs">— optional</Text></FormLabel>
+              <FormLabel fontSize="sm">
+                Monthly Spending ($){" "}
+                <Text as="span" color="text.secondary" fontSize="xs">— optional</Text>
+              </FormLabel>
               <NumberInput
                 value={monthlySpending ?? ""}
                 min={0}
                 onChange={(_, v) => setMonthlySpending(isNaN(v) ? undefined : v)}
                 size="sm"
               >
-                <NumberInputField placeholder="e.g. 5000" />
+                <NumberInputField
+                  placeholder={
+                    estimatedSpending
+                      ? `~${fmtRound(estimatedSpending)} (recent avg)`
+                      : "e.g. 5000"
+                  }
+                />
               </NumberInput>
+              {estimatedSpending && monthlySpending === undefined && (
+                <FormHelperText fontSize="xs">
+                  Recent average: {fmtRound(estimatedSpending)}{" "}
+                  <Button
+                    size="xs"
+                    variant="link"
+                    colorScheme="blue"
+                    onClick={() => setMonthlySpending(Math.round(estimatedSpending))}
+                  >
+                    Use this
+                  </Button>
+                </FormHelperText>
+              )}
             </FormControl>
           </SimpleGrid>
         </CardBody>
@@ -146,6 +217,23 @@ export const FinancialRatiosTab = () => {
           <AlertIcon />
           <AlertDescription fontSize="sm">
             Enter your income/spending above for a complete analysis.
+            {(estimatedIncome || estimatedSpending) && (
+              <>{" "}Estimates from your recent transactions are shown as hints.{" "}
+                {estimatedIncome && monthlyIncome === undefined && estimatedSpending && monthlySpending === undefined && (
+                  <Button
+                    size="xs"
+                    variant="link"
+                    colorScheme="blue"
+                    onClick={() => {
+                      if (estimatedIncome) setMonthlyIncome(Math.round(estimatedIncome));
+                      if (estimatedSpending) setMonthlySpending(Math.round(estimatedSpending));
+                    }}
+                  >
+                    Use both estimates
+                  </Button>
+                )}
+              </>
+            )}
           </AlertDescription>
         </Alert>
       )}

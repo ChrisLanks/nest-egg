@@ -16,7 +16,7 @@ import {
   Tabs,
   Text,
 } from "@chakra-ui/react";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState } from "react";
 
 const FinancialRatiosTab = lazy(() =>
   import("./FinancialRatiosTab").then((m) => ({ default: m.FinancialRatiosTab })),
@@ -31,7 +31,18 @@ const TabLoader = () => (
   </Center>
 );
 
+const TAB_KEY = "nest-egg-tab-financial-health";
+const getInitialTab = () => {
+  try { return parseInt(localStorage.getItem(TAB_KEY) ?? "0", 10) || 0; } catch { return 0; }
+};
+
 export const FinancialHealthPage = () => {
+  const [tabIndex, setTabIndex] = useState(getInitialTab);
+  const handleTabChange = (idx: number) => {
+    setTabIndex(idx);
+    try { localStorage.setItem(TAB_KEY, String(idx)); } catch {}
+  };
+
   return (
     <Box pt={4}>
       <Box px={6} mb={2}>
@@ -40,7 +51,7 @@ export const FinancialHealthPage = () => {
           Financial ratios, debt-to-income analysis, and emergency fund coverage.
         </Text>
       </Box>
-      <Tabs colorScheme="brand" variant="enclosed" px={6}>
+      <Tabs colorScheme="brand" variant="enclosed" px={6} index={tabIndex} onChange={handleTabChange}>
         <TabList>
           <Tab fontSize="sm">Financial Ratios</Tab>
           <Tab fontSize="sm">Liquidity &amp; Emergency Fund</Tab>

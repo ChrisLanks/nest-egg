@@ -20,7 +20,7 @@ import {
   Tabs,
   Text,
 } from "@chakra-ui/react";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState } from "react";
 
 const FireMetricsPage = lazy(() =>
   import("./FireMetricsPage").then((m) => ({ default: m.FireMetricsPage })),
@@ -47,7 +47,18 @@ const TabLoader = () => (
   </Center>
 );
 
+const TAB_KEY = "nest-egg-tab-investment-tools";
+const getInitialTab = () => {
+  try { return parseInt(localStorage.getItem(TAB_KEY) ?? "0", 10) || 0; } catch { return 0; }
+};
+
 export const InvestmentToolsPage = () => {
+  const [tabIndex, setTabIndex] = useState(getInitialTab);
+  const handleTabChange = (idx: number) => {
+    setTabIndex(idx);
+    try { localStorage.setItem(TAB_KEY, String(idx)); } catch {}
+  };
+
   return (
     <Box pt={4}>
       <Box px={6} mb={2}>
@@ -58,7 +69,7 @@ export const InvestmentToolsPage = () => {
           optimization, and cost basis aging.
         </Text>
       </Box>
-      <Tabs colorScheme="brand" variant="enclosed" px={6}>
+      <Tabs colorScheme="brand" variant="enclosed" px={6} index={tabIndex} onChange={handleTabChange}>
         <TabList>
           <Tab fontSize="sm">FIRE</Tab>
           <Tab fontSize="sm">Equity Compensation</Tab>

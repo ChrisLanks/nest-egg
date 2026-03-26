@@ -18,7 +18,7 @@ import {
   Tabs,
   Text,
 } from "@chakra-ui/react";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState } from "react";
 
 // Import existing pages as tab content — each manages its own state/data fetching
 const TaxProjectionPage = lazy(() => import("./TaxProjectionPage"));
@@ -42,7 +42,18 @@ const TabLoader = () => (
   </Center>
 );
 
+const TAB_KEY = "nest-egg-tab-tax-center";
+const getInitialTab = () => {
+  try { return parseInt(localStorage.getItem(TAB_KEY) ?? "0", 10) || 0; } catch { return 0; }
+};
+
 export const TaxCenterPage = () => {
+  const [tabIndex, setTabIndex] = useState(getInitialTab);
+  const handleTabChange = (idx: number) => {
+    setTabIndex(idx);
+    try { localStorage.setItem(TAB_KEY, String(idx)); } catch {}
+  };
+
   return (
     <Box pt={4}>
       <Box px={6} mb={2}>
@@ -52,7 +63,7 @@ export const TaxCenterPage = () => {
           planning, Roth strategies, and contribution headroom.
         </Text>
       </Box>
-      <Tabs colorScheme="brand" variant="enclosed" px={6}>
+      <Tabs colorScheme="brand" variant="enclosed" px={6} index={tabIndex} onChange={handleTabChange}>
         <TabList>
           <Tab fontSize="sm">Tax Projection</Tab>
           <Tab fontSize="sm">Tax Buckets</Tab>

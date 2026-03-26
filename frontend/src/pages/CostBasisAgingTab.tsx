@@ -24,6 +24,7 @@ import {
   Text,
   Th,
   Thead,
+  Tooltip,
   Tr,
   VStack,
 } from "@chakra-ui/react";
@@ -95,9 +96,39 @@ const LotTable = ({ lots }: LotTableProps) => {
             <Th>Ticker</Th>
             <Th isNumeric>Qty</Th>
             <Th isNumeric>Cost Basis</Th>
-            <Th isNumeric>Gain / Loss</Th>
-            <Th isNumeric>Days Held</Th>
-            <Th isNumeric>Days to LT</Th>
+            <Th isNumeric>
+              <Tooltip
+                label="Unrealized gain or loss based on current market price vs cost basis"
+                hasArrow
+                placement="top"
+              >
+                <Box as="span" cursor="help" textDecoration="underline dotted">
+                  Gain / Loss
+                </Box>
+              </Tooltip>
+            </Th>
+            <Th isNumeric>
+              <Tooltip
+                label="Number of calendar days since acquisition date"
+                hasArrow
+                placement="top"
+              >
+                <Box as="span" cursor="help" textDecoration="underline dotted">
+                  Days Held
+                </Box>
+              </Tooltip>
+            </Th>
+            <Th isNumeric>
+              <Tooltip
+                label="Days remaining before this lot qualifies for long-term capital gains tax rates (lower rates apply after 1 year)"
+                hasArrow
+                placement="top"
+              >
+                <Box as="span" cursor="help" textDecoration="underline dotted">
+                  Days to LT
+                </Box>
+              </Tooltip>
+            </Th>
           </Tr>
         </Thead>
         <Tbody>
@@ -150,6 +181,14 @@ export const CostBasisAgingTab = () => {
 
   return (
     <VStack spacing={6} align="stretch">
+      {/* Holding period explanation */}
+      <Alert status="info">
+        <AlertIcon />
+        <AlertDescription fontSize="sm">
+          Lots held over 1 year qualify for lower long-term capital gains rates (0%, 15%, or 20% vs. ordinary income rates up to 37%). The &ldquo;Approaching&rdquo; bucket highlights lots within 30 days of crossing that threshold.
+        </AlertDescription>
+      </Alert>
+
       {isLoading && <Text color="text.secondary">Loading cost basis data…</Text>}
       {error && (
         <Alert status="error">

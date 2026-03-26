@@ -7,6 +7,7 @@ import {
   AlertDescription,
   AlertIcon,
   Badge,
+  Box,
   Card,
   CardBody,
   CardHeader,
@@ -17,6 +18,7 @@ import {
   StatLabel,
   StatNumber,
   Text,
+  Tooltip,
   VStack,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
@@ -107,21 +109,53 @@ export const EmployerMatchTab = () => {
           {/* Summary banner */}
           <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4}>
             <Stat>
-              <StatLabel fontSize="xs">Total Potential Match</StatLabel>
+              <Tooltip
+                label="The maximum employer contribution if all employees contribute enough to get the full match"
+                hasArrow
+                placement="top"
+              >
+                <StatLabel fontSize="xs" cursor="help" textDecoration="underline dotted" display="inline-block">
+                  Total Potential Match
+                </StatLabel>
+              </Tooltip>
               <StatNumber fontSize="lg">{fmtCompact(data.total_potential_match)}</StatNumber>
             </Stat>
             <Stat>
-              <StatLabel fontSize="xs">Captured Match</StatLabel>
+              <Tooltip
+                label="Estimated employer contribution being received based on current contribution records"
+                hasArrow
+                placement="top"
+              >
+                <StatLabel fontSize="xs" cursor="help" textDecoration="underline dotted" display="inline-block">
+                  Captured Match
+                </StatLabel>
+              </Tooltip>
               <StatNumber fontSize="lg" color="green.500">{fmtCompact(data.total_captured_match)}</StatNumber>
             </Stat>
             <Stat>
-              <StatLabel fontSize="xs">Left on Table</StatLabel>
+              <Tooltip
+                label="Employer match being forfeited each year by not contributing enough"
+                hasArrow
+                placement="top"
+              >
+                <StatLabel fontSize="xs" cursor="help" textDecoration="underline dotted" display="inline-block">
+                  Left on Table
+                </StatLabel>
+              </Tooltip>
               <StatNumber fontSize="lg" color={data.total_left_on_table > 0 ? "red.500" : "green.500"}>
                 {fmtCompact(data.total_left_on_table)}
               </StatNumber>
             </Stat>
             <Stat>
-              <StatLabel fontSize="xs">Status</StatLabel>
+              <Tooltip
+                label="Whether all employer-matched accounts are capturing the full match"
+                hasArrow
+                placement="top"
+              >
+                <StatLabel fontSize="xs" cursor="help" textDecoration="underline dotted" display="inline-block">
+                  Status
+                </StatLabel>
+              </Tooltip>
               <StatNumber fontSize="lg">
                 <Badge colorScheme={data.fully_optimized ? "green" : "red"} fontSize="sm">
                   {data.fully_optimized ? "Fully Optimized" : "Needs Attention"}
@@ -150,25 +184,57 @@ export const EmployerMatchTab = () => {
                   <SimpleGrid columns={{ base: 2, md: 4 }} spacing={3}>
                     {account.employer_match_percent != null && (
                       <Stat size="sm">
-                        <StatLabel fontSize="xs">Employer Match</StatLabel>
+                        <Tooltip
+                          label="The % of your contribution the employer matches (e.g. 50% match means they add $0.50 per $1 you contribute)"
+                          hasArrow
+                          placement="top"
+                        >
+                          <StatLabel fontSize="xs" cursor="help" textDecoration="underline dotted" display="inline-block">
+                            Employer Match
+                          </StatLabel>
+                        </Tooltip>
                         <StatNumber fontSize="md">{account.employer_match_percent}%</StatNumber>
                       </Stat>
                     )}
                     {account.employer_match_limit_percent != null && (
                       <Stat size="sm">
-                        <StatLabel fontSize="xs">Up To</StatLabel>
+                        <Tooltip
+                          label="The maximum % of salary eligible for matching (e.g. 6% means match stops once you've contributed 6% of salary)"
+                          hasArrow
+                          placement="top"
+                        >
+                          <StatLabel fontSize="xs" cursor="help" textDecoration="underline dotted" display="inline-block">
+                            Up To
+                          </StatLabel>
+                        </Tooltip>
                         <StatNumber fontSize="md">{account.employer_match_limit_percent}% of salary</StatNumber>
                       </Stat>
                     )}
                     {account.annual_match_value != null && (
                       <Stat size="sm">
-                        <StatLabel fontSize="xs">Annual Match Value</StatLabel>
+                        <Tooltip
+                          label="Maximum annual employer contribution if you contribute the required minimum percentage"
+                          hasArrow
+                          placement="top"
+                        >
+                          <StatLabel fontSize="xs" cursor="help" textDecoration="underline dotted" display="inline-block">
+                            Annual Match Value
+                          </StatLabel>
+                        </Tooltip>
                         <StatNumber fontSize="md">{fmt(account.annual_match_value)}</StatNumber>
                       </Stat>
                     )}
                     {account.estimated_left_on_table != null && account.estimated_left_on_table > 0 && (
                       <Stat size="sm">
-                        <StatLabel fontSize="xs">Left on Table</StatLabel>
+                        <Tooltip
+                          label="Estimated annual employer match being forfeited"
+                          hasArrow
+                          placement="top"
+                        >
+                          <StatLabel fontSize="xs" cursor="help" textDecoration="underline dotted" display="inline-block">
+                            Left on Table
+                          </StatLabel>
+                        </Tooltip>
                         <StatNumber fontSize="md" color="red.500">
                           {fmt(account.estimated_left_on_table)}
                         </StatNumber>

@@ -12,10 +12,13 @@ import {
   Badge,
   Box,
   Button,
+  Card,
+  CardBody,
   Container,
   Heading,
   HStack,
   Icon,
+  Progress,
   Text,
   Tooltip,
   useDisclosure,
@@ -26,7 +29,8 @@ import { AddIcon, EditIcon, RepeatIcon } from "@chakra-ui/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ElementType, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FiLink, FiDollarSign, FiBarChart2 } from "react-icons/fi";
+import { FiLink, FiDollarSign, FiBarChart2, FiTarget } from "react-icons/fi";
+import type { SavingsGoal } from "../types/savings-goal";
 import { useAuthStore } from "../features/auth/stores/authStore";
 import { DashboardGrid } from "../features/dashboard/DashboardGrid";
 import { AddWidgetDrawer } from "../features/dashboard/AddWidgetDrawer";
@@ -110,6 +114,75 @@ const GOAL_STEPS: Record<
 };
 
 const DEFAULT_STEPS = GOAL_STEPS.spending;
+
+// ── Life Goals mini-widget ─────────────────────────────────────────────────
+
+const GoalsWidget = ({ goals, onNavigate }: { goals: SavingsGoal[]; onNavigate: (path: string) => void }) => {
+  const active = goals.filter((g) => !g.is_completed && !g.is_funded);
+
+  if (goals.length === 0) {
+    return (
+      <Card mb={6} variant="outline" borderStyle="dashed">
+        <CardBody py={3} px={4}>
+          <HStack justify="space-between" align="center">
+            <HStack spacing={3}>
+              <Icon as={FiTarget} color="text.muted" boxSize={5} />
+              <Text fontSize="sm" color="text.secondary">No goals yet — set one to track your progress.</Text>
+            </HStack>
+            <Button
+              size="sm"
+              variant="ghost"
+              colorScheme="brand"
+              onClick={() => onNavigate("/goals")}
+              flexShrink={0}
+            >
+              Set your first goal →
+            </Button>
+          </HStack>
+        </CardBody>
+      </Card>
+    );
+  }
+
+  const totalCurrent = active.reduce((sum, g) => sum + g.current_amount, 0);
+  const totalTarget = active.reduce((sum, g) => sum + g.target_amount, 0);
+  const overallPct = totalTarget > 0 ? Math.round((totalCurrent / totalTarget) * 100) : 0;
+
+  return (
+    <Card mb={6}>
+      <CardBody py={3} px={4}>
+        <HStack justify="space-between" align="center" mb={active.length > 0 ? 2 : 0}>
+          <HStack spacing={2}>
+            <Icon as={FiTarget} color="brand.500" boxSize={4} />
+            <Text fontSize="sm" fontWeight="semibold">Life Goals</Text>
+            <Badge colorScheme="brand" fontSize="xs">{active.length} active</Badge>
+          </HStack>
+          <Button
+            size="sm"
+            variant="ghost"
+            colorScheme="brand"
+            onClick={() => onNavigate("/goals")}
+            flexShrink={0}
+          >
+            View Goals →
+          </Button>
+        </HStack>
+        {active.length > 0 && totalTarget > 0 && (
+          <HStack spacing={3} align="center">
+            <Progress
+              value={overallPct}
+              colorScheme="brand"
+              size="sm"
+              borderRadius="full"
+              flex={1}
+            />
+            <Text fontSize="xs" color="text.secondary" flexShrink={0}>{overallPct}% overall</Text>
+          </HStack>
+        )}
+      </CardBody>
+    </Card>
+  );
+};
 
 const GettingStartedEmptyState = ({
   onConnectBank,
@@ -260,6 +333,12 @@ export const DashboardPage = () => {
     },
     staleTime: 30_000,
   });
+
+  const { data: goals } = useQuery<SavingsGoal[]>({
+    queryKey: ["savings-goals-dashboard"],
+    queryFn: () => api.get("/savings-goals/").then((r) => r.data),
+    staleTime: 60_000,
+  });
   const handleAddWidget = (widgetId: string) => {
     const def = WIDGET_REGISTRY[widgetId];
     if (!def) return;
@@ -366,6 +445,10 @@ export const DashboardPage = () => {
       </HStack>
 
       <GoalContextBanner />
+
+      {goals !== undefined && (
+        <GoalsWidget goals={goals} onNavigate={navigate} />
+      )}
 
       {accountsError && (
         <Alert status="error" borderRadius="md">

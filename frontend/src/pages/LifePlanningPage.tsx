@@ -18,7 +18,7 @@ import {
   Tabs,
   Text,
 } from "@chakra-ui/react";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState } from "react";
 
 const SSClaimingPage = lazy(() => import("./SSClaimingPage"));
 const VariableIncomePage = lazy(() => import("./VariableIncomePage"));
@@ -39,7 +39,18 @@ const TabLoader = () => (
   </Center>
 );
 
+const TAB_KEY = "nest-egg-tab-life-planning";
+const getInitialTab = () => {
+  try { return parseInt(localStorage.getItem(TAB_KEY) ?? "0", 10) || 0; } catch { return 0; }
+};
+
 export const LifePlanningPage = () => {
+  const [tabIndex, setTabIndex] = useState(getInitialTab);
+  const handleTabChange = (idx: number) => {
+    setTabIndex(idx);
+    try { localStorage.setItem(TAB_KEY, String(idx)); } catch {}
+  };
+
   return (
     <Box pt={4}>
       <Box px={6} mb={2}>
@@ -49,7 +60,7 @@ export const LifePlanningPage = () => {
           RMD projections, insurance coverage audit, and pension modeling.
         </Text>
       </Box>
-      <Tabs colorScheme="brand" variant="enclosed" px={6}>
+      <Tabs colorScheme="brand" variant="enclosed" px={6} index={tabIndex} onChange={handleTabChange}>
         <TabList>
           <Tab fontSize="sm">SS Optimizer</Tab>
           <Tab fontSize="sm">Variable Income</Tab>

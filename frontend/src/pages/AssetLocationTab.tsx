@@ -8,8 +8,10 @@ import {
   AlertIcon,
   Badge,
   Box,
+  Button,
   CircularProgress,
   CircularProgressLabel,
+  Collapse,
   HStack,
   SimpleGrid,
   Stat,
@@ -21,9 +23,11 @@ import {
   Text,
   Th,
   Thead,
+  Tooltip,
   Tr,
   VStack,
 } from "@chakra-ui/react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import api from "../services/api";
 import { useCurrency } from "../contexts/CurrencyContext";
@@ -81,6 +85,7 @@ const scoreColor = (score: number): string => {
 export const AssetLocationTab = () => {
   const { selectedUserId } = useUserView();
   const { formatCurrency } = useCurrency();
+  const [showExplanation, setShowExplanation] = useState(false);
 
   const params = new URLSearchParams();
   if (selectedUserId) params.set("user_id", selectedUserId);
@@ -93,6 +98,33 @@ export const AssetLocationTab = () => {
 
   return (
     <VStack spacing={6} align="stretch">
+      {/* Expandable explanation */}
+      <Box>
+        <Button
+          variant="link"
+          size="sm"
+          onClick={() => setShowExplanation((v) => !v)}
+          color="blue.500"
+          fontWeight="medium"
+          mb={2}
+        >
+          {showExplanation ? "Why asset location matters ▲" : "Why asset location matters ▼"}
+        </Button>
+        <Collapse in={showExplanation} animateOpacity>
+          <Box
+            bg="blue.50"
+            _dark={{ bg: "blue.900" }}
+            borderRadius="md"
+            px={4}
+            py={3}
+            fontSize="sm"
+            color="text.primary"
+          >
+            Asset location is placing each investment in the most tax-efficient account. Tax-inefficient assets (bonds, REITs, high-dividend stocks) belong in pre-tax or Roth accounts where gains aren't taxed annually. Tax-efficient assets (index funds, growth stocks) are fine in taxable accounts since they generate little taxable income. Optimizing location can save thousands per year in taxes without changing your allocation.
+          </Box>
+        </Collapse>
+      </Box>
+
       {isLoading && <Text color="text.secondary">Loading asset location data…</Text>}
       {error && (
         <Alert status="error">
@@ -151,9 +183,39 @@ export const AssetLocationTab = () => {
                     <Th>Account</Th>
                     <Th>Asset</Th>
                     <Th>Asset Class</Th>
-                    <Th>Current Location</Th>
-                    <Th>Recommended</Th>
-                    <Th>Status</Th>
+                    <Th>
+                      <Tooltip
+                        label="The account type where this asset currently sits (taxable brokerage, pre-tax IRA/401k, Roth, etc.)"
+                        hasArrow
+                        placement="top"
+                      >
+                        <Box as="span" cursor="help" textDecoration="underline dotted">
+                          Current Location
+                        </Box>
+                      </Tooltip>
+                    </Th>
+                    <Th>
+                      <Tooltip
+                        label="The most tax-efficient account type for this asset class"
+                        hasArrow
+                        placement="top"
+                      >
+                        <Box as="span" cursor="help" textDecoration="underline dotted">
+                          Recommended
+                        </Box>
+                      </Tooltip>
+                    </Th>
+                    <Th>
+                      <Tooltip
+                        label="Whether this asset is in its optimal account for tax efficiency"
+                        hasArrow
+                        placement="top"
+                      >
+                        <Box as="span" cursor="help" textDecoration="underline dotted">
+                          Status
+                        </Box>
+                      </Tooltip>
+                    </Th>
                   </Tr>
                 </Thead>
                 <Tbody>
@@ -173,11 +235,13 @@ export const AssetLocationTab = () => {
                         </Badge>
                       </Td>
                       <Td>
-                        {item.is_optimal ? (
-                          <Badge colorScheme="green">✓ Optimal</Badge>
-                        ) : (
-                          <Badge colorScheme="orange">Suboptimal</Badge>
-                        )}
+                        <Tooltip label={item.reason} hasArrow placement="top" maxW="280px">
+                          {item.is_optimal ? (
+                            <Badge colorScheme="green" cursor="help">✓ Optimal</Badge>
+                          ) : (
+                            <Badge colorScheme="orange" cursor="help">Suboptimal</Badge>
+                          )}
+                        </Tooltip>
                       </Td>
                     </Tr>
                   ))}
