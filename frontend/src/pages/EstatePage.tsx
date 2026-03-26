@@ -305,6 +305,16 @@ export const EstatePage = () => {
             events: marriage, divorce, birth of a child, or significant asset changes.
           </Text>
         </Alert>
+        <Alert status="warning" borderRadius="lg" w="full">
+          <AlertIcon />
+          <Text fontSize="sm">
+            <strong>Important:</strong> This tool provides estimates and general guidance
+            only — not legal or financial advice. Estate planning documents (wills, trusts,
+            powers of attorney) should be prepared by a licensed estate attorney. Beneficiary
+            designations must be completed directly with each financial institution. Always
+            work with qualified professionals for your actual estate plan.
+          </Text>
+        </Alert>
 
         {/* ── Beneficiary Coverage ──────────────────────────────────────── */}
         <Box w="full">

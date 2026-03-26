@@ -101,7 +101,7 @@ export const IrmaaMedicareTab = () => {
 
   const { data, isLoading, error } = useQuery<IrmaaResponse>({
     queryKey: ["irmaa-projection", magi, filingStatus, growthRate],
-    queryFn: () => api.get(`/api/v1/tax/irmaa-projection?${params}`).then((r) => r.data),
+    queryFn: () => api.get(`/tax/irmaa-projection?${params}`).then((r) => r.data),
     enabled,
   });
 

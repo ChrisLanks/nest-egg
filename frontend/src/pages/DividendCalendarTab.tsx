@@ -136,7 +136,7 @@ export const DividendCalendarTab = () => {
   const { data, isLoading, error } = useQuery<DividendCalendarResponse>({
     queryKey: ["dividend-calendar", year],
     queryFn: () =>
-      api.get(`/api/v1/holdings/dividend-calendar?year=${year}`).then((r) => r.data),
+      api.get(`/holdings/dividend-calendar?year=${year}`).then((r) => r.data),
   });
 
   return (

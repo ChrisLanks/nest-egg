@@ -104,7 +104,7 @@ export const LiquidityDashboardTab = () => {
   const { data, isLoading, error } = useQuery<LiquidityDashboardResponse>({
     queryKey: ["liquidity-dashboard", monthlySpending],
     queryFn: () =>
-      api.get(`/api/v1/dashboard/liquidity?${params}`).then((r) => r.data),
+      api.get(`/dashboard/liquidity?${params}`).then((r) => r.data),
   });
 
   const progressPct = data

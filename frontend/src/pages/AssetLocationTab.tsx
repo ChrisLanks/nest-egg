@@ -88,7 +88,7 @@ export const AssetLocationTab = () => {
   const { data, isLoading, error } = useQuery<AssetLocationResponse>({
     queryKey: ["asset-location", selectedUserId],
     queryFn: () =>
-      api.get(`/api/v1/holdings/asset-location?${params}`).then((r) => r.data),
+      api.get(`/holdings/asset-location?${params}`).then((r) => r.data),
   });
 
   return (

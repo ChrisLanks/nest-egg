@@ -391,6 +391,296 @@ async def create_random_users(
     return {"created": created}
 
 
+async def seed_planning_data_internal(db: AsyncSession, user: "User") -> dict:
+    """Seed realistic planning data for holdings, tax lots, dividends, pension, match, insurance."""
+    from app.models.holding import Holding
+    from app.models.dividend import DividendIncome, IncomeType
+    from app.models.tax_lot import TaxLot
+    from app.models.account import AccountType, AccountSource, TaxTreatment
+
+    today = date.today()
+    org_id = user.organization_id
+    user_id = user.id
+
+    summary: dict = {
+        "accounts_created": 0,
+        "holdings_created": 0,
+        "tax_lots_created": 0,
+        "dividends_created": 0,
+    }
+
+    # ------------------------------------------------------------------
+    # Helper: get-or-create account by name
+    # ------------------------------------------------------------------
+    async def get_or_create_account(name: str, account_type: AccountType, **kwargs) -> "Account":
+        result = await db.execute(
+            select(Account).where(
+                Account.organization_id == org_id,
+                Account.name == name,
+            )
+        )
+        existing = result.scalar_one_or_none()
+        if existing:
+            return existing
+        acct = Account(
+            id=uuid.uuid4(),
+            organization_id=org_id,
+            user_id=user_id,
+            name=name,
+            account_type=account_type,
+            account_source=AccountSource.MANUAL,
+            is_manual=True,
+            **kwargs,
+        )
+        db.add(acct)
+        await db.flush()
+        summary["accounts_created"] += 1
+        return acct
+
+    # ------------------------------------------------------------------
+    # 1. Brokerage account (taxable)
+    # ------------------------------------------------------------------
+    brokerage = await get_or_create_account(
+        "Vanguard Taxable Brokerage",
+        AccountType.BROKERAGE,
+        tax_treatment=TaxTreatment.TAXABLE,
+        institution_name="Vanguard",
+        current_balance=Decimal("185000.00"),
+    )
+
+    # ------------------------------------------------------------------
+    # 2. Traditional IRA / pre-tax account
+    # ------------------------------------------------------------------
+    trad_ira = await get_or_create_account(
+        "Fidelity Traditional IRA",
+        AccountType.RETIREMENT_IRA,
+        tax_treatment=TaxTreatment.PRE_TAX,
+        institution_name="Fidelity",
+        current_balance=Decimal("210000.00"),
+    )
+
+    # ------------------------------------------------------------------
+    # 3. Roth IRA
+    # ------------------------------------------------------------------
+    roth_ira = await get_or_create_account(
+        "Vanguard Roth IRA",
+        AccountType.RETIREMENT_ROTH,
+        tax_treatment=TaxTreatment.ROTH,
+        institution_name="Vanguard",
+        current_balance=Decimal("95000.00"),
+    )
+
+    # ------------------------------------------------------------------
+    # 4. 401(k) with employer match
+    # ------------------------------------------------------------------
+    k401 = await get_or_create_account(
+        "401(k) - Employer Match",
+        AccountType.RETIREMENT_401K,
+        tax_treatment=TaxTreatment.PRE_TAX,
+        institution_name="Fidelity",
+        current_balance=Decimal("320000.00"),
+        employer_match_percent=Decimal("50.0"),
+        employer_match_limit_percent=Decimal("6.0"),
+        annual_salary="120000",
+    )
+
+    # ------------------------------------------------------------------
+    # 5. Pension account
+    # ------------------------------------------------------------------
+    pension = await get_or_create_account(
+        "Employer Pension Plan",
+        AccountType.PENSION,
+        institution_name="State Pension Fund",
+        current_balance=Decimal("0.00"),
+        monthly_benefit=Decimal("2500.00"),
+        pension_lump_sum_value=Decimal("450000.00"),
+        pension_cola_rate=Decimal("0.020"),
+        pension_survivor_pct=Decimal("50.0"),
+        pension_years_of_service=Decimal("25.0"),
+    )
+
+    # ------------------------------------------------------------------
+    # 6. Life Insurance cash value
+    # ------------------------------------------------------------------
+    insurance = await get_or_create_account(
+        "Term Life Insurance",
+        AccountType.LIFE_INSURANCE_CASH_VALUE,
+        institution_name="Northwestern Mutual",
+        current_balance=Decimal("50000.00"),
+    )
+
+    # ------------------------------------------------------------------
+    # 7. Holdings across accounts
+    # ------------------------------------------------------------------
+    holding_specs = [
+        # (account, ticker, name, shares, price, cost_basis_per_share, asset_class, asset_type, expense_ratio)
+        (brokerage, "VTI", "Vanguard Total Stock Market ETF", Decimal("150.0"), Decimal("240.00"), Decimal("185.00"), "domestic", "etf", Decimal("0.0003")),
+        (brokerage, "FSKAX", "Fidelity Total Market Index Fund", Decimal("200.0"), Decimal("120.00"), Decimal("95.00"), "domestic", "mutual_fund", Decimal("0.0000")),
+        (brokerage, "VNQ", "Vanguard Real Estate ETF", Decimal("80.0"), Decimal("87.00"), Decimal("92.00"), "other", "etf", Decimal("0.0012")),
+        (trad_ira, "BND", "Vanguard Total Bond Market ETF", Decimal("300.0"), Decimal("73.00"), Decimal("76.00"), "bond", "etf", Decimal("0.0003")),
+        (trad_ira, "VXUS", "Vanguard Total International Stock ETF", Decimal("250.0"), Decimal("58.00"), Decimal("52.00"), "international", "etf", Decimal("0.0007")),
+        (roth_ira, "QQQ", "Invesco QQQ Trust", Decimal("60.0"), Decimal("470.00"), Decimal("350.00"), "domestic", "etf", Decimal("0.0020")),
+        (roth_ira, "VXUS", "Vanguard Total International Stock ETF", Decimal("100.0"), Decimal("58.00"), Decimal("48.00"), "international", "etf", Decimal("0.0007")),
+        (k401, "FSKAX", "Fidelity Total Market Index Fund", Decimal("500.0"), Decimal("120.00"), Decimal("75.00"), "domestic", "mutual_fund", Decimal("0.0000")),
+    ]
+
+    created_holdings: list[tuple] = []  # (account, holding) pairs
+    for acct, ticker, name, shares, price, cost_basis, asset_class, asset_type, er in holding_specs:
+        # Check if holding already exists for this account+ticker
+        existing = await db.execute(
+            select(Holding).where(
+                Holding.account_id == acct.id,
+                Holding.ticker == ticker,
+            )
+        )
+        holding = existing.scalar_one_or_none()
+        if holding is None:
+            holding = Holding(
+                id=uuid.uuid4(),
+                account_id=acct.id,
+                organization_id=org_id,
+                ticker=ticker,
+                name=name,
+                shares=shares,
+                cost_basis_per_share=cost_basis,
+                total_cost_basis=(cost_basis * shares).quantize(Decimal("0.01")),
+                current_price_per_share=price,
+                current_total_value=(price * shares).quantize(Decimal("0.01")),
+                asset_class=asset_class,
+                asset_type=asset_type,
+                expense_ratio=er,
+            )
+            db.add(holding)
+            await db.flush()
+            summary["holdings_created"] += 1
+        created_holdings.append((acct, holding))
+
+    # ------------------------------------------------------------------
+    # 8. Tax lots (attach to brokerage VTI holding if it was created)
+    # ------------------------------------------------------------------
+    # Find the brokerage VTI holding
+    vti_holding_result = await db.execute(
+        select(Holding).where(
+            Holding.account_id == brokerage.id,
+            Holding.ticker == "VTI",
+        )
+    )
+    vti_holding = vti_holding_result.scalar_one_or_none()
+
+    if vti_holding:
+        lot_specs = [
+            # (days_ago, quantity, cost_basis_per_share, is_closed)
+            (10,  Decimal("20.0"), Decimal("238.00"), False),   # very short term
+            (340, Decimal("30.0"), Decimal("210.00"), False),   # approaching 1-year
+            (400, Decimal("25.0"), Decimal("195.00"), False),   # long term
+            (730, Decimal("40.0"), Decimal("160.00"), False),   # 2-year long term gain
+            (500, Decimal("15.0"), Decimal("260.00"), False),   # long term with a loss
+        ]
+        for days_ago, qty, cb_per_share, is_closed in lot_specs:
+            acq_date = today - timedelta(days=days_ago)
+            total_cb = (cb_per_share * qty).quantize(Decimal("0.01"))
+
+            # Check if lot already exists (by account + acquisition_date + quantity)
+            existing_lot = await db.execute(
+                select(TaxLot).where(
+                    TaxLot.holding_id == vti_holding.id,
+                    TaxLot.acquisition_date == acq_date,
+                )
+            )
+            if existing_lot.scalar_one_or_none() is None:
+                lot = TaxLot(
+                    id=uuid.uuid4(),
+                    organization_id=org_id,
+                    holding_id=vti_holding.id,
+                    account_id=brokerage.id,
+                    acquisition_date=acq_date,
+                    quantity=qty,
+                    cost_basis_per_share=cb_per_share,
+                    total_cost_basis=total_cb,
+                    remaining_quantity=qty,
+                    is_closed=is_closed,
+                )
+                db.add(lot)
+                summary["tax_lots_created"] += 1
+
+    await db.flush()
+
+    # ------------------------------------------------------------------
+    # 9. Dividend income records — spread across current year
+    # ------------------------------------------------------------------
+    current_year = today.year
+    div_specs = [
+        # (ticker, month, amount, income_type)
+        ("VTI",   1,  Decimal("185.00"), IncomeType.QUALIFIED_DIVIDEND),
+        ("BND",   1,  Decimal("312.00"), IncomeType.INTEREST),
+        ("VTI",   2,  Decimal("50.00"),  IncomeType.QUALIFIED_DIVIDEND),
+        ("VNQ",   2,  Decimal("210.00"), IncomeType.DIVIDEND),
+        ("FSKAX", 3,  Decimal("95.00"),  IncomeType.QUALIFIED_DIVIDEND),
+        ("BND",   4,  Decimal("298.00"), IncomeType.INTEREST),
+        ("VTI",   4,  Decimal("190.00"), IncomeType.QUALIFIED_DIVIDEND),
+        ("VNQ",   5,  Decimal("225.00"), IncomeType.DIVIDEND),
+        ("QQQ",   5,  Decimal("75.00"),  IncomeType.QUALIFIED_DIVIDEND),
+        ("BND",   6,  Decimal("315.00"), IncomeType.INTEREST),
+        ("FSKAX", 6,  Decimal("110.00"), IncomeType.QUALIFIED_DIVIDEND),
+        ("VTI",   7,  Decimal("200.00"), IncomeType.QUALIFIED_DIVIDEND),
+    ]
+
+    for ticker, month, amount, income_type in div_specs:
+        # Only seed months that have already passed or are current
+        pay_day = min(15, 28)  # always valid
+        pay_date_val = date(current_year, month, pay_day)
+        if pay_date_val > today:
+            continue  # skip future months
+
+        # Determine which account to link (brokerage for most, trad_ira for BND)
+        acct_for_div = trad_ira if ticker == "BND" else (roth_ira if ticker == "QQQ" else brokerage)
+
+        # Avoid duplicates
+        existing_div = await db.execute(
+            select(DividendIncome).where(
+                DividendIncome.organization_id == org_id,
+                DividendIncome.ticker == ticker,
+                DividendIncome.pay_date == pay_date_val,
+            )
+        )
+        if existing_div.scalar_one_or_none() is None:
+            div = DividendIncome(
+                id=uuid.uuid4(),
+                organization_id=org_id,
+                account_id=acct_for_div.id,
+                income_type=income_type,
+                ticker=ticker,
+                amount=amount,
+                pay_date=pay_date_val,
+                ex_date=date(current_year, month, max(1, pay_day - 10)),
+                is_reinvested=False,
+                currency="USD",
+            )
+            db.add(div)
+            summary["dividends_created"] += 1
+
+    await db.flush()
+    return summary
+
+
+@router.post("/seed-planning-data")
+async def seed_planning_data(
+    current_user: "User" = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Seed realistic planning data (holdings, tax lots, dividends, pension, etc.) for dev/test."""
+    if settings.ENVIRONMENT not in ("development", "test"):
+        raise HTTPException(status_code=404, detail="Not found")
+
+    result = await seed_planning_data_internal(db, current_user)
+    await db.commit()
+
+    return {
+        "message": "Planning seed data created successfully",
+        **result,
+    }
+
+
 @router.delete("/users/{user_id}", status_code=204)
 async def hard_delete_user(
     user_id: UUID,

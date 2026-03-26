@@ -141,7 +141,7 @@ export const CostBasisAgingTab = () => {
 
   const { data, isLoading, error } = useQuery<CostBasisAgingResponse>({
     queryKey: ["cost-basis-aging"],
-    queryFn: () => api.get("/api/v1/holdings/cost-basis-aging").then((r) => r.data),
+    queryFn: () => api.get("/holdings/cost-basis-aging").then((r) => r.data),
   });
 
   const approachingLots = data?.lots.filter((l) => l.bucket === "approaching") ?? [];

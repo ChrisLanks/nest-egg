@@ -13,6 +13,7 @@ import {
   CircularProgress,
   CircularProgressLabel,
   FormControl,
+  FormHelperText,
   FormLabel,
   HStack,
   NumberInput,
@@ -94,7 +95,7 @@ export const NetWorthPercentileTab = () => {
   const { data, isLoading, error } = useQuery<NetWorthPercentileResponse>({
     queryKey: ["net-worth-percentile", ageOverride],
     queryFn: () =>
-      api.get(`/api/v1/dashboard/net-worth-percentile?${params}`).then((r) => r.data),
+      api.get(`/dashboard/net-worth-percentile?${params}`).then((r) => r.data),
   });
 
   return (
@@ -116,6 +117,10 @@ export const NetWorthPercentileTab = () => {
             >
               <NumberInputField placeholder="Uses profile age if blank" />
             </NumberInput>
+            <FormHelperText fontSize="xs">
+              For multi-member households, enter the primary account holder's age or
+              leave blank to use your profile age.
+            </FormHelperText>
           </FormControl>
         </CardBody>
       </Card>

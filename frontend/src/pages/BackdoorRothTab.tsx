@@ -97,7 +97,7 @@ export const BackdoorRothTab = () => {
 
   const { data, isLoading, error } = useQuery<BackdoorRothResponse>({
     queryKey: ["backdoor-roth", filingStatus, magi, selectedUserId],
-    queryFn: () => api.get(`/api/v1/tax/backdoor-roth-analysis?${params}`).then((r) => r.data),
+    queryFn: () => api.get(`/tax/backdoor-roth-analysis?${params}`).then((r) => r.data),
   });
 
   return (

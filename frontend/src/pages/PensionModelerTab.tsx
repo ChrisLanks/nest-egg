@@ -90,7 +90,7 @@ export const PensionModelerTab = () => {
 
   const { data, isLoading, error } = useQuery<PensionModelerResponse>({
     queryKey: ["pension-modeler"],
-    queryFn: () => api.get("/api/v1/retirement/pension-model").then((r) => r.data),
+    queryFn: () => api.get("/retirement/pension-model").then((r) => r.data),
   });
 
   return (

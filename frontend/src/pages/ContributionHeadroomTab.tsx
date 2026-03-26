@@ -93,7 +93,7 @@ export const ContributionHeadroomTab = () => {
   const { data, isLoading, error } = useQuery<HeadroomResponse>({
     queryKey: ["contribution-headroom", taxYear],
     queryFn: () =>
-      api.get(`/api/v1/tax/contribution-headroom?tax_year=${taxYear}`).then((r) => r.data),
+      api.get(`/tax/contribution-headroom?tax_year=${taxYear}`).then((r) => r.data),
   });
 
   return (

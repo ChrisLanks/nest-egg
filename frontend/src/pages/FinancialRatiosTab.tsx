@@ -98,7 +98,7 @@ export const FinancialRatiosTab = () => {
   const { data, isLoading, error } = useQuery<FinancialRatiosResponse>({
     queryKey: ["financial-ratios", monthlyIncome, monthlySpending],
     queryFn: () =>
-      api.get(`/api/v1/dashboard/financial-ratios?${params}`).then((r) => r.data),
+      api.get(`/dashboard/financial-ratios?${params}`).then((r) => r.data),
   });
 
   return (

@@ -80,7 +80,7 @@ export const EmployerMatchTab = () => {
 
   const { data, isLoading, error } = useQuery<EmployerMatchResponse>({
     queryKey: ["employer-match"],
-    queryFn: () => api.get("/api/v1/retirement/employer-match").then((r) => r.data),
+    queryFn: () => api.get("/retirement/employer-match").then((r) => r.data),
   });
 
   return (

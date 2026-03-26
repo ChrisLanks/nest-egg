@@ -82,7 +82,7 @@ export const NetWorthForecastTab = () => {
 
   const { data, isLoading, error } = useQuery<ForecastResponse>({
     queryKey: ["net-worth-forecast", retirementAge, annualReturn, annualContrib, selectedUserId],
-    queryFn: () => api.get(`/api/v1/dashboard/net-worth-forecast?${params}`).then((r) => r.data),
+    queryFn: () => api.get(`/dashboard/net-worth-forecast?${params}`).then((r) => r.data),
   });
 
   // Merge scenarios into chart data

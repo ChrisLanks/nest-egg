@@ -72,6 +72,7 @@ interface CalendarPrefs {
   showSubscriptions: boolean;
   showIncome: boolean;
   showProjectedBalance: boolean;
+  showDividends: boolean;
 }
 
 const DEFAULT_PREFS: CalendarPrefs = {
@@ -79,6 +80,7 @@ const DEFAULT_PREFS: CalendarPrefs = {
   showSubscriptions: true,
   showIncome: true,
   showProjectedBalance: false,
+  showDividends: false,
 };
 
 function loadCalendarPrefs(): CalendarPrefs {
@@ -124,6 +126,9 @@ export const CalendarPage: React.FC = () => {
   );
   const [showProjectedBalance, setShowProjectedBalance] = useState(
     () => loadCalendarPrefs().showProjectedBalance,
+  );
+  const [showDividends, setShowDividends] = useState(
+    () => loadCalendarPrefs().showDividends ?? false,
   );
 
   const updatePref = useCallback((key: keyof CalendarPrefs, value: boolean) => {
@@ -327,6 +332,21 @@ export const CalendarPage: React.FC = () => {
                       <Badge colorScheme="blue" variant="subtle" mr={1}>
                         Projected Balance
                       </Badge>
+                    </FormLabel>
+                  </FormControl>
+                  <FormControl display="flex" alignItems="center" w="auto">
+                    <Switch
+                      id="show-dividends"
+                      colorScheme="green"
+                      isChecked={showDividends}
+                      onChange={(e) => {
+                        setShowDividends(e.target.checked);
+                        updatePref("showDividends", e.target.checked);
+                      }}
+                      size="sm"
+                    />
+                    <FormLabel htmlFor="show-dividends" mb="0" ml={2} fontSize="sm" fontWeight="normal">
+                      Dividends
                     </FormLabel>
                   </FormControl>
                 </HStack>

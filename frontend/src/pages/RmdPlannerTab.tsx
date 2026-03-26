@@ -11,6 +11,7 @@ import {
   Card,
   CardBody,
   FormControl,
+  FormHelperText,
   FormLabel,
   HStack,
   NumberInput,
@@ -85,18 +86,20 @@ export const RmdPlannerTab = () => {
   const [growthRate, setGrowthRate] = useState(6);
   const [filingStatus, setFilingStatus] = useState("single");
   const [otherIncome, setOtherIncome] = useState(50000);
+  const [federalRate, setFederalRate] = useState(22);
 
   const params = new URLSearchParams({
     projection_years: "20",
     growth_rate: String(growthRate / 100),
     filing_status: filingStatus,
     other_annual_income: String(otherIncome),
+    federal_rate_pct: String(federalRate),
   });
   if (selectedUserId) params.set("user_id", selectedUserId);
 
   const { data, isLoading, error } = useQuery<RmdPlannerResponse>({
-    queryKey: ["rmd-planner", growthRate, filingStatus, otherIncome, selectedUserId],
-    queryFn: () => api.get(`/api/v1/rmd/rmd-planner?${params}`).then((r) => r.data),
+    queryKey: ["rmd-planner", growthRate, filingStatus, otherIncome, federalRate, selectedUserId],
+    queryFn: () => api.get(`/rmd/rmd-planner?${params}`).then((r) => r.data),
   });
 
   const chartData = data?.projection
@@ -117,7 +120,7 @@ export const RmdPlannerTab = () => {
       {/* Controls */}
       <Card>
         <CardBody>
-          <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+          <SimpleGrid columns={{ base: 1, md: 4 }} spacing={4}>
             <FormControl>
               <FormLabel fontSize="sm">Portfolio Growth Rate (%)</FormLabel>
               <NumberInput
@@ -149,6 +152,22 @@ export const RmdPlannerTab = () => {
               >
                 <NumberInputField />
               </NumberInput>
+            </FormControl>
+            <FormControl>
+              <FormLabel fontSize="sm">Federal Tax Rate (%)</FormLabel>
+              <NumberInput
+                value={federalRate}
+                min={0}
+                max={50}
+                step={1}
+                onChange={(_, v) => !isNaN(v) && setFederalRate(v)}
+                size="sm"
+              >
+                <NumberInputField />
+              </NumberInput>
+              <FormHelperText fontSize="xs">
+                Estimated from income — adjust as needed.
+              </FormHelperText>
             </FormControl>
           </SimpleGrid>
         </CardBody>

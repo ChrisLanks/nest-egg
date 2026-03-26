@@ -93,7 +93,7 @@ export const TaxEquivYieldTab = () => {
 
   const { data, isLoading, error } = useQuery<TaxEquivYieldResponse>({
     queryKey: ["tax-equiv-yield", federalRate, stateRate, selectedUserId],
-    queryFn: () => api.get(`/api/v1/holdings/tax-equivalent-yield?${params}`).then((r) => r.data),
+    queryFn: () => api.get(`/holdings/tax-equivalent-yield?${params}`).then((r) => r.data),
   });
 
   return (

@@ -134,7 +134,7 @@ export const InsuranceAuditTab = () => {
 
   const { data, isLoading, error } = useQuery<InsuranceAuditResponse>({
     queryKey: ["insurance-audit"],
-    queryFn: () => api.get("/api/v1/estate/insurance-audit").then((r) => r.data),
+    queryFn: () => api.get("/estate/insurance-audit").then((r) => r.data),
   });
 
   return (

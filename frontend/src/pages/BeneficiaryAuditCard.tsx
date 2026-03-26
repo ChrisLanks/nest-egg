@@ -78,7 +78,7 @@ export const BeneficiaryAuditCard = () => {
 
   const { data, isLoading } = useQuery<AuditResponse>({
     queryKey: ["beneficiary-audit", selectedUserId],
-    queryFn: () => api.get("/api/v1/estate/beneficiary-audit").then((r) => r.data),
+    queryFn: () => api.get("/estate/beneficiary-audit").then((r) => r.data),
   });
 
   if (isLoading) return null;
