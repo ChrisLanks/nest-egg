@@ -322,8 +322,8 @@ function AccountProjection({ plan }: AccountProjectionProps) {
 
               {/* Projection chart */}
               {projection.projections.length > 0 && (
-                <Box h="250px">
-                  <ResponsiveContainer width="100%" height="100%">
+                <Box>
+                  <ResponsiveContainer width="100%" height={250}>
                     <AreaChart
                       data={projection.projections}
                       margin={{ top: 10, right: 10, left: 0, bottom: 0 }}

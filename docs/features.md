@@ -907,6 +907,21 @@ The Financial Ratios tab fetches a spending estimate from account data and pre-p
 
 A Life Goals widget near the top of the Overview page shows active goal count, overall progress bar, and a "View Goals →" link. When no goals exist, shows a subtle "Set your first goal →" prompt.
 
+### Navigation Consolidation
+
+The Planning dropdown has been streamlined:
+
+- **Goals first** — moved to the top of the Planning menu so the most action-oriented page is easiest to reach
+- **Smart Insights** — follows Goals as the second entry
+- **HSA Planner removed** as a standalone nav entry — HSA Optimizer lives inside Investment Tools; `/hsa` redirects there automatically
+- **Ordering**: Goals → Smart Insights → Retirement → Education → Debt Payoff → Mortgage → Tax Center → Life Planning → Financial Health → Investment Tools (advanced)
+- **Tooltips updated** to be more descriptive (e.g., Tax Center tooltip lists all 6 sub-features)
+- Nav Preferences page (`useNavDefaults.ts`) reflects the same order
+
+### Recharts Explicit Heights
+
+All `ResponsiveContainer` instances that were wrapped in `<Box h="Npx">` with `height="100%"` now use `height={N}` directly on the container. This eliminates React warnings about zero-dimension renders during lazy-load Suspense fallback cycles.
+
 ### Dev Seed Data (`POST /api/v1/dev/seed-planning-data`)
 
 - Creates representative demo data (6 accounts, 8 holdings, 5 tax lots, 12 dividend records) for local development

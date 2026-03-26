@@ -209,8 +209,8 @@ export const IrmaaMedicareTab = () => {
             </Alert>
           )}
 
-          <Box h="280px">
-            <ResponsiveContainer width="100%" height="100%">
+          <Box>
+            <ResponsiveContainer width="100%" height={280}>
               <BarChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                 <XAxis dataKey="year" tick={{ fontSize: 11 }} />

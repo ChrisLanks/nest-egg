@@ -913,18 +913,20 @@ export const Layout = () => {
   ];
 
   const allPlanningItems = [
-    {
-      label: "Smart Insights",
-      path: "/smart-insights",
-      tooltip:
-        "Personalized tips based on your actual data — savings opportunities, fee alerts, and more",
-    },
+    // ── Front and center ──────────────────────────────────────────────────
     {
       label: "Goals",
       path: "/goals",
       tooltip:
         "Set savings targets (emergency fund, vacation, down payment) and track your progress",
     },
+    {
+      label: "Smart Insights",
+      path: "/smart-insights",
+      tooltip:
+        "Personalized tips based on your actual data — savings opportunities, fee alerts, and more",
+    },
+    // ── Core planning ─────────────────────────────────────────────────────
     {
       label: "Retirement",
       path: "/retirement",
@@ -949,37 +951,32 @@ export const Layout = () => {
       tooltip:
         "Analyze your mortgage: amortization schedule, extra payment impact, and break-even on refinancing",
     },
-    {
-      label: "HSA Planner",
-      path: "/hsa",
-      tooltip:
-        "Maximize your HSA as a triple-tax-advantaged account — see contribution headroom and investment growth",
-    },
-    // ── Consolidated hubs (replace 9 separate items) ──────────────────────
+    // ── Consolidated hubs ─────────────────────────────────────────────────
+    // Note: HSA Planner is inside Investment Tools — no separate nav entry needed
     {
       label: "Tax Center",
       path: "/tax-center",
       tooltip:
-        "Tax projection, three-bucket optimization, and charitable giving strategy — all in one place",
+        "Tax projection, three-bucket optimization, charitable giving, IRMAA, Roth wizard, and contribution headroom",
     },
     {
       label: "Life Planning",
       path: "/life-planning",
       tooltip:
-        "Social Security optimizer, variable income smoothing, and estate & beneficiary planning",
-    },
-    {
-      label: "Investment Tools",
-      path: "/investment-tools",
-      tooltip:
-        "FIRE progress tracker, equity compensation modeling, and loan affordability analysis",
-      advanced: true,
+        "Social Security optimizer, variable income smoothing, estate & beneficiary planning, RMD projections, insurance audit, and pension modeling",
     },
     {
       label: "Financial Health",
       path: "/financial-health",
       tooltip:
         "Financial ratios, debt-to-income, emergency fund coverage, and liquidity analysis",
+    },
+    {
+      label: "Investment Tools",
+      path: "/investment-tools",
+      tooltip:
+        "FIRE metrics, equity compensation, loan modeler, HSA optimizer, tax-equivalent yield, asset location, employer match, and cost basis aging",
+      advanced: true,
     },
   ];
 

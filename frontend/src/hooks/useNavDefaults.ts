@@ -100,8 +100,8 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     group: "Planning",
     items: [
-      { label: "Smart Insights", path: "/smart-insights" },
       { label: "Goals", path: "/goals" },
+      { label: "Smart Insights", path: "/smart-insights" },
       { label: "Retirement", path: "/retirement" },
       {
         label: "Education",
@@ -132,15 +132,15 @@ export const NAV_SECTIONS: NavSection[] = [
         reason: "Social Security, variable income, and estate planning",
       },
       {
+        label: "Financial Health",
+        path: "/financial-health",
+        reason: "Financial ratios, debt-to-income analysis, and emergency fund coverage",
+      },
+      {
         label: "Investment Tools",
         path: "/investment-tools",
         advanced: true,
         reason: "Advanced — FIRE, equity compensation, and loan modeling",
-      },
-      {
-        label: "Financial Health",
-        path: "/financial-health",
-        reason: "Financial ratios, debt-to-income analysis, and emergency fund coverage",
       },
     ],
   },
