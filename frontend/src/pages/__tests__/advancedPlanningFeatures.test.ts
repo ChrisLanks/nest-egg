@@ -1,0 +1,474 @@
+/**
+ * Tests for the 9 new advanced planning feature pages/tabs.
+ *
+ * Uses source-inspection strategy (readFileSync) consistent with the existing
+ * test style in this repo. Checks structural contracts:
+ * - Named exports exist
+ * - API endpoints called are correct
+ * - Key UI elements are present in source
+ * - Hub pages include the new tabs
+ *
+ * @vitest-environment node
+ */
+
+import { readFileSync } from "fs";
+import { resolve } from "path";
+import { describe, expect, it } from "vitest";
+
+const ROOT = resolve(__dirname, "..", "..");  // frontend/src/
+
+function readPage(relPath: string): string {
+  return readFileSync(resolve(ROOT, relPath), "utf-8");
+}
+
+// ── Source readers ────────────────────────────────────────────────────────────
+
+const assetLocationSrc = readPage("pages/AssetLocationTab.tsx");
+const insuranceAuditSrc = readPage("pages/InsuranceAuditTab.tsx");
+const pensionModelerSrc = readPage("pages/PensionModelerTab.tsx");
+const financialRatiosSrc = readPage("pages/FinancialRatiosTab.tsx");
+const employerMatchSrc = readPage("pages/EmployerMatchTab.tsx");
+const dividendCalendarSrc = readPage("pages/DividendCalendarTab.tsx");
+const costBasisAgingSrc = readPage("pages/CostBasisAgingTab.tsx");
+const liquidityDashboardSrc = readPage("pages/LiquidityDashboardTab.tsx");
+const netWorthPercentileSrc = readPage("pages/NetWorthPercentileTab.tsx");
+const financialHealthPageSrc = readPage("pages/FinancialHealthPage.tsx");
+
+const investmentToolsSrc = readPage("pages/InvestmentToolsPage.tsx");
+const lifePlanningSrc = readPage("pages/LifePlanningPage.tsx");
+const netWorthTimelineSrc = readPage("pages/NetWorthTimelinePage.tsx");
+const appSrc = readPage("App.tsx");
+
+// ── Feature 1: Asset Location ─────────────────────────────────────────────────
+
+describe("AssetLocationTab", () => {
+  it("exports AssetLocationTab", () => {
+    expect(assetLocationSrc).toContain("export const AssetLocationTab");
+  });
+
+  it("calls the asset-location endpoint", () => {
+    expect(assetLocationSrc).toContain("/api/v1/holdings/asset-location");
+  });
+
+  it("shows optimization_score with CircularProgress", () => {
+    expect(assetLocationSrc).toContain("optimization_score");
+    expect(assetLocationSrc).toContain("CircularProgress");
+  });
+
+  it("shows is_optimal status badges", () => {
+    expect(assetLocationSrc).toContain("is_optimal");
+    expect(assetLocationSrc).toContain("Optimal");
+    expect(assetLocationSrc).toContain("Suboptimal");
+  });
+
+  it("shows optimal_count and suboptimal_count stats", () => {
+    expect(assetLocationSrc).toContain("optimal_count");
+    expect(assetLocationSrc).toContain("suboptimal_count");
+  });
+
+  it("renders recommended_location and tax_treatment columns", () => {
+    expect(assetLocationSrc).toContain("recommended_location");
+    expect(assetLocationSrc).toContain("tax_treatment");
+  });
+
+  it("is embedded in InvestmentToolsPage as Asset Location tab", () => {
+    expect(investmentToolsSrc).toContain("AssetLocationTab");
+    expect(investmentToolsSrc).toContain("Asset Location");
+  });
+});
+
+// ── Feature 2: Insurance Audit ────────────────────────────────────────────────
+
+describe("InsuranceAuditTab", () => {
+  it("exports InsuranceAuditTab", () => {
+    expect(insuranceAuditSrc).toContain("export const InsuranceAuditTab");
+  });
+
+  it("calls the insurance-audit endpoint", () => {
+    expect(insuranceAuditSrc).toContain("/api/v1/estate/insurance-audit");
+  });
+
+  it("shows coverage_score stat", () => {
+    expect(insuranceAuditSrc).toContain("coverage_score");
+  });
+
+  it("shows critical_gaps badge", () => {
+    expect(insuranceAuditSrc).toContain("critical_gaps");
+    expect(insuranceAuditSrc).toContain("critical");
+  });
+
+  it("shows has_coverage status and priority badge", () => {
+    expect(insuranceAuditSrc).toContain("has_coverage");
+    expect(insuranceAuditSrc).toContain("priority");
+  });
+
+  it("shows coverage_items list with tips", () => {
+    expect(insuranceAuditSrc).toContain("coverage_items");
+    expect(insuranceAuditSrc).toContain("tips");
+  });
+
+  it("is embedded in LifePlanningPage as Insurance Audit tab", () => {
+    expect(lifePlanningSrc).toContain("InsuranceAuditTab");
+    expect(lifePlanningSrc).toContain("Insurance Audit");
+  });
+});
+
+// ── Feature 3: Pension Modeler ────────────────────────────────────────────────
+
+describe("PensionModelerTab", () => {
+  it("exports PensionModelerTab", () => {
+    expect(pensionModelerSrc).toContain("export const PensionModelerTab");
+  });
+
+  it("calls the pension-model endpoint", () => {
+    expect(pensionModelerSrc).toContain("/api/v1/retirement/pension-model");
+  });
+
+  it("shows break_even_years with label", () => {
+    expect(pensionModelerSrc).toContain("break_even_years");
+    expect(pensionModelerSrc).toContain("Break-Even");
+    expect(pensionModelerSrc).toContain("Take annuity");
+    expect(pensionModelerSrc).toContain("Consider lump sum");
+  });
+
+  it("shows lifetime_value_20yr and lifetime_value_25yr", () => {
+    expect(pensionModelerSrc).toContain("lifetime_value_20yr");
+    expect(pensionModelerSrc).toContain("lifetime_value_25yr");
+  });
+
+  it("shows has_cola_protection badge", () => {
+    expect(pensionModelerSrc).toContain("has_cola_protection");
+    expect(pensionModelerSrc).toContain("COLA Protection");
+  });
+
+  it("shows survivor_monthly and recommendation", () => {
+    expect(pensionModelerSrc).toContain("survivor_monthly");
+    expect(pensionModelerSrc).toContain("recommendation");
+  });
+
+  it("is embedded in LifePlanningPage as Pension Modeler tab", () => {
+    expect(lifePlanningSrc).toContain("PensionModelerTab");
+    expect(lifePlanningSrc).toContain("Pension Modeler");
+  });
+});
+
+// ── Feature 4: Financial Ratios ────────────────────────────────────────────────
+
+describe("FinancialRatiosTab", () => {
+  it("exports FinancialRatiosTab", () => {
+    expect(financialRatiosSrc).toContain("export const FinancialRatiosTab");
+  });
+
+  it("calls the financial-ratios endpoint", () => {
+    expect(financialRatiosSrc).toContain("/api/v1/dashboard/financial-ratios");
+  });
+
+  it("shows overall_grade and overall_score with progress bar", () => {
+    expect(financialRatiosSrc).toContain("overall_grade");
+    expect(financialRatiosSrc).toContain("overall_score");
+    expect(financialRatiosSrc).toContain("Progress");
+  });
+
+  it("has monthly income and spending inputs", () => {
+    expect(financialRatiosSrc).toContain("monthlyIncome");
+    expect(financialRatiosSrc).toContain("monthlySpending");
+  });
+
+  it("shows grade badges on each metric", () => {
+    expect(financialRatiosSrc).toContain("metric.grade");
+    expect(financialRatiosSrc).toContain("metric.formatted");
+  });
+
+  it("shows net_worth, liquid_assets, total_debt context", () => {
+    expect(financialRatiosSrc).toContain("net_worth");
+    expect(financialRatiosSrc).toContain("liquid_assets");
+    expect(financialRatiosSrc).toContain("total_debt");
+  });
+
+  it("is embedded in FinancialHealthPage as Financial Ratios tab", () => {
+    expect(financialHealthPageSrc).toContain("FinancialRatiosTab");
+    expect(financialHealthPageSrc).toContain("Financial Ratios");
+  });
+});
+
+// ── Feature 5: Employer Match ─────────────────────────────────────────────────
+
+describe("EmployerMatchTab", () => {
+  it("exports EmployerMatchTab", () => {
+    expect(employerMatchSrc).toContain("export const EmployerMatchTab");
+  });
+
+  it("calls the employer-match endpoint", () => {
+    expect(employerMatchSrc).toContain("/api/v1/retirement/employer-match");
+  });
+
+  it("shows annual_match_value and estimated_left_on_table", () => {
+    expect(employerMatchSrc).toContain("annual_match_value");
+    expect(employerMatchSrc).toContain("estimated_left_on_table");
+  });
+
+  it("shows is_capturing_full_match badge (Full Match / Match Gap)", () => {
+    expect(employerMatchSrc).toContain("is_capturing_full_match");
+    expect(employerMatchSrc).toContain("Full Match");
+    expect(employerMatchSrc).toContain("Match Gap");
+  });
+
+  it("shows summary stats: total_potential_match and total_left_on_table", () => {
+    expect(employerMatchSrc).toContain("total_potential_match");
+    expect(employerMatchSrc).toContain("total_left_on_table");
+  });
+
+  it("shows fully_optimized badge and action alert", () => {
+    expect(employerMatchSrc).toContain("fully_optimized");
+    expect(employerMatchSrc).toContain("account.action");
+  });
+
+  it("is embedded in InvestmentToolsPage as Employer Match tab", () => {
+    expect(investmentToolsSrc).toContain("EmployerMatchTab");
+    expect(investmentToolsSrc).toContain("Employer Match");
+  });
+});
+
+// ── Feature 6: Dividend Calendar ──────────────────────────────────────────────
+
+describe("DividendCalendarTab", () => {
+  it("exports DividendCalendarTab", () => {
+    expect(dividendCalendarSrc).toContain("export const DividendCalendarTab");
+  });
+
+  it("calls the dividend-calendar endpoint with year param", () => {
+    expect(dividendCalendarSrc).toContain("/api/v1/holdings/dividend-calendar?year=");
+  });
+
+  it("shows annual_total and avg_monthly stats", () => {
+    expect(dividendCalendarSrc).toContain("annual_total");
+    expect(dividendCalendarSrc).toContain("avg_monthly");
+  });
+
+  it("shows best_month highlight", () => {
+    expect(dividendCalendarSrc).toContain("best_month");
+    expect(dividendCalendarSrc).toContain("Best Month");
+  });
+
+  it("has year selector with prev/current/next year options", () => {
+    expect(dividendCalendarSrc).toContain("currentYear - 1");
+    expect(dividendCalendarSrc).toContain("currentYear + 1");
+    expect(dividendCalendarSrc).toContain("setYear");
+  });
+
+  it("renders 12-month grid and by_ticker table", () => {
+    expect(dividendCalendarSrc).toContain("months.map");
+    expect(dividendCalendarSrc).toContain("by_ticker");
+    expect(dividendCalendarSrc).toContain("event_count");
+  });
+
+  it("is embedded in InvestmentToolsPage as Dividend Calendar tab", () => {
+    expect(investmentToolsSrc).toContain("DividendCalendarTab");
+    expect(investmentToolsSrc).toContain("Dividend Calendar");
+  });
+});
+
+// ── Feature 7: Cost Basis Aging ───────────────────────────────────────────────
+
+describe("CostBasisAgingTab", () => {
+  it("exports CostBasisAgingTab", () => {
+    expect(costBasisAgingSrc).toContain("export const CostBasisAgingTab");
+  });
+
+  it("calls the cost-basis-aging endpoint", () => {
+    expect(costBasisAgingSrc).toContain("/api/v1/holdings/cost-basis-aging");
+  });
+
+  it("shows approaching_count badge and summary_tip", () => {
+    expect(costBasisAgingSrc).toContain("approaching_count");
+    expect(costBasisAgingSrc).toContain("summary_tip");
+  });
+
+  it("shows short-term and long-term gain/loss stats", () => {
+    expect(costBasisAgingSrc).toContain("short_term_gain");
+    expect(costBasisAgingSrc).toContain("long_term_gain");
+    expect(costBasisAgingSrc).toContain("short_term_loss");
+  });
+
+  it("filters lots by bucket (approaching, short_term, long_term)", () => {
+    expect(costBasisAgingSrc).toContain(`l.bucket === "approaching"`);
+    expect(costBasisAgingSrc).toContain(`l.bucket === "short_term"`);
+    expect(costBasisAgingSrc).toContain(`l.bucket === "long_term"`);
+  });
+
+  it("shows days_held and days_to_long_term columns", () => {
+    expect(costBasisAgingSrc).toContain("days_held");
+    expect(costBasisAgingSrc).toContain("days_to_long_term");
+  });
+
+  it("is embedded in InvestmentToolsPage as Cost Basis tab", () => {
+    expect(investmentToolsSrc).toContain("CostBasisAgingTab");
+    expect(investmentToolsSrc).toContain("Cost Basis");
+  });
+});
+
+// ── Feature 8: Liquidity Dashboard ────────────────────────────────────────────
+
+describe("LiquidityDashboardTab", () => {
+  it("exports LiquidityDashboardTab", () => {
+    expect(liquidityDashboardSrc).toContain("export const LiquidityDashboardTab");
+  });
+
+  it("calls the liquidity endpoint", () => {
+    expect(liquidityDashboardSrc).toContain("/api/v1/dashboard/liquidity");
+  });
+
+  it("shows emergency_months_immediate with grade badge", () => {
+    expect(liquidityDashboardSrc).toContain("emergency_months_immediate");
+    expect(liquidityDashboardSrc).toContain("data.grade");
+  });
+
+  it("shows coverage_gap and target_months", () => {
+    expect(liquidityDashboardSrc).toContain("coverage_gap");
+    expect(liquidityDashboardSrc).toContain("target_months");
+  });
+
+  it("shows is_accessible column in account table", () => {
+    expect(liquidityDashboardSrc).toContain("is_accessible");
+    expect(liquidityDashboardSrc).toContain("Accessible");
+    expect(liquidityDashboardSrc).toContain("Locked");
+  });
+
+  it("has optional monthly_spending override input", () => {
+    expect(liquidityDashboardSrc).toContain("monthlySpending");
+    expect(liquidityDashboardSrc).toContain("spending_is_estimated");
+  });
+
+  it("is embedded in FinancialHealthPage as Liquidity tab", () => {
+    expect(financialHealthPageSrc).toContain("LiquidityDashboardTab");
+    expect(financialHealthPageSrc).toContain("Liquidity");
+  });
+});
+
+// ── Feature 9: Net Worth Percentile ───────────────────────────────────────────
+
+describe("NetWorthPercentileTab", () => {
+  it("exports NetWorthPercentileTab", () => {
+    expect(netWorthPercentileSrc).toContain("export const NetWorthPercentileTab");
+  });
+
+  it("calls the net-worth-percentile endpoint", () => {
+    expect(netWorthPercentileSrc).toContain("/api/v1/dashboard/net-worth-percentile");
+  });
+
+  it("shows estimated_percentile with CircularProgress", () => {
+    expect(netWorthPercentileSrc).toContain("estimated_percentile");
+    expect(netWorthPercentileSrc).toContain("CircularProgress");
+  });
+
+  it("shows percentile_label and age_bucket badge", () => {
+    expect(netWorthPercentileSrc).toContain("percentile_label");
+    expect(netWorthPercentileSrc).toContain("age_bucket");
+  });
+
+  it("shows benchmarks table with is_above status", () => {
+    expect(netWorthPercentileSrc).toContain("benchmarks");
+    expect(netWorthPercentileSrc).toContain("is_above");
+    expect(netWorthPercentileSrc).toContain("Above");
+    expect(netWorthPercentileSrc).toContain("Below");
+  });
+
+  it("shows encouragement alert and fidelity target", () => {
+    expect(netWorthPercentileSrc).toContain("encouragement");
+    expect(netWorthPercentileSrc).toContain("fidelity_target_multiplier");
+  });
+
+  it("has optional age override input", () => {
+    expect(netWorthPercentileSrc).toContain("ageOverride");
+    expect(netWorthPercentileSrc).toContain("Age Override");
+  });
+
+  it("is embedded in NetWorthTimelinePage as Percentile tab", () => {
+    expect(netWorthTimelineSrc).toContain("NetWorthPercentileTab");
+    expect(netWorthTimelineSrc).toContain("Percentile");
+  });
+});
+
+// ── Financial Health Page ─────────────────────────────────────────────────────
+
+describe("FinancialHealthPage", () => {
+  it("exports FinancialHealthPage", () => {
+    expect(financialHealthPageSrc).toContain("export const FinancialHealthPage");
+  });
+
+  it("lazy-imports FinancialRatiosTab", () => {
+    expect(financialHealthPageSrc).toContain("import(\"./FinancialRatiosTab\")");
+  });
+
+  it("lazy-imports LiquidityDashboardTab", () => {
+    expect(financialHealthPageSrc).toContain("import(\"./LiquidityDashboardTab\")");
+  });
+
+  it("has Financial Ratios tab label", () => {
+    expect(financialHealthPageSrc).toContain("Financial Ratios");
+  });
+
+  it("has Liquidity & Emergency Fund tab label", () => {
+    expect(financialHealthPageSrc).toContain("Liquidity");
+    expect(financialHealthPageSrc).toContain("Emergency Fund");
+  });
+
+  it("has 2 Tab elements", () => {
+    const tabMatches = financialHealthPageSrc.match(/<Tab\s/g) ?? [];
+    expect(tabMatches.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// ── App.tsx routing ────────────────────────────────────────────────────────────
+
+describe("App.tsx routing", () => {
+  it("has /financial-health route", () => {
+    expect(appSrc).toContain("/financial-health");
+  });
+
+  it("imports FinancialHealthPage", () => {
+    expect(appSrc).toContain("FinancialHealthPage");
+    expect(appSrc).toContain("import(\"./pages/FinancialHealthPage\")");
+  });
+
+  it("has /investment-tools route", () => {
+    expect(appSrc).toContain("/investment-tools");
+  });
+
+  it("has /life-planning route", () => {
+    expect(appSrc).toContain("/life-planning");
+  });
+
+  it("has /net-worth-timeline route", () => {
+    expect(appSrc).toContain("/net-worth-timeline");
+  });
+});
+
+// ── Hub page integration ───────────────────────────────────────────────────────
+
+describe("Hub page tab counts", () => {
+  it("InvestmentToolsPage has 9 tabs", () => {
+    const tabMatches = investmentToolsSrc.match(/<Tab\s/g) ?? [];
+    expect(tabMatches.length).toBeGreaterThanOrEqual(9);
+  });
+
+  it("LifePlanningPage has 6 tabs including Insurance Audit and Pension Modeler", () => {
+    const tabMatches = lifePlanningSrc.match(/<Tab\s/g) ?? [];
+    expect(tabMatches.length).toBeGreaterThanOrEqual(6);
+    expect(lifePlanningSrc).toContain("Insurance Audit");
+    expect(lifePlanningSrc).toContain("Pension Modeler");
+  });
+
+  it("NetWorthTimelinePage has Historical, Forecast, and Percentile tabs", () => {
+    expect(netWorthTimelineSrc).toContain("Historical");
+    expect(netWorthTimelineSrc).toContain("Forecast");
+    expect(netWorthTimelineSrc).toContain("Percentile");
+  });
+
+  it("InvestmentToolsPage includes all 5 new tabs", () => {
+    expect(investmentToolsSrc).toContain("Asset Location");
+    expect(investmentToolsSrc).toContain("Employer Match");
+    expect(investmentToolsSrc).toContain("Dividend Calendar");
+    expect(investmentToolsSrc).toContain("Cost Basis");
+  });
+});

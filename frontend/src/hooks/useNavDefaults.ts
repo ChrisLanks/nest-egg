@@ -137,6 +137,11 @@ export const NAV_SECTIONS: NavSection[] = [
         advanced: true,
         reason: "Advanced — FIRE, equity compensation, and loan modeling",
       },
+      {
+        label: "Financial Health",
+        path: "/financial-health",
+        reason: "Financial ratios, debt-to-income analysis, and emergency fund coverage",
+      },
     ],
   },
 ];
@@ -173,6 +178,7 @@ export function buildConditionalDefaults(
     "/tax-center": true,
     "/life-planning": true,
     "/investment-tools": true,
+    "/financial-health": true,
   };
 }
 

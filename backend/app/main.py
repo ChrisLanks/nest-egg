@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.v1 import (
     accounts,
+    asset_location,
     attachments,
     auth,
     bank_linking,
@@ -27,20 +28,26 @@ from app.api.v1 import (
     dashboard,
     debt_payoff,
     dev,
+    dividend_calendar,
     dividend_income,
     education,
+    employer_match,
     enhanced_trends,
     enrichment,
     financial_planning,
+    financial_ratios,
     financial_templates,
     fire,
+    insurance_audit,
     guest_access,
     holdings,
     household,
     income_expenses,
     labels,
+    liquidity_dashboard,
     market_data,
     monitoring,
+    net_worth_percentile,
     notifications,
     onboarding,
     permissions,
@@ -58,12 +65,14 @@ from app.api.v1 import (
     capital_gains_harvesting,
     charitable_giving,
     contribution_headroom,
+    cost_basis_aging,
     estate,
     hsa,
     irmaa_projection,
     loan_modeling,
     net_worth_attribution,
     net_worth_forecast,
+    pension_modeler,
     rmd_planner,
     stress_test,
     tax_advisor,
@@ -744,5 +753,59 @@ app.include_router(
     tax_equiv_yield.router,
     prefix="/api/v1/holdings",
     tags=["Tax-Equivalent Yield"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    asset_location.router,
+    prefix="/api/v1/holdings",
+    tags=["Asset Location"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    insurance_audit.router,
+    prefix="/api/v1/estate",
+    tags=["Insurance Audit"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    pension_modeler.router,
+    prefix="/api/v1/retirement",
+    tags=["Pension Modeler"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    financial_ratios.router,
+    prefix="/api/v1/dashboard",
+    tags=["Financial Ratios"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    employer_match.router,
+    prefix="/api/v1/retirement",
+    tags=["Employer Match"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    cost_basis_aging.router,
+    prefix="/api/v1/holdings",
+    tags=["Cost Basis Aging"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    dividend_calendar.router,
+    prefix="/api/v1/holdings",
+    tags=["Dividend Calendar"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    liquidity_dashboard.router,
+    prefix="/api/v1/dashboard",
+    tags=["Liquidity Dashboard"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    net_worth_percentile.router,
+    prefix="/api/v1/dashboard",
+    tags=["Net Worth Percentile"],
     dependencies=_guest_dep,
 )

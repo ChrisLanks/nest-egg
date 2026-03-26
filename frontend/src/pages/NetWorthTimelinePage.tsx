@@ -50,6 +50,9 @@ const NetWorthForecastTab = lazy(() =>
     default: m.NetWorthForecastTab,
   })),
 );
+const NetWorthPercentileTab = lazy(() =>
+  import("./NetWorthPercentileTab").then((m) => ({ default: m.NetWorthPercentileTab })),
+);
 
 const TabLoader = () => (
   <Center py={12}>
@@ -237,6 +240,7 @@ export default function NetWorthTimelinePage() {
         <TabList>
           <Tab fontSize="sm">Historical</Tab>
           <Tab fontSize="sm">Forecast</Tab>
+          <Tab fontSize="sm">Percentile</Tab>
         </TabList>
         <TabPanels>
           <TabPanel px={0}>
@@ -610,6 +614,11 @@ export default function NetWorthTimelinePage() {
           <TabPanel px={0}>
             <Suspense fallback={<TabLoader />}>
               <NetWorthForecastTab />
+            </Suspense>
+          </TabPanel>
+          <TabPanel px={0}>
+            <Suspense fallback={<TabLoader />}>
+              <NetWorthPercentileTab />
             </Suspense>
           </TabPanel>
         </TabPanels>

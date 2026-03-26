@@ -2,7 +2,8 @@
  * Life Planning — consolidated life events hub.
  *
  * Combines Social Security Optimizer, Variable Income Planner,
- * Estate & Beneficiary Planning, and RMD Planner into a single tabbed view.
+ * Estate & Beneficiary Planning, RMD Planner, Insurance Audit,
+ * and Pension Modeler into a single tabbed view.
  */
 
 import {
@@ -25,6 +26,12 @@ const EstatePage = lazy(() => import("./EstatePage"));
 const RmdPlannerTab = lazy(() =>
   import("./RmdPlannerTab").then((m) => ({ default: m.RmdPlannerTab })),
 );
+const InsuranceAuditTab = lazy(() =>
+  import("./InsuranceAuditTab").then((m) => ({ default: m.InsuranceAuditTab })),
+);
+const PensionModelerTab = lazy(() =>
+  import("./PensionModelerTab").then((m) => ({ default: m.PensionModelerTab })),
+);
 
 const TabLoader = () => (
   <Center py={12}>
@@ -39,7 +46,7 @@ export const LifePlanningPage = () => {
         <Heading size="lg">Life Planning</Heading>
         <Text color="text.secondary" mt={1} fontSize="sm">
           Social Security strategy, variable income smoothing, estate planning,
-          and RMD projections.
+          RMD projections, insurance coverage audit, and pension modeling.
         </Text>
       </Box>
       <Tabs colorScheme="brand" variant="enclosed" px={6}>
@@ -48,6 +55,8 @@ export const LifePlanningPage = () => {
           <Tab fontSize="sm">Variable Income</Tab>
           <Tab fontSize="sm">Estate &amp; Beneficiaries</Tab>
           <Tab fontSize="sm">RMD Planner</Tab>
+          <Tab fontSize="sm">Insurance Audit</Tab>
+          <Tab fontSize="sm">Pension Modeler</Tab>
         </TabList>
         <TabPanels>
           <TabPanel px={0}>
@@ -68,6 +77,16 @@ export const LifePlanningPage = () => {
           <TabPanel px={0}>
             <Suspense fallback={<TabLoader />}>
               <RmdPlannerTab />
+            </Suspense>
+          </TabPanel>
+          <TabPanel px={0}>
+            <Suspense fallback={<TabLoader />}>
+              <InsuranceAuditTab />
+            </Suspense>
+          </TabPanel>
+          <TabPanel px={0}>
+            <Suspense fallback={<TabLoader />}>
+              <PensionModelerTab />
             </Suspense>
           </TabPanel>
         </TabPanels>
