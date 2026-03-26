@@ -42,6 +42,12 @@ const calendarSrc = readPage("pages/CalendarPage.tsx");
 const rmdSrc = readPage("pages/RmdPlannerTab.tsx");
 const estateSrc = readPage("pages/EstatePage.tsx");
 
+// ── Nav consolidation source readers ─────────────────────────────────────────
+const layoutSrc = readFileSync(resolve(ROOT, "components/Layout.tsx"), "utf-8");
+const appTsxSrc = readPage("App.tsx");
+const retirementPageSrc = readFileSync(resolve(ROOT, "features/retirement/pages/RetirementPage.tsx"), "utf-8");
+const useNavDefaultsSrc = readFileSync(resolve(ROOT, "hooks/useNavDefaults.ts"), "utf-8");
+
 // ── Feature 1: Asset Location ─────────────────────────────────────────────────
 
 describe("AssetLocationTab", () => {
@@ -649,5 +655,103 @@ describe("EstatePage legal disclaimer", () => {
   });
   it("recommends licensed estate attorney", () => {
     expect(estateSrc).toContain("licensed estate attorney");
+  });
+});
+
+// ── Nav consolidation audit ───────────────────────────────────────────────────
+
+describe("Nav consolidation: Portfolio rename", () => {
+  it('Layout top nav shows "Portfolio" label (not "Investments")', () => {
+    expect(layoutSrc).toContain('"Portfolio"');
+  });
+
+  it("Portfolio still navigates to /investments route", () => {
+    expect(layoutSrc).toContain('"/investments"');
+  });
+
+  it("/portfolio redirect exists in App.tsx", () => {
+    expect(appTsxSrc).toContain('"/portfolio"');
+    expect(appTsxSrc).toContain('"/investments"');
+  });
+});
+
+describe("Nav consolidation: Planning Tools rename", () => {
+  it('InvestmentToolsPage heading is "Planning Tools"', () => {
+    expect(investmentToolsSrc).toContain("Planning Tools");
+  });
+
+  it('Layout allPlanningItems has "Planning Tools" label', () => {
+    expect(layoutSrc).toContain('"Planning Tools"');
+  });
+
+  it("Planning Tools still routes to /investment-tools", () => {
+    expect(layoutSrc).toContain('"/investment-tools"');
+  });
+});
+
+describe("Nav consolidation: Smart Insights and Financial Health in Analytics", () => {
+  it("Smart Insights is in allAnalyticsItems in Layout", () => {
+    // Smart Insights should appear in the analytics section
+    const analyticsSection = layoutSrc.slice(
+      layoutSrc.indexOf("allAnalyticsItems"),
+      layoutSrc.indexOf("allPlanningItems")
+    );
+    expect(analyticsSection).toContain("Smart Insights");
+  });
+
+  it("Financial Health is in allAnalyticsItems in Layout", () => {
+    const analyticsSection = layoutSrc.slice(
+      layoutSrc.indexOf("allAnalyticsItems"),
+      layoutSrc.indexOf("allPlanningItems")
+    );
+    expect(analyticsSection).toContain("Financial Health");
+  });
+
+  it("Smart Insights is NOT in allPlanningItems", () => {
+    const planningSection = layoutSrc.slice(
+      layoutSrc.indexOf("allPlanningItems")
+    );
+    expect(planningSection).not.toContain('"Smart Insights"');
+  });
+
+  it("Financial Health is NOT in allPlanningItems", () => {
+    const planningSection = layoutSrc.slice(
+      layoutSrc.indexOf("allPlanningItems")
+    );
+    expect(planningSection).not.toContain('"Financial Health"');
+  });
+});
+
+describe("Nav consolidation: NAV_SECTIONS matches Layout structure", () => {
+  it("Planning Tools appears in NAV_SECTIONS Planning group", () => {
+    expect(useNavDefaultsSrc).toContain("Planning Tools");
+  });
+
+  it("Smart Insights appears in NAV_SECTIONS Analytics group", () => {
+    const analyticsGroup = useNavDefaultsSrc.slice(
+      useNavDefaultsSrc.indexOf('group: "Analytics"'),
+      useNavDefaultsSrc.indexOf('group: "Planning"')
+    );
+    expect(analyticsGroup).toContain("Smart Insights");
+  });
+
+  it("Financial Health appears in NAV_SECTIONS Analytics group", () => {
+    const analyticsGroup = useNavDefaultsSrc.slice(
+      useNavDefaultsSrc.indexOf('group: "Analytics"'),
+      useNavDefaultsSrc.indexOf('group: "Planning"')
+    );
+    expect(analyticsGroup).toContain("Financial Health");
+  });
+});
+
+describe("Nav consolidation: Retirement multi-user banner", () => {
+  it("RetirementPage shows info banner when combined view has multiple members", () => {
+    expect(retirementPageSrc).toContain("isCombinedView");
+    expect(retirementPageSrc).toContain("selectedIds.size > 1");
+    expect(retirementPageSrc).toContain("Retirement plans are per-person");
+  });
+
+  it("RetirementPage uses Alert for the multi-member notice", () => {
+    expect(retirementPageSrc).toContain('status="info"');
   });
 });

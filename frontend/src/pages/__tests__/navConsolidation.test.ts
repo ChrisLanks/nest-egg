@@ -38,11 +38,18 @@ describe("nav consolidation — planning items", () => {
   });
 
   it("still has standalone items", () => {
-    expect(planningPaths).toContain("/smart-insights");
     expect(planningPaths).toContain("/goals");
     expect(planningPaths).toContain("/retirement");
     expect(planningPaths).toContain("/debt-payoff");
     expect(planningPaths).toContain("/mortgage");
+  });
+
+  it("does NOT have /smart-insights (moved to Analytics group)", () => {
+    expect(planningPaths).not.toContain("/smart-insights");
+  });
+
+  it("does NOT have /financial-health (moved to Analytics group)", () => {
+    expect(planningPaths).not.toContain("/financial-health");
   });
 
   it("does NOT have /hsa (moved into Investment Tools hub)", () => {
@@ -57,6 +64,21 @@ describe("nav consolidation — planning items", () => {
 
   it("total planning items is 9 or fewer (was 15)", () => {
     expect(planningSection!.items.length).toBeLessThanOrEqual(10);
+  });
+});
+
+// ── Analytics section ─────────────────────────────────────────────────────────
+
+describe("nav consolidation — analytics items", () => {
+  const analyticsSection = NAV_SECTIONS.find((s) => s.group === "Analytics");
+  const analyticsPaths = analyticsSection?.items.map((i) => i.path) ?? [];
+
+  it("Smart Insights is in Analytics group", () => {
+    expect(analyticsPaths).toContain("/smart-insights");
+  });
+
+  it("Financial Health is in Analytics group", () => {
+    expect(analyticsPaths).toContain("/financial-health");
   });
 });
 

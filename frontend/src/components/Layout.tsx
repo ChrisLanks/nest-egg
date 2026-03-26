@@ -899,6 +899,16 @@ export const Layout = () => {
         "Annual financial summary — biggest expenses, income milestones, and net worth growth",
     },
     {
+      label: "Smart Insights",
+      path: "/smart-insights",
+      tooltip: "Personalized tips based on your actual data — savings opportunities, fee alerts, and more",
+    },
+    {
+      label: "Financial Health",
+      path: "/financial-health",
+      tooltip: "Financial ratios, debt-to-income, emergency fund coverage, and liquidity analysis",
+    },
+    {
       label: "Tax Deductible",
       path: "/tax-deductible",
       tooltip:
@@ -919,12 +929,6 @@ export const Layout = () => {
       path: "/goals",
       tooltip:
         "Set savings targets (emergency fund, vacation, down payment) and track your progress",
-    },
-    {
-      label: "Smart Insights",
-      path: "/smart-insights",
-      tooltip:
-        "Personalized tips based on your actual data — savings opportunities, fee alerts, and more",
     },
     // ── Core planning ─────────────────────────────────────────────────────
     {
@@ -963,16 +967,10 @@ export const Layout = () => {
       label: "Life Planning",
       path: "/life-planning",
       tooltip:
-        "Social Security optimizer, variable income smoothing, estate & beneficiary planning, RMD projections, insurance audit, and pension modeling",
+        "Social Security optimizer, variable income smoothing, estate & beneficiary planning, RMD projections, insurance audit, and pension modeling — per-person tools for households",
     },
     {
-      label: "Financial Health",
-      path: "/financial-health",
-      tooltip:
-        "Financial ratios, debt-to-income, emergency fund coverage, and liquidity analysis",
-    },
-    {
-      label: "Investment Tools",
+      label: "Planning Tools",
       path: "/investment-tools",
       tooltip:
         "FIRE metrics, equity compensation, loan modeler, HSA optimizer, tax-equivalent yield, asset location, employer match, and cost basis aging",
@@ -1294,9 +1292,9 @@ export const Layout = () => {
               />
 
 
-              {/* Investments */}
+              {/* Portfolio */}
               <TopNavItem
-                label="Investments"
+                label="Portfolio"
                 isActive={location.pathname === "/investments"}
                 onClick={() => navigateWithParams("/investments")}
               />

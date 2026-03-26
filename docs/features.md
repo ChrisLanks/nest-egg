@@ -907,16 +907,26 @@ The Financial Ratios tab fetches a spending estimate from account data and pre-p
 
 A Life Goals widget near the top of the Overview page shows active goal count, overall progress bar, and a "View Goals →" link. When no goals exist, shows a subtle "Set your first goal →" prompt.
 
-### Navigation Consolidation
+### Navigation Consolidation (Full Audit)
 
-The Planning dropdown has been streamlined:
+The navigation has been fully restructured for clarity and to eliminate overlap.
 
-- **Goals first** — moved to the top of the Planning menu so the most action-oriented page is easiest to reach
-- **Smart Insights** — follows Goals as the second entry
-- **HSA Planner removed** as a standalone nav entry — HSA Optimizer lives inside Investment Tools; `/hsa` redirects there automatically
-- **Ordering**: Goals → Smart Insights → Retirement → Education → Debt Payoff → Mortgage → Tax Center → Life Planning → Financial Health → Investment Tools (advanced)
-- **Tooltips updated** to be more descriptive (e.g., Tax Center tooltip lists all 6 sub-features)
-- Nav Preferences page (`useNavDefaults.ts`) reflects the same order
+#### Renamed sections
+- **Investments → Portfolio** — top-level nav button renamed so it's unambiguous (portfolio view of holdings, not planning calculators). Route `/investments` unchanged; `/portfolio` redirects there.
+- **Investment Tools → Planning Tools** — the advanced planning hub renamed to reflect that it contains calculators (FIRE, loan modeler, HSA optimizer, etc.), not a second portfolio view.
+
+#### Reorganized sections
+- **Analytics** now includes **Smart Insights** and **Financial Health** — both are read-only, auto-computed from account data, so they belong alongside Trends and Reports rather than Planning.
+- **Planning** is now strictly interactive goal-setting and scenario modeling: Goals → Retirement → Education → Debt Payoff → Mortgage → Tax Center → Life Planning → Planning Tools (advanced)
+- **HSA Planner** removed as a standalone nav entry — lives inside Planning Tools; `/hsa` redirects there.
+- All tooltips updated to be descriptive and list sub-features.
+
+#### Multi-user handling
+- **Retirement page** now shows an info banner when the view switcher has multiple members selected, explaining that retirement plans are per-person and prompting the user to select a single member.
+
+#### Nav Preferences (Preferences page)
+- `useNavDefaults.ts` NAV_SECTIONS updated to match: Smart Insights and Financial Health moved to the Analytics group, Planning Tools replaces Investment Tools in the Planning group.
+- The Preferences "Display" tab reflects the correct groupings so users can hide/show items from the right section.
 
 ### Recharts Explicit Heights
 

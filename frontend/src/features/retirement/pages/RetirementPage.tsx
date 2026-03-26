@@ -1233,6 +1233,15 @@ export function RetirementPage() {
             </AlertDescription>
           </Alert>
         )}
+        {/* Multi-member banner — Retirement is per-person */}
+        {isCombinedView && selectedIds.size > 1 && (
+          <Alert status="info" borderRadius="lg" variant="subtle">
+            <AlertIcon />
+            <AlertDescription>
+              Retirement plans are per-person. Use the view switcher in the top bar to select a single member and create or edit their plan.
+            </AlertDescription>
+          </Alert>
+        )}
         {/* Header */}
         <HStack justify="space-between" align="center" wrap="wrap" gap={2}>
           <Text fontSize="2xl" fontWeight="bold">

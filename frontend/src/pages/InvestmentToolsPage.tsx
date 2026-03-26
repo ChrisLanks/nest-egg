@@ -62,7 +62,7 @@ export const InvestmentToolsPage = () => {
   return (
     <Box pt={4}>
       <Box px={6} mb={2}>
-        <Heading size="lg">Investment Tools</Heading>
+        <Heading size="lg">Planning Tools</Heading>
         <Text color="text.secondary" mt={1} fontSize="sm">
           FIRE progress, equity compensation modeling, loan analysis, HSA
           strategy, tax-equivalent yield, asset location, employer match

@@ -95,13 +95,18 @@ export const NAV_SECTIONS: NavSection[] = [
         conditional: true,
         reason: "Shown when you have a rental property account",
       },
+      { label: "Smart Insights", path: "/smart-insights" },
+      {
+        label: "Financial Health",
+        path: "/financial-health",
+        reason: "Financial ratios, debt-to-income analysis, and emergency fund coverage",
+      },
     ],
   },
   {
     group: "Planning",
     items: [
       { label: "Goals", path: "/goals" },
-      { label: "Smart Insights", path: "/smart-insights" },
       { label: "Retirement", path: "/retirement" },
       {
         label: "Education",
@@ -132,12 +137,7 @@ export const NAV_SECTIONS: NavSection[] = [
         reason: "Social Security, variable income, and estate planning",
       },
       {
-        label: "Financial Health",
-        path: "/financial-health",
-        reason: "Financial ratios, debt-to-income analysis, and emergency fund coverage",
-      },
-      {
-        label: "Investment Tools",
+        label: "Planning Tools",
         path: "/investment-tools",
         advanced: true,
         reason: "Advanced — FIRE, equity compensation, and loan modeling",

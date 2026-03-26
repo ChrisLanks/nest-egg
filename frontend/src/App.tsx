@@ -238,6 +238,7 @@ function App() {
                         element={<EducationPlanningPage />}
                       />
                       <Route path="/fire" element={<Navigate to="/investment-tools" replace />} />
+                      <Route path="/portfolio" element={<Navigate to="/investments" replace />} />
                       <Route path="/debt-payoff" element={<DebtPayoffPage />} />
                       <Route
                         path="/smart-insights"
