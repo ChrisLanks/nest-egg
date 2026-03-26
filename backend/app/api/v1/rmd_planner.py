@@ -94,8 +94,8 @@ async def get_rmd_planner(
     account_summaries = [
         RmdAccountSummary(
             account_id=str(a.id),
-            name=a.account_name or str(a.account_type),
-            account_type=str(a.account_type),
+            name=a.name or str(a.account_type.value),
+            account_type=a.account_type.value,
             current_balance=float(a.current_balance or 0),
         )
         for a in accounts

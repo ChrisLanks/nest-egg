@@ -975,6 +975,12 @@ export const Layout = () => {
         "FIRE progress tracker, equity compensation modeling, and loan affordability analysis",
       advanced: true,
     },
+    {
+      label: "Financial Health",
+      path: "/financial-health",
+      tooltip:
+        "Financial ratios, debt-to-income, emergency fund coverage, and liquidity analysis",
+    },
   ];
 
   const filterVisible = (

@@ -784,3 +784,102 @@ This means:
 | `frontend/src/pages/PreferencesPage.tsx` | `NavigationVisibilitySection`, per-item switches, master toggle UI |
 | `frontend/src/pages/WelcomePage.tsx` | Onboarding checkbox — writes initial advanced preference on finish |
 | `frontend/src/pages/__tests__/navPreferences.test.ts` | Full logic test suite |
+
+## Advanced Planning Hub Pages
+
+Five consolidated hub pages group related tools under **Planning** in the nav:
+
+### Tax Center (`/tax-center`)
+
+Six tabs: Tax Projection, Tax Buckets (three-bucket strategy), Charitable Giving, Medicare & IRMAA, Roth Conversion Wizard, Contribution Headroom.
+
+### Life Planning (`/life-planning`)
+
+Six tabs: SS Optimizer, Variable Income, Estate & Beneficiaries, RMD Planner, Insurance Audit, Pension Modeler.
+
+### Investment Tools (`/investment-tools`)
+
+Eight tabs: FIRE metrics, Equity Compensation, Loan Modeler, HSA Optimizer, Tax-Equivalent Yield, Asset Location, Employer Match, Cost Basis Aging.
+Note: Dividend Calendar moved to the main Calendar page as a toggleable event category.
+
+### Net Worth Timeline (`/net-worth-timeline`)
+
+Three tabs: Historical, Forecast, Percentile (SCF benchmark comparison).
+
+### Financial Health (`/financial-health`)
+
+Two tabs: Financial Ratios (DTI, savings rate, housing ratio, current ratio), Liquidity Dashboard (emergency fund coverage by months of expenses).
+
+## Planning Tools — Detail
+
+### RMD Planner (`GET /api/v1/rmd/rmd-planner`)
+
+- Projects Required Minimum Distributions for all pre-tax retirement accounts (401k, IRA, 403b, etc.) up to 40 years forward
+- Per-account balance projections with configurable growth rate
+- Annual tax impact estimation using marginal bracket lookup
+- Federal tax rate override input with auto-estimate from income
+- Household-scoped to the active user view
+
+### Tax-Equivalent Yield (`GET /api/v1/holdings/tax-equivalent-yield`)
+
+- Calculates after-tax yield for CDs, bonds, savings accounts, money market, and I-bonds
+- Configurable federal and state marginal rates
+- Portfolio blended nominal and tax-equivalent yield summary
+
+### Employer Match (`GET /api/v1/retirement/employer-match`)
+
+- Audits all 401k/403b/457b accounts for match capture efficiency
+- Shows annual employer match value, required employee contribution %, and estimated dollars left on table
+- Per-household-member breakout with named account owner
+
+### Asset Location (`GET /api/v1/holdings/asset-location`)
+
+- Scores each holding by tax efficiency and recommends optimal account type (taxable vs tax-deferred vs Roth)
+- Prioritizes tax-inefficient assets (bonds, REITs) in tax-deferred accounts
+
+### Cost Basis Aging (`GET /api/v1/holdings/cost-basis-aging`)
+
+- Buckets tax lots by holding period: short-term (<1 yr), approaching long-term (1–13 months), long-term (>1 yr)
+- Highlights lots approaching the 1-year threshold to avoid short-term capital gains rates
+
+### Beneficiary Coverage Audit (`GET /api/v1/estate/beneficiary-audit`)
+
+- Per-account audit for missing primary beneficiaries, missing contingents, percentage errors (≠100%), and minor beneficiaries without a trust
+- Severity scoring: critical (missing primary), warning (missing contingent/pct issue), ok
+- Overall coverage score (0–100) as a circular progress indicator
+
+### Insurance Audit (`GET /api/v1/estate/insurance-audit`)
+
+- Checklist of life, disability, umbrella, long-term care, and other coverage types
+- Flags gaps or underinsurance based on account values and income estimates
+
+### Pension Modeler (`GET /api/v1/retirement/pension-model`)
+
+- Lump-sum vs annuity comparison with configurable investment return and life expectancy
+- Break-even year calculation
+
+### Financial Ratios (`GET /api/v1/dashboard/financial-ratios`)
+
+- Debt-to-income (DTI), savings rate, housing cost ratio, and current ratio
+- Color-coded health indicators (green/yellow/red) with plain-English guidance
+
+### Liquidity Dashboard (`GET /api/v1/dashboard/liquidity`)
+
+- Emergency fund coverage in months of expenses
+- Liquid asset breakdown by account type
+
+### Net Worth Percentile (`GET /api/v1/dashboard/net-worth-percentile`)
+
+- Compares household net worth to SCF (Survey of Consumer Finances) benchmarks by age group
+- Percentile ranking with peer comparison chart
+
+### Dividend Calendar (`GET /api/v1/holdings/dividend-calendar`)
+
+- 12-month forward dividend payment grid per holding
+- Integrated into the main Calendar page as a toggleable "Dividends" event category (teal color)
+- Toggle persists in localStorage alongside bill/subscription/income preferences
+
+### Dev Seed Data (`POST /api/v1/dev/seed-planning-data`)
+
+- Creates representative demo data (6 accounts, 8 holdings, 5 tax lots, 12 dividend records) for local development
+- Idempotent — safe to call multiple times; checks for existing records before inserting

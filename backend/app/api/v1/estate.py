@@ -98,6 +98,121 @@ async def get_coverage_summary(
     return EstatePlanningService.get_beneficiary_coverage_summary(acct_dicts, ben_dicts)
 
 
+# ── Beneficiary audit ────────────────────────────────────────────────────────
+
+
+@router.get("/beneficiary-audit", summary="Per-account beneficiary coverage audit")
+async def get_beneficiary_audit(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Audit every account for missing or incomplete beneficiary designations."""
+    from app.models.account import Account
+
+    acct_result = await db.execute(
+        select(Account).where(
+            Account.organization_id == current_user.organization_id,
+            Account.is_active == True,
+        )
+    )
+    accounts = acct_result.scalars().all()
+
+    ben_result = await db.execute(
+        select(Beneficiary).where(
+            Beneficiary.organization_id == current_user.organization_id,
+        )
+    )
+    beneficiaries = ben_result.scalars().all()
+
+    # Group beneficiaries by account_id
+    bens_by_account: dict = {}
+    for b in beneficiaries:
+        bens_by_account.setdefault(str(b.account_id), []).append(b)
+
+    # Account types that require beneficiary designations
+    _BENEFICIARY_RELEVANT = {
+        "retirement_401k", "retirement_ira", "retirement_roth_ira",
+        "retirement_403b", "retirement_457b", "retirement_sep_ira",
+        "retirement_simple_ira", "retirement_roth", "brokerage",
+        "life_insurance",
+    }
+
+    audit_accounts = []
+    total_audited = 0
+    fully_covered = 0
+    missing_primary = 0
+    missing_contingent = 0
+    pct_issues = 0
+
+    for acct in accounts:
+        acct_type = acct.account_type.value if hasattr(acct.account_type, "value") else str(acct.account_type)
+        if acct_type not in _BENEFICIARY_RELEVANT:
+            continue
+
+        total_audited += 1
+        account_bens = bens_by_account.get(str(acct.id), [])
+        primary_bens = [b for b in account_bens if b.designation_type == "primary"]
+        contingent_bens = [b for b in account_bens if b.designation_type == "contingent"]
+
+        issues = []
+        if not primary_bens:
+            issues.append("missing_primary")
+            missing_primary += 1
+        else:
+            primary_total = sum(float(b.percentage) for b in primary_bens)
+            if abs(primary_total - 100.0) > 0.5:
+                issues.append("primary_pct_not_100")
+                pct_issues += 1
+        if not contingent_bens:
+            issues.append("missing_contingent")
+            missing_contingent += 1
+        for b in primary_bens + contingent_bens:
+            if b.dob and (date.today().year - b.dob.year) < 18 and not any(
+                d in (b.notes or "") for d in ["trust", "UTMA", "custodian"]
+            ):
+                issues.append("minor_no_trust")
+                break
+
+        if not issues:
+            fully_covered += 1
+            severity = "ok"
+        elif "missing_primary" in issues:
+            severity = "critical"
+        else:
+            severity = "warning"
+
+        audit_accounts.append({
+            "account_id": str(acct.id),
+            "account_name": acct.name,
+            "account_type": acct_type,
+            "current_balance": float(acct.current_balance or 0),
+            "issues": list(dict.fromkeys(issues)),  # deduplicate, preserve order
+            "severity": severity,
+            "beneficiaries": [
+                {
+                    "name": b.name,
+                    "designation_type": b.designation_type,
+                    "percentage": float(b.percentage),
+                }
+                for b in account_bens
+            ],
+        })
+
+    overall_score = round((fully_covered / total_audited * 100) if total_audited > 0 else 100)
+
+    return {
+        "summary": {
+            "total_accounts_audited": total_audited,
+            "fully_covered": fully_covered,
+            "missing_primary": missing_primary,
+            "missing_contingent": missing_contingent,
+            "percentage_issues": pct_issues,
+            "overall_score": overall_score,
+        },
+        "accounts": audit_accounts,
+    }
+
+
 # ── Beneficiary CRUD ──────────────────────────────────────────────────────────
 
 

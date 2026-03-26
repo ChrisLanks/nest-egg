@@ -46,7 +46,7 @@ describe("NetWorthForecastTab", () => {
   });
 
   it("calls the net-worth-forecast endpoint", () => {
-    expect(forecastSrc).toContain("/api/v1/dashboard/net-worth-forecast");
+    expect(forecastSrc).toContain("/dashboard/net-worth-forecast");
   });
 
   it("renders three scenario lines (baseline, optimistic, pessimistic)", () => {
@@ -79,7 +79,7 @@ describe("IrmaaMedicareTab", () => {
   });
 
   it("calls the irmaa-projection endpoint", () => {
-    expect(irmaaSrc).toContain("/api/v1/tax/irmaa-projection");
+    expect(irmaaSrc).toContain("/tax/irmaa-projection");
   });
 
   it("shows IRMAA tier badge", () => {
@@ -114,7 +114,7 @@ describe("BackdoorRothTab", () => {
   });
 
   it("calls the backdoor-roth-analysis endpoint", () => {
-    expect(backdoorSrc).toContain("/api/v1/tax/backdoor-roth-analysis");
+    expect(backdoorSrc).toContain("/tax/backdoor-roth-analysis");
   });
 
   it("shows pro-rata warning", () => {
@@ -149,7 +149,7 @@ describe("RmdPlannerTab", () => {
   });
 
   it("calls the rmd-planner endpoint", () => {
-    expect(rmdSrc).toContain("/api/v1/rmd/rmd-planner");
+    expect(rmdSrc).toContain("/rmd/rmd-planner");
   });
 
   it("shows years until RMD", () => {
@@ -182,7 +182,7 @@ describe("BeneficiaryAuditCard", () => {
   });
 
   it("calls the beneficiary-audit endpoint", () => {
-    expect(auditSrc).toContain("/api/v1/estate/beneficiary-audit");
+    expect(auditSrc).toContain("/estate/beneficiary-audit");
   });
 
   it("shows overall score", () => {
@@ -212,7 +212,7 @@ describe("ContributionHeadroomTab", () => {
   });
 
   it("calls the contribution-headroom endpoint", () => {
-    expect(headroomSrc).toContain("/api/v1/tax/contribution-headroom");
+    expect(headroomSrc).toContain("/tax/contribution-headroom");
   });
 
   it("shows remaining headroom", () => {
@@ -247,7 +247,7 @@ describe("TaxEquivYieldTab", () => {
   });
 
   it("calls the tax-equivalent-yield endpoint", () => {
-    expect(yieldSrc).toContain("/api/v1/holdings/tax-equivalent-yield");
+    expect(yieldSrc).toContain("/holdings/tax-equivalent-yield");
   });
 
   it("shows nominal and tax-equivalent yield columns", () => {
@@ -271,39 +271,38 @@ describe("TaxEquivYieldTab", () => {
   });
 });
 
-// ── Feature 8: Cash Flow Calendar Weekly View ─────────────────────────────────
+// ── Feature 8: Cash Flow Calendar ─────────────────────────────────────────────
 
-describe("CalendarPage weekly view", () => {
-  it("has viewMode state with monthly/weekly options", () => {
-    expect(calendarSrc).toContain("viewMode");
-    expect(calendarSrc).toContain("monthly");
-    expect(calendarSrc).toContain("weekly");
+describe("CalendarPage", () => {
+  it("exports CalendarPage", () => {
+    expect(calendarSrc).toContain("export const CalendarPage");
   });
 
-  it("has weekStart state", () => {
-    expect(calendarSrc).toContain("weekStart");
+  it("has 7-day week header via DAYS_OF_WEEK", () => {
+    expect(calendarSrc).toContain("DAYS_OF_WEEK");
   });
 
-  it("has prev/next week navigation", () => {
-    expect(calendarSrc).toContain("7 * 86400000");
+  it("has CalendarPrefs interface with showDividends toggle", () => {
+    expect(calendarSrc).toContain("CalendarPrefs");
+    expect(calendarSrc).toContain("showDividends");
   });
 
-  it("shows weekly inflow/outflow totals", () => {
-    expect(calendarSrc).toContain("totalInflow");
-    expect(calendarSrc).toContain("totalOutflow");
+  it("fetches dividend-calendar endpoint when toggle enabled", () => {
+    expect(calendarSrc).toContain("/holdings/dividend-calendar");
   });
 
-  it("shows daily net in weekly view", () => {
-    expect(calendarSrc).toContain("dayNet");
+  it("handles dividend event type with teal color", () => {
+    expect(calendarSrc).toContain('"dividend"');
+    expect(calendarSrc).toContain("teal");
   });
 
-  it("has This Week button", () => {
-    expect(calendarSrc).toContain("This Week");
+  it("shows projected balance summary from financial calendar", () => {
+    expect(calendarSrc).toContain("projected_end_balance");
   });
 
-  it("shows 7-column grid for weekly view", () => {
-    expect(calendarSrc).toContain("weekDays");
-    expect(calendarSrc).toContain("length: 7");
+  it("has month navigation with calYear and calMonth state", () => {
+    expect(calendarSrc).toContain("calYear");
+    expect(calendarSrc).toContain("calMonth");
   });
 });
 

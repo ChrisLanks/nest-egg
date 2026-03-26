@@ -33,11 +33,41 @@ import {
 } from "@chakra-ui/react";
 import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import { useQuery } from "@tanstack/react-query";
+import api from "../services/api";
 import {
   financialCalendarApi,
   type FinancialCalendarResponse,
   type FinancialCalendarEvent,
 } from "../api/recurring-transactions";
+
+// ─── Local extended event type (adds "dividend" to the API's union) ───────────
+
+type CalendarEventWithDividend =
+  | FinancialCalendarEvent
+  | { date: string; type: "dividend"; name: string; amount: number; account?: string; frequency?: string };
+
+// ─── Dividend calendar API types ──────────────────────────────────────────────
+
+interface DividendEvent {
+  ticker?: string;
+  account_name: string;
+  income_type: string;
+  amount: number;
+  ex_date?: string;
+  pay_date?: string;
+}
+
+interface MonthlyDividend {
+  month: number;
+  month_name: string;
+  total: number;
+  events: DividendEvent[];
+}
+
+interface DividendCalendarResponse {
+  year: number;
+  months: MonthlyDividend[];
+}
 
 // ─── Calendar helpers ─────────────────────────────────────────────────────────
 
@@ -54,12 +84,14 @@ const formatCurrencyShort = (amount: number) =>
 const eventTypeColor = (type: string) => {
   if (type === "income") return "green";
   if (type === "subscription") return "orange";
+  if (type === "dividend") return "teal";
   return "red"; // bill
 };
 
 const eventTypeLabel = (type: string) => {
   if (type === "income") return "Income";
   if (type === "subscription") return "Subscription";
+  if (type === "dividend") return "Dividend";
   return "Bill";
 };
 
@@ -151,6 +183,21 @@ export const CalendarPage: React.FC = () => {
     staleTime: 2 * 60 * 1000,
   });
 
+  const { data: dividendCalendar } = useQuery<DividendCalendarResponse>({
+    queryKey: ["dividend-calendar", calYear, selectedUserId],
+    queryFn: async () => {
+      const params: Record<string, string | number> = { year: calYear };
+      if (selectedUserId) params.user_id = selectedUserId;
+      const { data } = await api.get<DividendCalendarResponse>(
+        "/holdings/dividend-calendar",
+        { params },
+      );
+      return data;
+    },
+    enabled: showDividends,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // ── Calendar helpers ────────────────────────────────────────────────────────
 
   const prevMonth = () => {
@@ -167,20 +214,42 @@ export const CalendarPage: React.FC = () => {
     } else setCalMonth((m) => m + 1);
   };
 
-  // Filtered financial calendar events based on toggle state
-  const filteredEvents = useMemo(() => {
-    if (!financialCalendar) return [];
-    return financialCalendar.events.filter((ev) => {
-      if (ev.type === "bill" && !showBills) return false;
-      if (ev.type === "subscription" && !showSubscriptions) return false;
-      if (ev.type === "income" && !showIncome) return false;
-      return true;
-    });
-  }, [financialCalendar, showBills, showSubscriptions, showIncome]);
+  // Filtered financial calendar events based on toggle state (with dividend events merged in)
+  const filteredEvents = useMemo<CalendarEventWithDividend[]>(() => {
+    const base: CalendarEventWithDividend[] = financialCalendar
+      ? financialCalendar.events.filter((ev) => {
+          if (ev.type === "bill" && !showBills) return false;
+          if (ev.type === "subscription" && !showSubscriptions) return false;
+          if (ev.type === "income" && !showIncome) return false;
+          return true;
+        })
+      : [];
+
+    if (!showDividends || !dividendCalendar) return base;
+
+    const dividendEvents: CalendarEventWithDividend[] = [];
+    for (const month of dividendCalendar.months) {
+      for (const ev of month.events) {
+        const date = ev.pay_date ?? ev.ex_date;
+        if (!date) continue;
+        // Only include events that fall in the currently displayed month
+        if (!date.startsWith(calMonthStr)) continue;
+        dividendEvents.push({
+          date,
+          type: "dividend",
+          name: ev.ticker ?? ev.income_type,
+          amount: ev.amount,
+          account: ev.account_name,
+        });
+      }
+    }
+
+    return [...base, ...dividendEvents];
+  }, [financialCalendar, showBills, showSubscriptions, showIncome, showDividends, dividendCalendar, calMonthStr]);
 
   // Group financial events by date
   const financialByDate = useMemo(() => {
-    const map = new Map<string, FinancialCalendarEvent[]>();
+    const map = new Map<string, CalendarEventWithDividend[]>();
     for (const ev of filteredEvents) {
       if (!map.has(ev.date)) map.set(ev.date, []);
       map.get(ev.date)!.push(ev);
@@ -337,7 +406,7 @@ export const CalendarPage: React.FC = () => {
                   <FormControl display="flex" alignItems="center" w="auto">
                     <Switch
                       id="show-dividends"
-                      colorScheme="green"
+                      colorScheme="teal"
                       isChecked={showDividends}
                       onChange={(e) => {
                         setShowDividends(e.target.checked);
@@ -345,8 +414,16 @@ export const CalendarPage: React.FC = () => {
                       }}
                       size="sm"
                     />
-                    <FormLabel htmlFor="show-dividends" mb="0" ml={2} fontSize="sm" fontWeight="normal">
-                      Dividends
+                    <FormLabel
+                      htmlFor="show-dividends"
+                      mb={0}
+                      ml={2}
+                      fontSize="sm"
+                      cursor="pointer"
+                    >
+                      <Badge colorScheme="teal" variant="subtle" mr={1}>
+                        Dividends
+                      </Badge>
                     </FormLabel>
                   </FormControl>
                 </HStack>

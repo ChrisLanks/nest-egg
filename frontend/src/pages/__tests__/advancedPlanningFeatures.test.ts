@@ -38,6 +38,9 @@ const investmentToolsSrc = readPage("pages/InvestmentToolsPage.tsx");
 const lifePlanningSrc = readPage("pages/LifePlanningPage.tsx");
 const netWorthTimelineSrc = readPage("pages/NetWorthTimelinePage.tsx");
 const appSrc = readPage("App.tsx");
+const calendarSrc = readPage("pages/CalendarPage.tsx");
+const rmdSrc = readPage("pages/RmdPlannerTab.tsx");
+const estateSrc = readPage("pages/EstatePage.tsx");
 
 // ── Feature 1: Asset Location ─────────────────────────────────────────────────
 
@@ -47,7 +50,7 @@ describe("AssetLocationTab", () => {
   });
 
   it("calls the asset-location endpoint", () => {
-    expect(assetLocationSrc).toContain("/api/v1/holdings/asset-location");
+    expect(assetLocationSrc).toContain("/holdings/asset-location");
   });
 
   it("shows optimization_score with CircularProgress", () => {
@@ -85,7 +88,7 @@ describe("InsuranceAuditTab", () => {
   });
 
   it("calls the insurance-audit endpoint", () => {
-    expect(insuranceAuditSrc).toContain("/api/v1/estate/insurance-audit");
+    expect(insuranceAuditSrc).toContain("/estate/insurance-audit");
   });
 
   it("shows coverage_score stat", () => {
@@ -121,7 +124,7 @@ describe("PensionModelerTab", () => {
   });
 
   it("calls the pension-model endpoint", () => {
-    expect(pensionModelerSrc).toContain("/api/v1/retirement/pension-model");
+    expect(pensionModelerSrc).toContain("/retirement/pension-model");
   });
 
   it("shows break_even_years with label", () => {
@@ -160,7 +163,7 @@ describe("FinancialRatiosTab", () => {
   });
 
   it("calls the financial-ratios endpoint", () => {
-    expect(financialRatiosSrc).toContain("/api/v1/dashboard/financial-ratios");
+    expect(financialRatiosSrc).toContain("/dashboard/financial-ratios");
   });
 
   it("shows overall_grade and overall_score with progress bar", () => {
@@ -199,7 +202,7 @@ describe("EmployerMatchTab", () => {
   });
 
   it("calls the employer-match endpoint", () => {
-    expect(employerMatchSrc).toContain("/api/v1/retirement/employer-match");
+    expect(employerMatchSrc).toContain("/retirement/employer-match");
   });
 
   it("shows annual_match_value and estimated_left_on_table", () => {
@@ -237,7 +240,7 @@ describe("DividendCalendarTab", () => {
   });
 
   it("calls the dividend-calendar endpoint with year param", () => {
-    expect(dividendCalendarSrc).toContain("/api/v1/holdings/dividend-calendar?year=");
+    expect(dividendCalendarSrc).toContain("/holdings/dividend-calendar?year=");
   });
 
   it("shows annual_total and avg_monthly stats", () => {
@@ -262,9 +265,10 @@ describe("DividendCalendarTab", () => {
     expect(dividendCalendarSrc).toContain("event_count");
   });
 
-  it("is embedded in InvestmentToolsPage as Dividend Calendar tab", () => {
-    expect(investmentToolsSrc).toContain("DividendCalendarTab");
-    expect(investmentToolsSrc).toContain("Dividend Calendar");
+  it("DividendCalendarTab is integrated into CalendarPage (not InvestmentToolsPage)", () => {
+    // Dividend Calendar moved to the main Calendar page as a toggleable category
+    expect(calendarSrc).toContain("dividend");
+    expect(investmentToolsSrc).not.toContain("DividendCalendarTab");
   });
 });
 
@@ -276,7 +280,7 @@ describe("CostBasisAgingTab", () => {
   });
 
   it("calls the cost-basis-aging endpoint", () => {
-    expect(costBasisAgingSrc).toContain("/api/v1/holdings/cost-basis-aging");
+    expect(costBasisAgingSrc).toContain("/holdings/cost-basis-aging");
   });
 
   it("shows approaching_count badge and summary_tip", () => {
@@ -315,7 +319,7 @@ describe("LiquidityDashboardTab", () => {
   });
 
   it("calls the liquidity endpoint", () => {
-    expect(liquidityDashboardSrc).toContain("/api/v1/dashboard/liquidity");
+    expect(liquidityDashboardSrc).toContain("/dashboard/liquidity");
   });
 
   it("shows emergency_months_immediate with grade badge", () => {
@@ -353,7 +357,7 @@ describe("NetWorthPercentileTab", () => {
   });
 
   it("calls the net-worth-percentile endpoint", () => {
-    expect(netWorthPercentileSrc).toContain("/api/v1/dashboard/net-worth-percentile");
+    expect(netWorthPercentileSrc).toContain("/dashboard/net-worth-percentile");
   });
 
   it("shows estimated_percentile with CircularProgress", () => {
@@ -447,9 +451,9 @@ describe("App.tsx routing", () => {
 // ── Hub page integration ───────────────────────────────────────────────────────
 
 describe("Hub page tab counts", () => {
-  it("InvestmentToolsPage has 9 tabs", () => {
+  it("InvestmentToolsPage has 8 tabs (Dividend Calendar moved to CalendarPage)", () => {
     const tabMatches = investmentToolsSrc.match(/<Tab\s/g) ?? [];
-    expect(tabMatches.length).toBeGreaterThanOrEqual(9);
+    expect(tabMatches.length).toBeGreaterThanOrEqual(8);
   });
 
   it("LifePlanningPage has 6 tabs including Insurance Audit and Pension Modeler", () => {
@@ -470,5 +474,42 @@ describe("Hub page tab counts", () => {
     expect(investmentToolsSrc).toContain("Employer Match");
     expect(investmentToolsSrc).toContain("Dividend Calendar");
     expect(investmentToolsSrc).toContain("Cost Basis");
+  });
+});
+
+// ── CalendarPage dividend integration ─────────────────────────────────────────
+
+describe("CalendarPage dividend integration", () => {
+  it("has showDividends toggle in CalendarPrefs interface", () => {
+    expect(calendarSrc).toContain("showDividends");
+  });
+  it("fetches dividend-calendar endpoint when toggle enabled", () => {
+    expect(calendarSrc).toContain("/holdings/dividend-calendar");
+  });
+  it("handles dividend event type with teal color", () => {
+    expect(calendarSrc).toContain('"dividend"');
+    expect(calendarSrc).toContain("teal");
+  });
+});
+
+// ── RmdPlannerTab federal rate input ──────────────────────────────────────────
+
+describe("RmdPlannerTab federal rate input", () => {
+  it("has editable federal tax rate state", () => {
+    expect(rmdSrc).toContain("federalRate");
+  });
+  it("sends federal_rate_pct to API", () => {
+    expect(rmdSrc).toContain("federal_rate_pct");
+  });
+});
+
+// ── EstatePage legal disclaimer ───────────────────────────────────────────────
+
+describe("EstatePage legal disclaimer", () => {
+  it("has legal disclaimer warning", () => {
+    expect(estateSrc).toContain("not legal or financial advice");
+  });
+  it("recommends licensed estate attorney", () => {
+    expect(estateSrc).toContain("licensed estate attorney");
   });
 });

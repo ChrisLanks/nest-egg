@@ -84,7 +84,7 @@ Note: there is dark mode and light mode
 - **Transaction Splits** — split a single transaction across multiple categories/amounts from the transaction detail modal
 - **Investment Fee Analyzer** — fee drag projections, fund overlap detection, low-cost alternatives
 - **Year-in-Review** — annual financial summary with YoY comparison
-- **Unified Financial Calendar** — bills + subscriptions + income with toggles and projected daily balance
+- **Unified Financial Calendar** — bills + subscriptions + income + dividends with toggles and projected daily balance
 - **Education Planning** — 529 contribution tracking and college cost projections
 - **Rental Property P&L** — per-property profit & loss with Schedule E categories and cap rate
 - **FIRE Planning** — financial independence calculator, savings rate tracking, coast FIRE projections
@@ -100,6 +100,16 @@ Note: there is dark mode and light mode
 - **Social Security Optimizer** — claiming age 62–70 comparison with three longevity scenarios (pessimistic/base/optimistic), break-even vs early claiming, spousal benefit estimate
 - **Tax Projection** — annualised YTD income estimate, ordinary/SE/LTCG federal tax breakdown, quarterly 1040-ES payment schedule, safe harbour check; all household-view aware
 - **Smart Insights** — proactive, no-input-required financial recommendations derived from live account data: emergency fund gaps, Roth windows, IRMAA cliffs, cash drag, HSA opportunities, fund fee alerts
+- **Advanced Planning Hubs** — five consolidated hub pages under Planning:
+  - **Tax Center** — Tax Projection, Tax Buckets (three-bucket), Charitable Giving, Medicare & IRMAA, Roth Wizard, Contribution Headroom
+  - **Life Planning** — SS Optimizer, Variable Income, Estate & Beneficiaries, RMD Planner, Insurance Audit, Pension Modeler
+  - **Investment Tools** — FIRE, Equity Compensation, Loan Modeler, HSA, Tax-Equivalent Yield, Asset Location, Employer Match, Cost Basis Aging
+  - **Net Worth Timeline** — Historical, Forecast, SCF Percentile benchmark
+  - **Financial Health** — Financial Ratios (DTI/savings/housing), Liquidity (emergency fund coverage)
+- **Beneficiary Coverage Audit** — per-account audit for missing/incomplete beneficiary designations with severity scoring
+- **Employer Match Optimizer** — detects uncaptured 401k/403b/457b match and estimates annual dollars left on table
+- **Tax-Equivalent Yield** — compares after-tax yield across fixed-income accounts with configurable marginal rates
+- **Cost Basis Aging** — tracks lots approaching the 1-year long-term threshold to minimize capital gains taxes
 - **Security** — rate limiting, CSRF, encryption at rest, MFA, GDPR compliance, webhook verification
 
 > **Full details**: [docs/features.md](docs/features.md)

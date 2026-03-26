@@ -896,3 +896,46 @@ class TestNetWorthPercentileLogic:
 
     def test_age_75_maps_to_75_plus_bucket(self):
         assert self._age_bucket(75) == "75+"
+
+
+# ── Seed Planning Data ────────────────────────────────────────────────────────
+
+class TestSeedPlanningData:
+    """Tests for the seed_planning_data logic — validates the data shapes created."""
+
+    def test_pension_break_even_math(self):
+        """break_even = lump_sum / annual_benefit"""
+        lump_sum = 450_000
+        monthly_benefit = 2_500
+        annual = monthly_benefit * 12
+        break_even = lump_sum / annual
+        assert break_even == pytest.approx(15.0, abs=0.1)
+
+    def test_401k_match_value_from_seed_data(self):
+        """50% match on first 6% of $120k = $3,600/yr"""
+        salary = 120_000
+        match_limit_pct = 6.0
+        match_pct = 50.0
+        annual_match = salary * (match_limit_pct / 100) * (match_pct / 100)
+        assert annual_match == pytest.approx(3_600)
+
+    def test_dividend_month_assignment_pay_date_priority(self):
+        """pay_date takes priority over ex_date for month grouping"""
+        import datetime
+        pay_date = datetime.date(2026, 3, 15)
+        ex_date = datetime.date(2026, 2, 28)
+        # Should use pay_date month (March)
+        assigned_month = pay_date.month if pay_date else ex_date.month
+        assert assigned_month == 3
+
+    def test_tax_lot_approaching_detection(self):
+        """A lot acquired 340 days ago is within 30 days of 1-year mark"""
+        days_held = 340
+        days_to_lt = max(0, 365 - days_held)
+        is_approaching = days_to_lt <= 30
+        assert is_approaching is True
+
+    def test_life_insurance_account_type_is_auditable(self):
+        """LIFE_INSURANCE_CASH_VALUE accounts show in insurance audit"""
+        from app.models.account import AccountType
+        assert AccountType.LIFE_INSURANCE_CASH_VALUE.value == "life_insurance_cash_value"

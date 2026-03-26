@@ -107,8 +107,8 @@ async def get_tax_equivalent_yield(
 
         holdings.append(YieldHolding(
             account_id=str(acct.id),
-            account_name=acct.account_name or str(acct.account_type),
-            account_type=str(acct.account_type),
+            account_name=acct.name or str(acct.account_type.value),
+            account_type=acct.account_type.value,
             nominal_yield_pct=round(nominal_pct, 3),
             tax_equivalent_yield_pct=round(tax_equiv * 100, 3),
             current_balance=round(balance, 2),

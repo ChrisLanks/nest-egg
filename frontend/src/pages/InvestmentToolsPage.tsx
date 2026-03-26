@@ -2,8 +2,10 @@
  * Investment Tools — consolidated advanced investment hub.
  *
  * Combines FIRE metrics, Equity Compensation, Loan Modeler, HSA Optimizer,
- * Tax-Equivalent Yield, Asset Location, Employer Match, Dividend Calendar,
- * and Cost Basis Aging into a single tabbed view.
+ * Tax-Equivalent Yield, Asset Location, Employer Match, and Cost Basis Aging
+ * into a single tabbed view.
+ *
+ * Note: Dividend Calendar has moved to the main Calendar page.
  */
 
 import {
@@ -35,9 +37,6 @@ const AssetLocationTab = lazy(() =>
 const EmployerMatchTab = lazy(() =>
   import("./EmployerMatchTab").then((m) => ({ default: m.EmployerMatchTab })),
 );
-const DividendCalendarTab = lazy(() =>
-  import("./DividendCalendarTab").then((m) => ({ default: m.DividendCalendarTab })),
-);
 const CostBasisAgingTab = lazy(() =>
   import("./CostBasisAgingTab").then((m) => ({ default: m.CostBasisAgingTab })),
 );
@@ -56,7 +55,7 @@ export const InvestmentToolsPage = () => {
         <Text color="text.secondary" mt={1} fontSize="sm">
           FIRE progress, equity compensation modeling, loan analysis, HSA
           strategy, tax-equivalent yield, asset location, employer match
-          optimization, dividend calendar, and cost basis aging.
+          optimization, and cost basis aging.
         </Text>
       </Box>
       <Tabs colorScheme="brand" variant="enclosed" px={6}>
@@ -68,7 +67,6 @@ export const InvestmentToolsPage = () => {
           <Tab fontSize="sm">Tax-Equiv Yield</Tab>
           <Tab fontSize="sm">Asset Location</Tab>
           <Tab fontSize="sm">Employer Match</Tab>
-          <Tab fontSize="sm">Dividend Calendar</Tab>
           <Tab fontSize="sm">Cost Basis</Tab>
         </TabList>
         <TabPanels>
@@ -105,11 +103,6 @@ export const InvestmentToolsPage = () => {
           <TabPanel px={0}>
             <Suspense fallback={<TabLoader />}>
               <EmployerMatchTab />
-            </Suspense>
-          </TabPanel>
-          <TabPanel px={0}>
-            <Suspense fallback={<TabLoader />}>
-              <DividendCalendarTab />
             </Suspense>
           </TabPanel>
           <TabPanel px={0}>
