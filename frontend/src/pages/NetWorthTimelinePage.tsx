@@ -11,6 +11,7 @@ import {
   ButtonGroup,
   Card,
   CardBody,
+  Center,
   Container,
   FormControl,
   FormLabel,
@@ -31,13 +32,30 @@ import {
   StatHelpText,
   StatLabel,
   StatNumber,
+  Tab,
+  TabList,
+  TabPanel,
+  TabPanels,
+  Tabs,
   Text,
   useColorModeValue,
   useDisclosure,
   VStack,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
+
+const NetWorthForecastTab = lazy(() =>
+  import("./NetWorthForecastTab").then((m) => ({
+    default: m.NetWorthForecastTab,
+  })),
+);
+
+const TabLoader = () => (
+  <Center py={12}>
+    <Spinner size="lg" color="brand.500" />
+  </Center>
+);
 import {
   Area,
   AreaChart,
@@ -208,15 +226,23 @@ export default function NetWorthTimelinePage() {
       : null;
 
   return (
+    <Box>
+      <Box px={6} pt={4} mb={2}>
+        <Heading size="lg">Net Worth Timeline</Heading>
+        <Text color="text.secondary" mt={1} fontSize="sm">
+          Historical breakdown and future forecast of your net worth.
+        </Text>
+      </Box>
+      <Tabs colorScheme="brand" variant="enclosed" px={6}>
+        <TabList>
+          <Tab fontSize="sm">Historical</Tab>
+          <Tab fontSize="sm">Forecast</Tab>
+        </TabList>
+        <TabPanels>
+          <TabPanel px={0}>
     <Container maxW="container.xl" py={8}>
       <VStack spacing={6} align="stretch">
         <HStack justify="space-between" align="start" flexWrap="wrap" gap={3}>
-          <Box>
-            <Heading size="lg">Net Worth Timeline</Heading>
-            <Text color="text.secondary" mt={1} fontSize="sm">
-              Historical breakdown of your assets and liabilities over time.
-            </Text>
-          </Box>
           <HStack spacing={2} flexWrap="wrap">
             <ButtonGroup size="sm" isAttached variant="outline">
               <Button
@@ -580,5 +606,14 @@ export default function NetWorthTimelinePage() {
         </ModalContent>
       </Modal>
     </Container>
+          </TabPanel>
+          <TabPanel px={0}>
+            <Suspense fallback={<TabLoader />}>
+              <NetWorthForecastTab />
+            </Suspense>
+          </TabPanel>
+        </TabPanels>
+      </Tabs>
+    </Box>
   );
 }

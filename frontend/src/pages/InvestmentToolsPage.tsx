@@ -1,8 +1,8 @@
 /**
  * Investment Tools — consolidated advanced investment hub.
  *
- * Combines FIRE metrics, Equity Compensation, Loan Modeler, and HSA Optimizer
- * into a single tabbed view.
+ * Combines FIRE metrics, Equity Compensation, Loan Modeler, HSA Optimizer,
+ * and Tax-Equivalent Yield into a single tabbed view.
  */
 
 import {
@@ -25,6 +25,9 @@ const FireMetricsPage = lazy(() =>
 const EquityPage = lazy(() => import("./EquityPage"));
 const LoanModelerPage = lazy(() => import("./LoanModelerPage"));
 const HsaPage = lazy(() => import("./HsaPage"));
+const TaxEquivYieldTab = lazy(() =>
+  import("./TaxEquivYieldTab").then((m) => ({ default: m.TaxEquivYieldTab })),
+);
 
 const TabLoader = () => (
   <Center py={12}>
@@ -38,7 +41,8 @@ export const InvestmentToolsPage = () => {
       <Box px={6} mb={2}>
         <Heading size="lg">Investment Tools</Heading>
         <Text color="text.secondary" mt={1} fontSize="sm">
-          FIRE progress, equity compensation modeling, loan analysis, and HSA strategy.
+          FIRE progress, equity compensation modeling, loan analysis, HSA
+          strategy, and tax-equivalent yield analysis.
         </Text>
       </Box>
       <Tabs colorScheme="brand" variant="enclosed" px={6}>
@@ -47,6 +51,7 @@ export const InvestmentToolsPage = () => {
           <Tab fontSize="sm">Equity Compensation</Tab>
           <Tab fontSize="sm">Loan Modeler</Tab>
           <Tab fontSize="sm">HSA Optimizer</Tab>
+          <Tab fontSize="sm">Tax-Equiv Yield</Tab>
         </TabList>
         <TabPanels>
           <TabPanel px={0}>
@@ -67,6 +72,11 @@ export const InvestmentToolsPage = () => {
           <TabPanel px={0}>
             <Suspense fallback={<TabLoader />}>
               <HsaPage />
+            </Suspense>
+          </TabPanel>
+          <TabPanel px={0}>
+            <Suspense fallback={<TabLoader />}>
+              <TaxEquivYieldTab />
             </Suspense>
           </TabPanel>
         </TabPanels>

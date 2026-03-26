@@ -54,14 +54,20 @@ from app.api.v1 import (
     savings_goals,
     smart_insights,
     subscriptions,
+    backdoor_roth,
     capital_gains_harvesting,
     charitable_giving,
+    contribution_headroom,
     estate,
     hsa,
+    irmaa_projection,
     loan_modeling,
     net_worth_attribution,
+    net_worth_forecast,
+    rmd_planner,
     stress_test,
     tax_advisor,
+    tax_equiv_yield,
     tax_buckets,
     tax_lots,
     teller,
@@ -702,5 +708,41 @@ app.include_router(
     charitable_giving.router,
     prefix="/api/v1/charitable-giving",
     tags=["Charitable Giving"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    net_worth_forecast.router,
+    prefix="/api/v1/dashboard",
+    tags=["Net Worth Forecast"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    irmaa_projection.router,
+    prefix="/api/v1/tax",
+    tags=["IRMAA Projection"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    backdoor_roth.router,
+    prefix="/api/v1/tax",
+    tags=["Backdoor Roth"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    rmd_planner.router,
+    prefix="/api/v1/rmd",
+    tags=["RMD Planner"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    contribution_headroom.router,
+    prefix="/api/v1/tax",
+    tags=["Contribution Headroom"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    tax_equiv_yield.router,
+    prefix="/api/v1/holdings",
+    tags=["Tax-Equivalent Yield"],
     dependencies=_guest_dep,
 )

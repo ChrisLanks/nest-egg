@@ -53,6 +53,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import api from "../services/api";
 import { useQuery as useReactQuery } from "@tanstack/react-query";
+import { BeneficiaryAuditCard } from "./BeneficiaryAuditCard";
 
 function InfoTip({ label }: { label: string }) {
   return (
@@ -288,6 +289,7 @@ export const EstatePage = () => {
   return (
     <Container maxW="5xl" py={6}>
       <VStack align="start" spacing={6}>
+        <BeneficiaryAuditCard />
         <Box>
           <Heading size="lg">Estate &amp; Beneficiary Planning</Heading>
           <Text color="text.secondary" mt={1}>

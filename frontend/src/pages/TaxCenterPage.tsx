@@ -1,13 +1,16 @@
 /**
  * Tax Center — consolidated tax planning hub.
  *
- * Combines Tax Projection, Tax Buckets (three-bucket strategy), and
- * Charitable Giving into a single tabbed view to reduce nav clutter.
+ * Combines Tax Projection, Tax Buckets (three-bucket strategy), Charitable Giving,
+ * Medicare & IRMAA planning, Backdoor Roth wizard, and Contribution Headroom
+ * into a single tabbed view to reduce nav clutter.
  */
 
 import {
   Box,
+  Center,
   Heading,
+  Spinner,
   Tab,
   TabList,
   TabPanel,
@@ -16,12 +19,22 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { lazy, Suspense } from "react";
-import { Center, Spinner } from "@chakra-ui/react";
 
 // Import existing pages as tab content — each manages its own state/data fetching
 const TaxProjectionPage = lazy(() => import("./TaxProjectionPage"));
 const TaxBucketsPage = lazy(() => import("./TaxBucketsPage"));
 const CharitableGivingPage = lazy(() => import("./CharitableGivingPage"));
+const IrmaaMedicareTab = lazy(() =>
+  import("./IrmaaMedicareTab").then((m) => ({ default: m.IrmaaMedicareTab })),
+);
+const BackdoorRothTab = lazy(() =>
+  import("./BackdoorRothTab").then((m) => ({ default: m.BackdoorRothTab })),
+);
+const ContributionHeadroomTab = lazy(() =>
+  import("./ContributionHeadroomTab").then((m) => ({
+    default: m.ContributionHeadroomTab,
+  })),
+);
 
 const TabLoader = () => (
   <Center py={12}>
@@ -35,7 +48,8 @@ export const TaxCenterPage = () => {
       <Box px={6} mb={2}>
         <Heading size="lg">Tax Center</Heading>
         <Text color="text.secondary" mt={1} fontSize="sm">
-          Tax projection, bucket optimization, and charitable giving strategy.
+          Tax projection, bucket optimization, charitable giving, Medicare
+          planning, Roth strategies, and contribution headroom.
         </Text>
       </Box>
       <Tabs colorScheme="brand" variant="enclosed" px={6}>
@@ -43,6 +57,9 @@ export const TaxCenterPage = () => {
           <Tab fontSize="sm">Tax Projection</Tab>
           <Tab fontSize="sm">Tax Buckets</Tab>
           <Tab fontSize="sm">Charitable Giving</Tab>
+          <Tab fontSize="sm">Medicare &amp; IRMAA</Tab>
+          <Tab fontSize="sm">Roth Wizard</Tab>
+          <Tab fontSize="sm">Contribution Headroom</Tab>
         </TabList>
         <TabPanels>
           <TabPanel px={0}>
@@ -58,6 +75,21 @@ export const TaxCenterPage = () => {
           <TabPanel px={0}>
             <Suspense fallback={<TabLoader />}>
               <CharitableGivingPage />
+            </Suspense>
+          </TabPanel>
+          <TabPanel px={0}>
+            <Suspense fallback={<TabLoader />}>
+              <IrmaaMedicareTab />
+            </Suspense>
+          </TabPanel>
+          <TabPanel px={0}>
+            <Suspense fallback={<TabLoader />}>
+              <BackdoorRothTab />
+            </Suspense>
+          </TabPanel>
+          <TabPanel px={0}>
+            <Suspense fallback={<TabLoader />}>
+              <ContributionHeadroomTab />
             </Suspense>
           </TabPanel>
         </TabPanels>
