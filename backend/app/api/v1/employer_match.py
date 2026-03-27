@@ -49,9 +49,9 @@ class EmployerMatchResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 _EMPLOYER_PLAN_TYPES = [
-    AccountType.RETIREMENT_401K.value,
-    AccountType.RETIREMENT_403B.value,
-    AccountType.RETIREMENT_457B.value,
+    AccountType.RETIREMENT_401K,
+    AccountType.RETIREMENT_403B,
+    AccountType.RETIREMENT_457B,
 ]
 
 # Approximate multiplier to annualise a contribution amount by frequency

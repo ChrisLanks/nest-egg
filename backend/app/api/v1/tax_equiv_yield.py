@@ -75,7 +75,7 @@ async def get_tax_equivalent_yield(
     result = await db.execute(
         select(Account).where(
             Account.organization_id == current_user.organization_id,
-            Account.account_type.in_([t.value for t in _YIELD_ACCOUNT_TYPES]),
+            Account.account_type.in_(list(_YIELD_ACCOUNT_TYPES)),
             Account.is_active == True,
         )
     )

@@ -823,14 +823,18 @@ Two tabs: Financial Ratios (DTI, savings rate, housing ratio, current ratio), Li
 ### Tax-Equivalent Yield (`GET /api/v1/holdings/tax-equivalent-yield`)
 
 - Calculates after-tax yield for CDs, bonds, savings accounts, money market, and I-bonds
-- Configurable federal and state marginal rates
-- Portfolio blended nominal and tax-equivalent yield summary
+- Supported account types: `CD`, `BOND`, `I_BOND`, `SAVINGS`, `MONEY_MARKET`
+- Configurable federal (override or auto-estimated from income) and state marginal rates
+- Per-holding breakdown: nominal yield %, tax-equivalent yield %, annual interest income, annual tax cost
+- Portfolio blended nominal and tax-equivalent yield summary with total fixed-income value
 
 ### Employer Match (`GET /api/v1/retirement/employer-match`)
 
 - Audits all 401k/403b/457b accounts for match capture efficiency
+- Supported account types: `RETIREMENT_401K`, `RETIREMENT_403B`, `RETIREMENT_457B`
 - Shows annual employer match value, required employee contribution %, and estimated dollars left on table
 - Per-household-member breakout with named account owner
+- `estimated_left_on_table` shows forfeit amount when contributions fall short of match threshold
 
 ### Asset Location (`GET /api/v1/holdings/asset-location`)
 
