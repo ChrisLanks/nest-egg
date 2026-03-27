@@ -178,7 +178,15 @@ financial-templates, savings-goals, recurring-transactions, subscriptions,
 transaction-splits, transaction-merges, reports, debt-payoff, rebalancing,
 retirement, education, FIRE, rental-properties, tax-lots, attachments,
 bulk-operations, dividend-income, tax-advisor, enhanced-trends, smart-insights,
-financial-planning.
+financial-planning, capital-gains-harvesting, stress-test, net-worth-attribution,
+hsa, estate, loan-modeling, charitable-giving, net-worth-forecast,
+irmaa-projection, backdoor-roth, rmd, contribution-headroom, tax-equiv-yield,
+asset-location, insurance-audit, pension-modeler, financial-ratios,
+employer-match, cost-basis-aging, dividend-calendar, liquidity-dashboard,
+net-worth-percentile, insurance-policies, dependents, espp, treasury-rates,
+social-security, tax-loss-harvesting, financial-plan, bond-ladder, what-if,
+fx-rates, pe-performance, calculator-prefill, amt-calculator, gift-tracker,
+deduction-optimizer, withholding-check.
 
 **Member-only routers**: auth, household, bank-linking, plaid, teller,
 market-data, enrichment, settings, permissions, csv-import, onboarding,
