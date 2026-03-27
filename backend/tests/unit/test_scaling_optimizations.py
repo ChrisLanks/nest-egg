@@ -408,7 +408,18 @@ class TestAccountsListCaching:
         """When cache has data for default request, return it."""
         from app.api.v1.accounts import list_accounts
 
-        cached_accounts = [{"id": str(uuid4()), "name": "Checking"}]
+        acct_id = str(uuid4())
+        cached_accounts = [
+            {
+                "id": acct_id,
+                "user_id": str(mock_user.id),
+                "name": "Checking",
+                "account_type": "checking",
+                "account_source": "manual",
+                "is_active": True,
+                "exclude_from_cash_flow": False,
+            }
+        ]
 
         with patch("app.api.v1.accounts.cache_get", return_value=cached_accounts):
             mock_db = AsyncMock()
@@ -419,7 +430,8 @@ class TestAccountsListCaching:
                 db=mock_db,
             )
 
-            assert result == cached_accounts
+            assert len(result) == 1
+            assert result[0].name == "Checking"
             mock_db.execute.assert_not_called()
 
     @pytest.mark.asyncio

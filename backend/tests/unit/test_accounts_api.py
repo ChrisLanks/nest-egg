@@ -59,6 +59,14 @@ class TestListAccounts:
         account.plaid_item_id = None
         account.teller_enrollment = None
         account.teller_enrollment_id = None
+        # Equity / stock option fields (added in round 61)
+        account.grant_type = None
+        account.quantity = None
+        account.strike_price = None
+        account.share_price = None
+        account.grant_date = None
+        account.company_status = None
+        account.vesting_schedule = None
         return account
 
     @pytest.mark.asyncio
@@ -163,6 +171,13 @@ class TestListAccounts:
         account1.plaid_item_id = None
         account1.teller_enrollment = None
         account1.teller_enrollment_id = None
+        account1.grant_type = None
+        account1.quantity = None
+        account1.strike_price = None
+        account1.share_price = None
+        account1.grant_date = None
+        account1.company_status = None
+        account1.vesting_schedule = None
 
         account2 = Mock(spec=Account)
         account2.id = uuid4()
@@ -182,6 +197,13 @@ class TestListAccounts:
         account2.plaid_item_id = None
         account2.teller_enrollment = None
         account2.teller_enrollment_id = None
+        account2.grant_type = None
+        account2.quantity = None
+        account2.strike_price = None
+        account2.share_price = None
+        account2.grant_date = None
+        account2.company_status = None
+        account2.vesting_schedule = None
 
         with patch(
             "app.api.v1.accounts.get_all_household_accounts",
@@ -219,6 +241,13 @@ class TestListAccounts:
         account.plaid_item_hash = "plaid-hash"
         account.teller_enrollment = None
         account.teller_enrollment_id = None
+        account.grant_type = None
+        account.quantity = None
+        account.strike_price = None
+        account.share_price = None
+        account.grant_date = None
+        account.company_status = None
+        account.vesting_schedule = None
 
         # Mock Plaid item
         plaid_item = Mock()
@@ -265,6 +294,13 @@ class TestListAccounts:
         account.plaid_item_hash = None
         account.plaid_item = None
         account.plaid_item_id = None
+        account.grant_type = None
+        account.quantity = None
+        account.strike_price = None
+        account.share_price = None
+        account.grant_date = None
+        account.company_status = None
+        account.vesting_schedule = None
 
         # Mock Teller enrollment
         teller_enrollment = Mock()
