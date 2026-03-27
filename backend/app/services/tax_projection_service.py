@@ -31,7 +31,7 @@ from uuid import UUID
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.constants.financial import TAX
+from app.constants.financial import SS, TAX
 from app.constants.state_tax_rates import STATE_NAMES
 from app.models.account import Account
 from app.models.transaction import Transaction
@@ -93,6 +93,7 @@ class TaxProjection:
     ordinary_tax: float
     se_tax: float
     ltcg_tax: float
+    niit: float
     total_tax_before_credits: float
     effective_rate: float
     marginal_rate: float
@@ -258,8 +259,16 @@ class TaxProjectionService:
 
         ordinary_income = max(0.0, annualised_income + self_employment_income)
 
-        # Self-employment tax (15.3% on net SE income)
-        se_tax = round(self_employment_income * 0.153, 2) if self_employment_income > 0 else 0.0
+        # Self-employment tax: SS portion capped at taxable max + Medicare + Additional Medicare
+        if self_employment_income > 0:
+            se_ss = min(self_employment_income, SS.TAXABLE_MAX) * 0.124  # 6.2% * 2
+            se_medicare = self_employment_income * 0.029  # 1.45% * 2
+            # Additional Medicare Tax on SE income above threshold
+            additional_medicare_threshold = 250_000 if filing_status.lower() in ("married", "mfj") else 200_000
+            se_additional_medicare = max(0, self_employment_income - additional_medicare_threshold) * 0.009
+            se_tax = round(se_ss + se_medicare + se_additional_medicare, 2)
+        else:
+            se_tax = 0.0
         se_deduction = round(se_tax * 0.50, 2)  # 50% of SE tax is deductible
 
         # Standard deduction (current year)
@@ -273,7 +282,18 @@ class TaxProjectionService:
         # LTCG tax (stacked on top of ordinary)
         ltcg_tax = _ltcg_tax(estimated_capital_gains, taxable_income, filing_status)
 
-        total_tax = round(ordinary_tax + se_tax + ltcg_tax, 2)
+        # NIIT: 3.8% on lesser of (net investment income) or (MAGI - threshold)
+        magi = ordinary_income + estimated_capital_gains
+        nii_threshold = (
+            TAX.NII_THRESHOLD_MARRIED if filing_status.lower() in ("married", "mfj")
+            else TAX.NII_THRESHOLD_SINGLE
+        )
+        niit = 0.0
+        if magi > nii_threshold:
+            net_investment_income = estimated_capital_gains  # best available proxy
+            niit = round(min(net_investment_income, magi - nii_threshold) * float(TAX.NII_SURTAX_RATE), 2)
+
+        total_tax = round(ordinary_tax + se_tax + ltcg_tax + niit, 2)
         effective_rate = round(total_tax / ordinary_income, 4) if ordinary_income > 0 else 0.0
         marginal_rate = bracket_breakdown[-1].rate if bracket_breakdown else 0.0
 
@@ -333,6 +353,7 @@ class TaxProjectionService:
             ordinary_tax=round(ordinary_tax, 2),
             se_tax=round(se_tax, 2),
             ltcg_tax=round(ltcg_tax, 2),
+            niit=niit,
             total_tax_before_credits=total_tax,
             effective_rate=effective_rate,
             marginal_rate=marginal_rate,

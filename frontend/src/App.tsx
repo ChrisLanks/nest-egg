@@ -127,6 +127,9 @@ const InvestmentToolsPage = lazy(() => import("./pages/InvestmentToolsPage"));
 const NetWorthTimelinePage = lazy(() => import("./pages/NetWorthTimelinePage"));
 const FinancialHealthPage = lazy(() => import("./pages/FinancialHealthPage"));
 const FinancialPlanPage = lazy(() => import("./pages/FinancialPlanPage"));
+const PePerformancePage = lazy(() => import("./pages/PePerformancePage"));
+const BondLadderPage = lazy(() => import("./pages/BondLadderPage"));
+const WhatIfPage = lazy(() => import("./pages/WhatIfPage"));
 const WelcomePage = lazy(() => import("./pages/WelcomePage"));
 const VerifyEmailPage = lazy(() => import("./pages/VerifyEmailPage"));
 const ForgotPasswordPage = lazy(() =>
@@ -256,6 +259,9 @@ function App() {
                       <Route path="/investment-tools" element={<InvestmentToolsPage />} />
                       <Route path="/financial-health" element={<FinancialHealthPage />} />
                       <Route path="/financial-plan" element={<FinancialPlanPage />} />
+                      <Route path="/pe-performance" element={<PePerformancePage />} />
+                      <Route path="/bond-ladder" element={<BondLadderPage />} />
+                      <Route path="/what-if" element={<WhatIfPage />} />
                       {/* Individual pages still accessible directly (deep links, bookmarks) */}
                       <Route path="/ss-claiming" element={<Navigate to="/life-planning" replace />} />
                       <Route path="/tax-projection" element={<Navigate to="/tax-center" replace />} />

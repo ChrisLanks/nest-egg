@@ -62,14 +62,17 @@ class TestBunchingAnalysis:
 
     async def test_bunching_advantage_positive_when_giving_below_std_ded(self):
         """Below std deduction, bunching every other year has clear advantage."""
+        from app.constants.financial import TAX
+        std_ded = TAX.STANDARD_DEDUCTION_SINGLE
+        # Pick giving so: annual < std_ded, but 2x annual > std_ded
+        giving = int(std_ded * 0.6)  # 60% of std ded — doubled = 120% > std ded
         result = await bunching_analysis(
-            annual_giving=8_000,
+            annual_giving=float(giving),
             marginal_rate=0.22,
-            filing_status="single",  # std ded = 15000; 8k < 15k, 16k > 15k
+            filing_status="single",
             current_user=_make_user(),
         )
-        # Bunching year: 16k - 15k = 1000 benefit at 22% = $220
-        # Annual: 8k < 15k → $0 each year
+        # Bunching year: 2*giving - std_ded benefit; annual: $0 each year
         assert result["bunching_advantage"] > 0
 
     async def test_annual_strategy_tax_savings_proportional_to_rate(self):

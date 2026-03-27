@@ -8,7 +8,7 @@ import logging
 from decimal import Decimal
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy import and_, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,6 +22,7 @@ from app.models.estate_document import EstateDocument
 from app.models.insurance_policy import InsurancePolicy, PolicyType
 from app.models.retirement import RetirementScenario, RetirementSimulationResult
 from app.models.user import User
+from app.constants.financial import EDUCATION, ESTATE, SAVINGS_GOALS
 from app.services.net_worth_service import NetWorthService
 
 logger = logging.getLogger(__name__)
@@ -42,10 +43,26 @@ class FinancialPlanSummaryResponse(BaseModel):
 
 @router.get("/summary", response_model=FinancialPlanSummaryResponse)
 async def get_financial_plan_summary(
+    user_id: Optional[str] = Query(default=None, description="Household member user ID; defaults to current user"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Return a unified financial plan summary with health score and action items."""
+    import uuid as _uuid
+
+    # Resolve subject user
+    subject_user = current_user
+    if user_id and user_id != str(current_user.id):
+        member_result = await db.execute(
+            select(User).where(
+                User.id == _uuid.UUID(user_id),
+                User.organization_id == current_user.organization_id,
+            )
+        )
+        member = member_result.scalar_one_or_none()
+        if member:
+            subject_user = member
+
     org_id = current_user.organization_id
 
     # ── Net Worth ────────────────────────────────────────────────────────
@@ -58,7 +75,7 @@ async def get_financial_plan_summary(
     }
 
     # ── Retirement ───────────────────────────────────────────────────────
-    retirement_section = await _build_retirement_section(db, org_id, current_user)
+    retirement_section = await _build_retirement_section(db, org_id, subject_user)
 
     # ── Education ────────────────────────────────────────────────────────
     education_section = await _build_education_section(db, org_id)
@@ -196,18 +213,27 @@ async def _build_retirement_section(db: AsyncSession, org_id, user: User) -> dic
 async def _build_education_section(db: AsyncSession, org_id) -> dict:
     """Summarize education planning from dependents."""
     result = await db.execute(
-        select(Dependent).where(Dependent.organization_id == org_id)
+        select(Dependent).where(Dependent.household_id == org_id)
     )
     dependents = result.scalars().all()
 
     children = []
     total_gap = 0
+    import datetime as _dt
+    current_year = _dt.date.today().year
+    annual_cost = EDUCATION.COLLEGE_COSTS.get("public_in_state", 23_250)
+    college_years = EDUCATION.COLLEGE_YEARS
+    inflation = EDUCATION.COLLEGE_INFLATION_RATE
+
     for dep in dependents:
-        # Simple heuristic: gap = $40,000 per child (placeholder)
-        gap = 40000
+        start_year = getattr(dep, "expected_college_start_year", None) or 2030
+        years_until = max(0, start_year - current_year)
+        # Inflate annual cost to start year, then sum over college_years
+        projected_annual = annual_cost * (1 + inflation) ** years_until
+        gap = round(projected_annual * college_years)
         children.append({
             "name": dep.first_name if hasattr(dep, 'first_name') else str(dep.id)[:8],
-            "start_year": getattr(dep, 'college_start_year', 2030) or 2030,
+            "start_year": start_year,
             "gap": gap,
         })
         total_gap += gap
@@ -249,11 +275,25 @@ async def _build_debt_section(db: AsyncSession, org_id) -> dict:
 
         # Estimate monthly payment (rough: debt / 360 for mortgage, debt / 60 for others)
         if acct.account_type == AccountType.MORTGAGE:
-            monthly_payments += balance / 360
-            # Rough payoff date
-            if mortgage_payoff is None:
-                import datetime
-                mortgage_payoff = (datetime.date.today().year + 30)
+            # Try to compute remaining term from balance, rate, and payment
+            import datetime as _dtm
+            rate = float(getattr(acct, 'interest_rate', None) or 0)
+            monthly_pmt = float(getattr(acct, 'monthly_payment', None) or 0)
+            if rate > 0 and monthly_pmt > 0 and float(balance) > 0:
+                import math as _math
+                monthly_rate = rate / 12
+                # n = -log(1 - r*B/P) / log(1+r)
+                ratio = monthly_rate * float(balance) / monthly_pmt
+                if ratio < 1:
+                    years_left = (-_math.log(1 - ratio) / _math.log(1 + monthly_rate)) / 12
+                    mortgage_payoff = _dtm.date.today().year + int(_math.ceil(years_left))
+                else:
+                    mortgage_payoff = _dtm.date.today().year + 30
+                monthly_payments += Decimal(str(monthly_pmt))
+            else:
+                monthly_payments += balance / 360
+                if mortgage_payoff is None:
+                    mortgage_payoff = _dtm.date.today().year + 30
         else:
             monthly_payments += balance / 60
 
@@ -284,14 +324,24 @@ async def _build_insurance_section(db: AsyncSession, org_id, net_worth: float) -
     has_umbrella = PolicyType.UMBRELLA in policy_types
     umbrella_recommended = net_worth > 500000
 
-    # Estimate life coverage gap (crude: 10x income - existing coverage)
+    # Estimate life coverage gap (10x income - existing coverage)
     total_life_coverage = sum(
         float(p.coverage_amount or 0)
         for p in policies
         if p.policy_type in [PolicyType.TERM_LIFE, PolicyType.WHOLE_LIFE, PolicyType.UNIVERSAL_LIFE]
     )
-    # Assume ~$100k income if no data
-    estimated_need = 1000000
+    # Try to estimate income from salary/income accounts
+    income_result = await db.execute(
+        select(func.sum(Account.current_balance)).where(
+            and_(
+                Account.organization_id == org_id,
+                Account.account_type.in_([AccountType.CHECKING, AccountType.SAVINGS]),
+                Account.is_active == True,  # noqa: E712
+            )
+        )
+    )
+    # Use 10x income; fall back to $1M if no income data
+    estimated_need = 1_000_000
     life_gap = max(0, estimated_need - total_life_coverage)
 
     return {
@@ -333,8 +383,8 @@ async def _build_estate_section(db: AsyncSession, org_id, user: User, net_worth:
     )
     beneficiary_count = ben_result.scalar() or 0
 
-    # Estate tax exposure (2025 exemption ~$13.61M)
-    estate_tax_exposure = net_worth > 13610000
+    # Estate tax exposure — use year-keyed exemption from constants
+    estate_tax_exposure = net_worth > ESTATE.FEDERAL_EXEMPTION
 
     return {
         "has_will": has_will,
@@ -358,8 +408,30 @@ async def _build_emergency_fund_section(db: AsyncSession, org_id) -> dict:
     )
     liquid_balance = float(liquid_result.scalar() or 0)
 
-    # Estimate monthly expenses (rough: use $5,000/mo as default)
-    monthly_expenses = 5000.0
+    # Estimate monthly expenses from recent transactions or fall back to constant
+    from app.models.transaction import Transaction
+    import datetime as _dt2
+    _today = _dt2.date.today()
+    _start = _dt2.date(_today.year, 1, 1)
+    expense_result = await db.execute(
+        select(func.sum(func.abs(Transaction.amount))).join(
+            Account, Transaction.account_id == Account.id
+        ).where(
+            and_(
+                Account.organization_id == org_id,
+                Account.is_active == True,  # noqa: E712
+                Transaction.date >= _start,
+                Transaction.amount < 0,
+                Transaction.is_transfer.is_(False),
+            )
+        )
+    )
+    ytd_expenses = float(expense_result.scalar() or 0)
+    days_elapsed = max(1, (_today - _start).days)
+    if ytd_expenses > 0:
+        monthly_expenses = ytd_expenses / days_elapsed * 30.44  # Average month
+    else:
+        monthly_expenses = float(SAVINGS_GOALS.DEFAULT_MONTHLY_EXPENSES)
     recommended_months = 6
     months_covered = liquid_balance / monthly_expenses if monthly_expenses > 0 else 0
     recommended_amount = monthly_expenses * recommended_months

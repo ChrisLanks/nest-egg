@@ -2,7 +2,7 @@
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -123,6 +123,7 @@ def _recommended_location(asset_class: Optional[str], ticker: Optional[str]) -> 
 
 @router.get("/asset-location", response_model=AssetLocationResponse)
 async def get_asset_location(
+    user_id: Optional[str] = Query(default=None, description="Household member user ID; defaults to all org accounts"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -132,17 +133,36 @@ async def get_asset_location(
     Returns each holding with its current tax treatment, the recommended
     treatment, and whether the two match.
     """
+    import uuid as _uuid
+
+    # Resolve subject user
+    subject_user_id = None
+    if user_id and user_id != str(current_user.id):
+        member_result = await db.execute(
+            select(User).where(
+                User.id == _uuid.UUID(user_id),
+                User.organization_id == current_user.organization_id,
+            )
+        )
+        member = member_result.scalar_one_or_none()
+        if member:
+            subject_user_id = member.id
+    elif user_id:
+        subject_user_id = current_user.id
+
     # Fetch holdings joined to their account, scoped to this user's org.
+    conditions = [
+        Holding.organization_id == current_user.organization_id,
+        Account.organization_id == current_user.organization_id,
+        Account.is_active == True,  # noqa: E712
+    ]
+    if subject_user_id:
+        conditions.append(Account.user_id == subject_user_id)
+
     result = await db.execute(
         select(Holding, Account)
         .join(Account, Holding.account_id == Account.id)
-        .where(
-            and_(
-                Holding.organization_id == current_user.organization_id,
-                Account.organization_id == current_user.organization_id,
-                Account.is_active == True,  # noqa: E712
-            )
-        )
+        .where(and_(*conditions))
         .order_by(Account.name, Holding.ticker)
     )
     rows = result.all()

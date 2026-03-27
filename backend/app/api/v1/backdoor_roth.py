@@ -70,23 +70,38 @@ class BackdoorRothResponse(BaseModel):
 async def get_backdoor_roth_analysis(
     filing_status: str = Query(default="single"),
     estimated_magi: Optional[float] = Query(default=None),
+    user_id: Optional[str] = Query(default=None, description="Household member user ID; defaults to current user"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Analyze backdoor Roth and mega backdoor Roth opportunities for this user."""
+    import uuid as _uuid
     today = datetime.date.today()
     tax_year = today.year
 
+    # Resolve subject user (supports household member switching)
+    subject_user = current_user
+    if user_id and user_id != str(current_user.id):
+        member_result = await db.execute(
+            select(User).where(
+                User.id == _uuid.UUID(user_id),
+                User.organization_id == current_user.organization_id,
+            )
+        )
+        member = member_result.scalar_one_or_none()
+        if member:
+            subject_user = member
+
     current_age: Optional[int] = None
-    if current_user.birthdate:
-        bd = current_user.birthdate
+    if subject_user.birthdate:
+        bd = subject_user.birthdate
         current_age = today.year - bd.year - ((today.month, today.day) < (bd.month, bd.day))
 
     # Fetch IRA accounts
     ira_result = await db.execute(
         select(Account).where(
             Account.organization_id == current_user.organization_id,
-            Account.user_id == current_user.id,
+            Account.user_id == subject_user.id,
             Account.account_type.in_(list(TRADITIONAL_IRA_TYPES)),
             Account.is_active == True,
         )
@@ -97,7 +112,7 @@ async def get_backdoor_roth_analysis(
     k401_result = await db.execute(
         select(Account).where(
             Account.organization_id == current_user.organization_id,
-            Account.user_id == current_user.id,
+            Account.user_id == subject_user.id,
             Account.account_type.in_(list(EMPLOYER_PLAN_TYPES)),
             Account.is_active == True,
         )

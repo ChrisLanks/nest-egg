@@ -2,7 +2,7 @@
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -139,6 +139,7 @@ def _analyze_pension(account: Account) -> PensionAnalysis:
 
 @router.get("/pension-model", response_model=PensionModelerResponse)
 async def get_pension_model(
+    user_id: Optional[str] = Query(default=None, description="Household member user ID; defaults to current user"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -148,14 +149,30 @@ async def get_pension_model(
     Returns break-even analysis, lifetime value estimates, and a plain-language
     recommendation for each pension account in the household.
     """
-    result = await db.execute(
-        select(Account).where(
-            and_(
-                Account.organization_id == current_user.organization_id,
-                Account.account_type.in_([t.value for t in _PENSION_TYPES]),
-                Account.is_active == True,  # noqa: E712
+    import uuid as _uuid
+
+    # Resolve subject user
+    conditions = [
+        Account.organization_id == current_user.organization_id,
+        Account.account_type.in_([t.value for t in _PENSION_TYPES]),
+        Account.is_active == True,  # noqa: E712
+    ]
+    if user_id:
+        if user_id != str(current_user.id):
+            member_result = await db.execute(
+                select(User).where(
+                    User.id == _uuid.UUID(user_id),
+                    User.organization_id == current_user.organization_id,
+                )
             )
-        )
+            member = member_result.scalar_one_or_none()
+            if member:
+                conditions.append(Account.user_id == member.id)
+        else:
+            conditions.append(Account.user_id == current_user.id)
+
+    result = await db.execute(
+        select(Account).where(and_(*conditions))
         .order_by(Account.name)
     )
     accounts = result.scalars().all()

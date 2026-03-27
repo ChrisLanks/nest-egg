@@ -13,6 +13,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
+from app.constants.financial import SS, TAX
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.services.state_tax_service import StateTaxService
@@ -215,6 +216,7 @@ class SalaryChangeRequest(BaseModel):
     new_salary: float = Field(..., gt=0)
     current_state: str = Field(..., min_length=2, max_length=2)
     new_state: Optional[str] = Field(None, min_length=2, max_length=2)
+    filing_status: str = Field("single", description="single or married")
     new_401k_match_pct: float = Field(0, ge=0, le=100, description="Employer 401k match %")
     current_401k_match_pct: float = Field(0, ge=0, le=100)
     hsa_contribution: float = Field(0, ge=0, description="Employer HSA contribution")
@@ -234,23 +236,24 @@ async def salary_change_comparison(
     current_user: User = Depends(get_current_user),
 ):
     """Compare total compensation and net impact of a salary change."""
+    import datetime
     new_state = request.new_state or request.current_state
+    current_year = datetime.date.today().year
+    filing_status = request.filing_status
 
-    # Federal tax (simplified brackets for 2025)
+    # Federal tax using year-keyed brackets from constants
     def federal_tax(income: float) -> float:
-        brackets = [
-            (11600, 0.10), (47150, 0.12), (100525, 0.22),
-            (191950, 0.24), (243725, 0.32), (609350, 0.35),
-            (float('inf'), 0.37),
-        ]
+        tax_data = TAX.for_year(current_year)
+        bracket_key = "BRACKETS_MARRIED" if filing_status.lower() in ("married", "mfj") else "BRACKETS_SINGLE"
+        brackets = tax_data[bracket_key]
         tax = 0.0
-        prev = 0
-        for limit, rate in brackets:
-            taxable = min(income, limit) - prev
+        prev = 0.0
+        for rate, ceiling in brackets:
+            taxable = min(income, ceiling) - prev
             if taxable > 0:
                 tax += taxable * rate
-            prev = limit
-            if income <= limit:
+            prev = ceiling
+            if income <= ceiling:
                 break
         return tax
 
@@ -264,9 +267,11 @@ async def salary_change_comparison(
         new_state, Decimal(str(request.new_salary))
     ))
 
-    # FICA (Social Security 6.2% up to $168,600 + Medicare 1.45%)
+    # FICA (Social Security 6.2% up to taxable max + Medicare 1.45%)
+    ss_taxable_max = SS.TAXABLE_MAX
+
     def fica(salary):
-        ss = min(salary, 168600) * 0.062
+        ss = min(salary, ss_taxable_max) * 0.062
         medicare = salary * 0.0145
         return ss + medicare
 

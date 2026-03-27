@@ -37,11 +37,13 @@ def get_fra(birth_year: int) -> float:
     return 67.0
 
 
-def estimate_pia(aime: float) -> float:
+def estimate_pia(aime: float, year_turn_62: int | None = None) -> float:
     """Calculate PIA from Average Indexed Monthly Earnings using bend point formula.
 
     Args:
         aime: Average Indexed Monthly Earnings (monthly)
+        year_turn_62: Year the worker turns 62 (bend points are set for this year).
+                      Defaults to current year if not provided.
 
     Returns:
         Monthly PIA (Primary Insurance Amount) at FRA
@@ -49,18 +51,27 @@ def estimate_pia(aime: float) -> float:
     if aime <= 0:
         return 0.0
 
+    # Use bend points for the year the worker turns 62
+    if year_turn_62 is not None:
+        ss_data = SS.for_year(year_turn_62)
+        bp1 = ss_data["BEND_POINT_1"]
+        bp2 = ss_data["BEND_POINT_2"]
+    else:
+        bp1 = BEND_POINT_1
+        bp2 = BEND_POINT_2
+
     pia = 0.0
 
     # First segment: 90% of AIME up to first bend point
-    pia += RATE_1 * min(aime, BEND_POINT_1)
+    pia += RATE_1 * min(aime, bp1)
 
     # Second segment: 32% of AIME between bend points
-    if aime > BEND_POINT_1:
-        pia += RATE_2 * min(aime - BEND_POINT_1, BEND_POINT_2 - BEND_POINT_1)
+    if aime > bp1:
+        pia += RATE_2 * min(aime - bp1, bp2 - bp1)
 
     # Third segment: 15% of AIME above second bend point
-    if aime > BEND_POINT_2:
-        pia += RATE_3 * (aime - BEND_POINT_2)
+    if aime > bp2:
+        pia += RATE_3 * (aime - bp2)
 
     return round(pia, 2)
 

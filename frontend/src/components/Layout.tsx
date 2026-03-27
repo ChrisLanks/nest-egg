@@ -982,6 +982,24 @@ export const Layout = () => {
         "FIRE metrics, equity compensation, loan modeler, HSA optimizer, tax-equivalent yield, asset location, employer match, and cost basis aging",
       advanced: true,
     },
+    {
+      label: "What-If Scenarios",
+      path: "/what-if",
+      tooltip:
+        "Mortgage vs invest, salary change, relocation tax impact, early retirement analysis",
+    },
+    {
+      label: "Bond Ladder",
+      path: "/bond-ladder",
+      tooltip: "Build a Treasury/CD/TIPS bond ladder for income generation",
+      advanced: true,
+    },
+    {
+      label: "PE Performance",
+      path: "/pe-performance",
+      tooltip: "Private equity TVPI, DPI, RVPI, IRR metrics and capital call history",
+      advanced: true,
+    },
   ];
 
   const filterVisible = (

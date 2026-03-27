@@ -6,7 +6,11 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.constants.financial import MEDICARE
+from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 
@@ -63,15 +67,31 @@ async def get_irmaa_projection(
     filing_status: str = Query(default="single", description="single or married"),
     income_growth_rate: float = Query(default=0.03, ge=0.0, le=0.20),
     projection_years: int = Query(default=15, ge=1, le=40),
+    user_id: Optional[str] = Query(default=None, description="Household member user ID; defaults to current user"),
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Project Medicare Part B/D premiums including IRMAA surcharges based on income trajectory."""
+    import uuid as _uuid
     today = datetime.date.today()
     current_year = today.year
 
+    # Resolve subject user
+    subject_user = current_user
+    if user_id and user_id != str(current_user.id):
+        member_result = await db.execute(
+            select(User).where(
+                User.id == _uuid.UUID(user_id),
+                User.organization_id == current_user.organization_id,
+            )
+        )
+        member = member_result.scalar_one_or_none()
+        if member:
+            subject_user = member
+
     current_age: Optional[int] = None
-    if current_user.birthdate:
-        bd = current_user.birthdate
+    if subject_user.birthdate:
+        bd = subject_user.birthdate
         current_age = today.year - bd.year - ((today.month, today.day) < (bd.month, bd.day))
 
     married = filing_status.lower() in ("married", "mfj")

@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.v1 import (
     accounts,
+    amt_calculator,
     asset_location,
     attachments,
     auth,
@@ -29,6 +30,7 @@ from app.api.v1 import (
     csv_import,
     dashboard,
     debt_payoff,
+    deduction_optimizer,
     dependents,
     dev,
     dividend_calendar,
@@ -44,6 +46,7 @@ from app.api.v1 import (
     financial_templates,
     fire,
     fx_rates,
+    gift_tracker,
     insurance_audit,
     insurance_policies,
     guest_access,
@@ -95,6 +98,7 @@ from app.api.v1 import (
     transactions,
     treasury_rates,
     what_if,
+    withholding_check,
 )
 from app.api.v1 import settings as settings_router
 from app.config import settings
@@ -891,5 +895,29 @@ app.include_router(
     calculator_prefill.router,
     prefix="/api/v1/calculators",
     tags=["Calculator Prefill"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    amt_calculator.router,
+    prefix="/api/v1/tax",
+    tags=["AMT Calculator"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    gift_tracker.router,
+    prefix="/api/v1/estate",
+    tags=["Gift Tracker"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    deduction_optimizer.router,
+    prefix="/api/v1/tax",
+    tags=["Deduction Optimizer"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    withholding_check.router,
+    prefix="/api/v1/what-if",
+    tags=["Withholding Check"],
     dependencies=_guest_dep,
 )

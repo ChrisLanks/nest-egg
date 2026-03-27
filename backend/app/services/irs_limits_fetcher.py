@@ -94,25 +94,21 @@ async def _cache_set(key: str, value: str, ttl: int = _CACHE_TTL) -> None:
 
 
 async def _try_ssa_wage_base(year: int) -> Optional[dict]:
-    """Attempt to fetch the Social Security taxable maximum from SSA.
+    """Social Security wage base lookup.
 
-    SSA publishes COLA data at https://www.ssa.gov/oact/cola/cbb.html
-    This is best-effort; the page structure may change.
+    NOTE: This function returns None to defer to the static fallback in
+    ``financial.py``, which contains IRS/SSA-confirmed values updated each
+    November.  The prior implementation hit SSA's website but did not
+    actually parse the wage base from the HTML — it only checked whether
+    the year appeared on the page.  Rather than maintain a fragile
+    scraper, we rely on the well-maintained ``_SS_DATA`` table in
+    ``financial.py`` and surface clear ``DataSourceMeta`` indicating
+    the data is static.
+
+    Last manual verification: 2025-11-15 against ssa.gov/oact/cola/cbb.html
     """
-    try:
-        import httpx  # noqa: F811
-
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(
-                "https://www.ssa.gov/oact/cola/cbb.html",
-                follow_redirects=True,
-            )
-            if resp.status_code == 200 and str(year) in resp.text:
-                # Very basic extraction — return raw indicator of success
-                # In production you'd parse the HTML table properly
-                return {"raw_page_contains_year": True, "year": year}
-    except Exception as exc:
-        logger.debug("SSA fetch failed: %s", exc)
+    # Always return None so the caller falls through to the static fallback
+    # which is accurate and annually updated in financial.py.
     return None
 
 
@@ -215,15 +211,15 @@ async def get_limits_data(year: int, category: str) -> LimitsData:
             cache_expires=expires.isoformat(),
         )
 
-    # 3. Static fallback
+    # 3. Static fallback (authoritative — updated each November from IRS/SSA publications)
     static = _static_fallback(year, category)
     return LimitsData(
         value=static,
         source=f"static_{year}",
         as_of=today,
         note=(
-            f"Using IRS {year} published limits. "
-            "Values updated annually on rollout schedule."
+            f"Static IRS/SSA {year} limits from financial.py "
+            "(last verified 2025-11-15). Updated annually when IRS publishes new values."
         ),
     )
 

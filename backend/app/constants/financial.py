@@ -1422,18 +1422,40 @@ class TREASURY:
 # =========================================================================
 
 
-class ESTATE:
-    """Estate and beneficiary planning constants (2026 figures)."""
+_ESTATE_DATA: dict[int, dict] = {
+    2024: {"FEDERAL_EXEMPTION": 13_610_000, "ANNUAL_GIFT_EXCLUSION": 18_000},
+    2025: {"FEDERAL_EXEMPTION": 13_990_000, "ANNUAL_GIFT_EXCLUSION": 19_000},
+    2026: {"FEDERAL_EXEMPTION": 13_990_000, "ANNUAL_GIFT_EXCLUSION": 19_000},  # projected same, COLA TBD
+}
+_ESTATE_PROJ: dict[str, tuple] = {
+    "FEDERAL_EXEMPTION": (0.03, 10_000),
+    "ANNUAL_GIFT_EXCLUSION": (0.025, 1_000),
+}
 
-    FEDERAL_EXEMPTION = 13_990_000
+
+class ESTATE:
+    """Estate and beneficiary planning constants with year-keyed data."""
+
+    # Current-year values for backward compatibility
+    _d = _resolve(_ESTATE_DATA, _ESTATE_PROJ)
+    FEDERAL_EXEMPTION = _d["FEDERAL_EXEMPTION"]
+    ANNUAL_GIFT_EXCLUSION = _d["ANNUAL_GIFT_EXCLUSION"]
+    ANNUAL_GIFT_EXCLUSION_MARRIED = _d["ANNUAL_GIFT_EXCLUSION"] * 2
+
     FEDERAL_TAX_RATE = Decimal("0.40")
-    ANNUAL_GIFT_EXCLUSION = 19_000
-    ANNUAL_GIFT_EXCLUSION_MARRIED = 38_000
     PORTABILITY_ELECTION_DEADLINE_MONTHS = 9
     # TCJA exemption extended through 2034 by One Big Beautiful Bill Act (signed 2025).
     # Sunset risk deferred to 2034, not imminent.
     TCJA_SUNSET_RISK = False
     TCJA_SUNSET_YEAR = 2034
+
+    @classmethod
+    def for_year(cls, year: int) -> dict:
+        """Return estate constants for a specific year (projects forward if not hardcoded)."""
+        data = _resolve(_ESTATE_DATA, _ESTATE_PROJ, year)
+        data["ANNUAL_GIFT_EXCLUSION_MARRIED"] = data["ANNUAL_GIFT_EXCLUSION"] * 2
+        data["FEDERAL_TAX_RATE"] = float(cls.FEDERAL_TAX_RATE)
+        return data
 
 
 # =========================================================================

@@ -2,7 +2,7 @@
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -132,6 +132,7 @@ _STATIC_COVERAGE = [
 
 @router.get("/insurance-audit", response_model=InsuranceAuditResponse)
 async def get_insurance_audit(
+    user_id: Optional[str] = Query(default=None, description="Household member user ID; defaults to current user"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -141,15 +142,34 @@ async def get_insurance_audit(
     Surfaces any LIFE_INSURANCE_CASH_VALUE accounts from the database and
     combines them with a static checklist of recommended coverage types.
     """
-    # Fetch life insurance cash-value accounts for this org
-    life_result = await db.execute(
-        select(Account).where(
-            and_(
-                Account.organization_id == current_user.organization_id,
-                Account.account_type == AccountType.LIFE_INSURANCE_CASH_VALUE,
-                Account.is_active == True,  # noqa: E712
+    import uuid as _uuid
+
+    # Resolve subject user
+    subject_user_id = None
+    if user_id:
+        if user_id != str(current_user.id):
+            member_result = await db.execute(
+                select(User).where(
+                    User.id == _uuid.UUID(user_id),
+                    User.organization_id == current_user.organization_id,
+                )
             )
-        )
+            member = member_result.scalar_one_or_none()
+            if member:
+                subject_user_id = member.id
+        else:
+            subject_user_id = current_user.id
+
+    # Fetch life insurance cash-value accounts for this org
+    life_conditions = [
+        Account.organization_id == current_user.organization_id,
+        Account.account_type == AccountType.LIFE_INSURANCE_CASH_VALUE,
+        Account.is_active == True,  # noqa: E712
+    ]
+    if subject_user_id:
+        life_conditions.append(Account.user_id == subject_user_id)
+    life_result = await db.execute(
+        select(Account).where(and_(*life_conditions))
     )
     life_accounts = life_result.scalars().all()
 

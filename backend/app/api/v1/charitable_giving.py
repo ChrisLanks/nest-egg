@@ -13,15 +13,16 @@ from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import Account
 from app.models.transaction import Label, Transaction, TransactionLabel
+from app.constants.financial import TAX
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Charitable Giving"])
 
-# 2026 standard deductions (indexed, approximate)
-STANDARD_DEDUCTION_SINGLE = 15_000
-STANDARD_DEDUCTION_MFJ = 30_000
+# Standard deductions sourced from year-keyed constants
+STANDARD_DEDUCTION_SINGLE = TAX.STANDARD_DEDUCTION_SINGLE
+STANDARD_DEDUCTION_MFJ = TAX.STANDARD_DEDUCTION_MARRIED
 QCD_ANNUAL_LIMIT = 105_000
 QCD_AGE_THRESHOLD = 70  # age 70.5 — we check >= 70 as a proxy
 
