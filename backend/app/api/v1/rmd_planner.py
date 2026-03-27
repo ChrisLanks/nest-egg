@@ -88,22 +88,38 @@ async def get_rmd_planner(
     growth_rate: float = Query(default=0.06, ge=0.0, le=0.20),
     filing_status: str = Query(default="single"),
     other_annual_income: float = Query(default=50_000.0, ge=0),
+    user_id: Optional[str] = Query(default=None, description="Household member user ID; defaults to current user"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Project annual RMDs across all pre-tax retirement accounts with tax impact."""
+    import uuid as _uuid
     today = datetime.date.today()
     current_year = today.year
 
+    # Resolve which user to project for (supports household member switching)
+    subject_user = current_user
+    if user_id and user_id != str(current_user.id):
+        member_result = await db.execute(
+            select(User).where(
+                User.id == _uuid.UUID(user_id),
+                User.organization_id == current_user.organization_id,
+            )
+        )
+        member = member_result.scalar_one_or_none()
+        if member:
+            subject_user = member
+
     current_age: Optional[int] = None
-    if current_user.birthdate:
-        bd = current_user.birthdate
+    if subject_user.birthdate:
+        bd = subject_user.birthdate
         current_age = today.year - bd.year - ((today.month, today.day) < (bd.month, bd.day))
 
-    # Fetch RMD-eligible accounts
+    # Fetch RMD-eligible accounts for THIS user only
     result = await db.execute(
         select(Account).where(
             Account.organization_id == current_user.organization_id,
+            Account.user_id == subject_user.id,
             Account.account_type.in_(list(RMD_ACCOUNT_TYPES)),
             Account.is_active == True,
         )
@@ -122,7 +138,7 @@ async def get_rmd_planner(
     total_current_balance = sum(float(a.current_balance or 0) for a in accounts)
 
     # Use birth-year-aware RMD start age (SECURE 2.0: age 75 for born 1960+)
-    birth_year = current_user.birthdate.year if current_user.birthdate else None
+    birth_year = subject_user.birthdate.year if subject_user.birthdate else None
     rmd_start_age = RMD_CONSTANTS.trigger_age_for_birth_year(birth_year)
     years_until_rmd = max(0, rmd_start_age - current_age) if current_age else 0
 
@@ -144,7 +160,7 @@ async def get_rmd_planner(
             # Grow balance first, then take RMD
             grown_bal = running_balances[a.id] * (1 + growth_rate)
             rmd_amount = 0.0
-            if requires_rmd(age):
+            if requires_rmd(age, birth_year):
                 rmd_dec = calculate_rmd(Decimal(str(grown_bal)), age)
                 if rmd_dec:
                     rmd_amount = float(rmd_dec)
