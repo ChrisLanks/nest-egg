@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 _ASSET_CATEGORY_MAP: Dict[AccountType, str] = {
     AccountType.CHECKING: "cash_and_checking",
     AccountType.MONEY_MARKET: "cash_and_checking",
+    AccountType.CASH: "cash_and_checking",
     AccountType.SAVINGS: "savings",
     AccountType.CD: "savings",
     AccountType.BROKERAGE: "investments",
@@ -32,6 +33,7 @@ _ASSET_CATEGORY_MAP: Dict[AccountType, str] = {
     AccountType.PRECIOUS_METALS: "investments",
     AccountType.BOND: "investments",
     AccountType.STOCK_OPTIONS: "investments",
+    AccountType.ESPP: "investments",
     AccountType.COLLECTIBLES: "investments",
     AccountType.BUSINESS_EQUITY: "investments",
     AccountType.LIFE_INSURANCE_CASH_VALUE: "investments",

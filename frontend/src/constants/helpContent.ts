@@ -227,6 +227,132 @@ export const helpContent = {
     fundingAllocation:
       "Waterfall fills goals by priority — the top goal gets funded first. Proportional splits your balance across all goals based on their target amounts.",
   },
+  // ── Education / 529 Planning ──────────────────────────────────────────
+  education: {
+    overview:
+      "529 plans are tax-advantaged savings accounts for education expenses. Contributions grow tax-free and withdrawals are tax-free when used for qualified education costs.",
+    collegeCostProjection:
+      "Projects how much college will cost when your child enrolls, accounting for tuition inflation (historically 5-6% per year). A 4-year degree at a public university averages $100K+ today.",
+    trumpAccount:
+      "A Minor's IRA (Trump Account) is a custodial traditional IRA for minors, enabled by the OBBBA. The child must have earned income. Contributions may be tax-deductible, and growth is tax-deferred until withdrawal.",
+    tips: [
+      "Front-load contributions early — compound growth does the heavy lifting.",
+      "Use the 529 superfunding rule to contribute up to 5 years of gift-tax-exclusion amounts at once.",
+      "If your child gets a scholarship, you can withdraw that amount penalty-free (taxes still apply on gains).",
+      "Under SECURE 2.0, unused 529 funds can be rolled to a Roth IRA for the beneficiary (lifetime max $35K, subject to annual Roth contribution limits).",
+    ],
+  },
+
+  // ── Estate Planning & Beneficiaries ──────────────────────────────────
+  estate: {
+    overview:
+      "Estate planning ensures your assets go where you want after death and minimizes taxes and legal complications for your heirs. Key documents include a will, power of attorney, and healthcare directive.",
+    beneficiaryReview:
+      "Review beneficiary designations on retirement accounts, life insurance, and bank accounts annually. These override your will — an outdated beneficiary can send assets to the wrong person.",
+    tips: [
+      "Name both primary and contingent beneficiaries on every account.",
+      "Update beneficiaries after marriage, divorce, birth of a child, or death of a beneficiary.",
+      "Consider a revocable living trust to avoid probate and maintain privacy.",
+      "The federal estate tax exemption is $13.61M per person (2024) — most people won't owe federal estate tax, but state thresholds can be much lower.",
+    ],
+  },
+
+  // ── Insurance Policy Tracking ──────────────────────────────────────
+  insurance: {
+    overview:
+      "Track all your insurance policies in one place to identify coverage gaps and manage renewals. The coverage audit compares your actual policies against recommended coverage levels.",
+    coverageGaps:
+      "A coverage gap means you're missing a type of insurance that's important for your situation. For example, no disability insurance means your income isn't protected if you can't work.",
+    tips: [
+      "Life insurance: aim for 10-12x your gross income if anyone depends on your income.",
+      "Disability insurance: your earning capacity is your biggest asset — protect 60-70% of gross income.",
+      "Umbrella insurance: once net worth exceeds $500K, a $1M umbrella policy costs just $150-300/year.",
+      "Review all policies annually — life changes (new baby, new home, salary increase) affect coverage needs.",
+    ],
+  },
+
+  // ── Equity Compensation ──────────────────────────────────────────
+  equityCompensation: {
+    overview:
+      "Equity compensation includes RSUs, ISOs, NSOs, and ESPPs. Each has different tax treatment — understanding the rules can save you thousands in taxes.",
+    rsu: "Restricted Stock Units are taxed as ordinary income when they vest. No action needed at grant — tax hits when shares are delivered.",
+    iso: "Incentive Stock Options get favorable tax treatment if you hold shares 2+ years from grant and 1+ year from exercise. But exercising triggers AMT — model it before you exercise.",
+    nso: "Non-Qualified Stock Options are taxed as ordinary income on the spread (market price minus strike price) when you exercise. No AMT concerns but higher tax rate than ISOs.",
+    espp: "Employee Stock Purchase Plans let you buy company stock at up to a 15% discount. Holding shares 2+ years from offering and 1+ year from purchase qualifies for lower tax rates on the discount.",
+    tips: [
+      "Don't let ISOs expire worthless — set calendar reminders before the expiration date.",
+      "For ESPPs, selling immediately after purchase locks in the discount with minimal stock risk.",
+      "Diversify concentrated stock positions gradually to manage risk — don't hold more than 10-15% of your net worth in one company.",
+    ],
+  },
+
+  // ── IRMAA & Medicare Planning ──────────────────────────────────────
+  irmaa: {
+    overview:
+      "IRMAA (Income-Related Monthly Adjustment Amount) is a surcharge on Medicare premiums for higher-income retirees. It's based on your tax return from 2 years ago.",
+    tips: [
+      "IRMAA thresholds are based on Modified Adjusted Gross Income (MAGI) from 2 years prior.",
+      "A large Roth conversion or capital gain can push you into a higher IRMAA bracket for 2 years.",
+      "If income dropped due to retirement or life-changing event, file SSA-44 to request an IRMAA reconsideration.",
+    ],
+  },
+
+  // ── Pension Planning ──────────────────────────────────────────────
+  pension: {
+    overview:
+      "Model your pension benefit under different scenarios — early vs. normal retirement, lump sum vs. annuity, and survivor benefit options.",
+    tips: [
+      "Compare the lump sum to the annuity using a 'personal discount rate' — typically 5-6% for most retirees.",
+      "Factor in COLA (cost-of-living adjustments) — a pension without COLA loses purchasing power over time.",
+      "Coordinate pension claiming with Social Security to minimize total tax burden in retirement.",
+    ],
+  },
+
+  // ── Variable Income ──────────────────────────────────────────────
+  variableIncome: {
+    overview:
+      "For freelancers and self-employed workers, income varies month to month. Set up a baseline budget, build a larger emergency fund (6-12 months), and pay quarterly estimated taxes.",
+    tips: [
+      "Keep a separate 'tax holding' account with 25-30% of each payment for estimated taxes.",
+      "Use the IRS safe harbor: pay 100% of last year's tax (110% if AGI > $150K) to avoid underpayment penalties.",
+      "SEP IRA contributions can be up to 25% of net self-employment income — a powerful retirement savings tool.",
+    ],
+  },
+
+  // ── Rental Properties ──────────────────────────────────────────────
+  rentalProperties: {
+    overview:
+      "Track rental income, expenses, and net operating income for each property. Depreciation reduces your tax bill even while the property appreciates in value.",
+    tips: [
+      "Residential rental property depreciates over 27.5 years for tax purposes.",
+      "The $25K passive loss allowance phases out between $100K-$150K AGI.",
+      "Screen tenants carefully — one bad tenant can wipe out a year's profit.",
+      "Keep a cash reserve of 6+ months of expenses per property for vacancies and repairs.",
+    ],
+  },
+
+  // ── Charitable Giving / QCDs ──────────────────────────────────────
+  charitableGiving: {
+    overview:
+      "Strategic charitable giving can reduce your tax bill while supporting causes you care about. Donating appreciated stock avoids capital gains tax.",
+    qcd: "Qualified Charitable Distributions let you donate up to $105K/year directly from your IRA to charity. It counts toward your RMD but isn't included in taxable income — a double benefit.",
+    tips: [
+      "Donate appreciated stock held over 1 year to avoid capital gains tax and deduct the full market value.",
+      "Bunch multiple years of donations into one year using a Donor Advised Fund to exceed the standard deduction.",
+      "QCDs are available starting at age 70.5 — even before RMDs begin at 73.",
+    ],
+  },
+
+  // ── Loan Modeler ──────────────────────────────────────────────────
+  loanModeler: {
+    overview:
+      "Compare different loan scenarios side by side — adjusting rate, term, and extra payments to see how each option affects total interest paid and payoff date.",
+    tips: [
+      "Even $100/month extra toward principal can save years and thousands in interest on a mortgage.",
+      "Compare 15-year vs. 30-year mortgages — the monthly payment is higher but total interest is dramatically lower.",
+      "When refinancing, calculate the break-even point: closing costs divided by monthly savings = months to recoup.",
+    ],
+  },
 } as const;
 
 /** Type helper for accessing help content keys. */

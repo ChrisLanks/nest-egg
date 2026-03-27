@@ -27,7 +27,9 @@ export const formatAccountType = (
     retirement_529: "529 Plan",
     hsa: "HSA",
     cd: "CD",
-    trump_account: "Trump Account",
+    trump_account: "Minor's IRA (Trump Account)",
+    espp: "ESPP",
+    cash: "Physical Cash",
     custodial_ugma: "UGMA/UTMA",
     trust: "Trust",
   };

@@ -54,6 +54,12 @@ export const ACCOUNT_TYPES = {
   PROPERTY: "property",
   VEHICLE: "vehicle",
 
+  // Cash
+  CASH: "cash",
+
+  // Equity Compensation
+  ESPP: "espp",
+
   // Other
   MANUAL: "manual",
   OTHER: "other",
@@ -70,6 +76,7 @@ export const basicManualAccountSchema = z.object({
     ACCOUNT_TYPES.SAVINGS,
     ACCOUNT_TYPES.MONEY_MARKET,
     ACCOUNT_TYPES.CD,
+    ACCOUNT_TYPES.CASH,
     ACCOUNT_TYPES.CREDIT_CARD,
     ACCOUNT_TYPES.LOAN,
     ACCOUNT_TYPES.STUDENT_LOAN,
@@ -159,6 +166,7 @@ export const investmentAccountSchema = z
       ACCOUNT_TYPES.ANNUITY,
       ACCOUNT_TYPES.BOND,
       ACCOUNT_TYPES.STOCK_OPTIONS,
+      ACCOUNT_TYPES.ESPP,
       ACCOUNT_TYPES.BUSINESS_EQUITY,
     ]),
     holdings: z.array(holdingSchema).optional(), // Optional - can provide holdings OR balance

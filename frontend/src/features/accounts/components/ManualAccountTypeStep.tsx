@@ -80,6 +80,13 @@ const accountTypeOptions: AccountTypeOption[] = [
     category: "basic",
   },
   {
+    type: ACCOUNT_TYPES.CASH,
+    label: "Physical Cash",
+    description: "Cash at home, safe, etc.",
+    icon: FiDollarSign,
+    category: "basic",
+  },
+  {
     type: ACCOUNT_TYPES.CREDIT_CARD,
     label: "Credit Card",
     description: "Credit card balance",
@@ -243,6 +250,13 @@ const accountTypeOptions: AccountTypeOption[] = [
     type: ACCOUNT_TYPES.STOCK_OPTIONS,
     label: "Stock Options",
     description: "Employee stock options",
+    icon: FiTrendingUp,
+    category: "securities",
+  },
+  {
+    type: ACCOUNT_TYPES.ESPP,
+    label: "ESPP",
+    description: "Employee stock purchase plan",
     icon: FiTrendingUp,
     category: "securities",
   },

@@ -8,6 +8,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import api from "../services/api";
+import { useLocalStorage } from "./useLocalStorage";
 
 interface Account {
   account_type: string;
@@ -187,6 +188,23 @@ export function buildConditionalDefaults(
 }
 
 /**
+ * For locked (conditional=false) nav items, returns a tooltip hint.
+ */
+export function getLockedNavTooltip(path: string): string | undefined {
+  const hints: Record<string, string> = {
+    "/rental-properties": "Add a rental property account to unlock",
+    "/education": "Add a 529 account to unlock",
+    "/debt-payoff": "Add a loan or credit card account to unlock",
+    "/mortgage": "Add a mortgage account to unlock",
+    "/recurring-bills": "Connect a bank account to unlock",
+    "/rules": "Add an account to unlock",
+    "/tax-deductible": "Add an investment or rental account to unlock",
+    "/ss-claiming": "Available once you reach age 50",
+  };
+  return hints[path];
+}
+
+/**
  * Hook — fetches accounts and user profile, returns computed nav defaults.
  * Both Layout and PreferencesPage call this so they always agree on what
  * "default visible" means for each path.
@@ -212,6 +230,9 @@ export function useNavDefaults(selectedUserId?: string | null) {
     staleTime: 30 * 60 * 1000,
   });
 
+  // show_locked_nav preference — stored in localStorage, default true
+  const [showLockedNav] = useLocalStorage<boolean>("show_locked_nav", true);
+
   const currentYear = new Date().getFullYear();
   const userAge = userProfile?.birth_year
     ? currentYear - userProfile.birth_year
@@ -224,7 +245,20 @@ export function useNavDefaults(selectedUserId?: string | null) {
     accountsLoading,
     userAge,
     conditionalDefaults,
+    showLockedNav,
     /** True if path should be visible by default (no overrides applied) */
     getDefault: (path: string): boolean => conditionalDefaults[path] ?? true,
+    /**
+     * Determines visibility state for a nav item:
+     * - "visible": show normally
+     * - "locked": show dimmed with tooltip (when showLockedNav=true)
+     * - "hidden": hide entirely (when showLockedNav=false and condition not met)
+     */
+    getNavState: (path: string): "visible" | "locked" | "hidden" => {
+      const isConditional = conditionalDefaults[path] !== undefined;
+      const conditionMet = conditionalDefaults[path] ?? true;
+      if (!isConditional || conditionMet) return "visible";
+      return showLockedNav ? "locked" : "hidden";
+    },
   };
 }

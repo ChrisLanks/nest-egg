@@ -20,7 +20,7 @@ describe("formatAccountType — overrides", () => {
     ["retirement_529", "529 Plan"],
     ["hsa", "HSA"],
     ["cd", "CD"],
-    ["trump_account", "Trump Account"],
+    ["trump_account", "Minor's IRA (Trump Account)"],
     ["custodial_ugma", "UGMA/UTMA"],
     ["trust", "Trust"],
   ])("formats %s as %s", (input, expected) => {
@@ -40,7 +40,7 @@ describe("formatAccountType — Roth tax treatment", () => {
 
   it("does not apply Roth prefix to non-retirement types", () => {
     expect(formatAccountType("hsa", "roth")).toBe("HSA");
-    expect(formatAccountType("trump_account", "roth")).toBe("Trump Account");
+    expect(formatAccountType("trump_account", "roth")).toBe("Minor's IRA (Trump Account)");
   });
 });
 
@@ -57,7 +57,7 @@ describe("formatAccountType — Traditional (pre_tax) suffix", () => {
   it("does not apply Traditional suffix to non-employer plan overrides", () => {
     expect(formatAccountType("hsa", "pre_tax")).toBe("HSA");
     expect(formatAccountType("retirement_sep_ira", "pre_tax")).toBe("SEP IRA");
-    expect(formatAccountType("trump_account", "pre_tax")).toBe("Trump Account");
+    expect(formatAccountType("trump_account", "pre_tax")).toBe("Minor's IRA (Trump Account)");
   });
 });
 

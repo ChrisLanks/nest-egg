@@ -62,10 +62,10 @@ describe("Trump Account group membership", () => {
 // ---------------------------------------------------------------------------
 
 describe("Sidebar config — Children's Savings group", () => {
-  it("places Trump Account in Children's Savings", () => {
+  it("places Trump Account in Education", () => {
     const config = ACCOUNT_TYPE_SIDEBAR_CONFIG[AccountType.TRUMP_ACCOUNT];
     expect(config).toBeDefined();
-    expect(config.label).toBe("Children's Savings");
+    expect(config.label).toBe("Education");
     expect(config.order).toBe(11);
   });
 
@@ -75,10 +75,10 @@ describe("Sidebar config — Children's Savings group", () => {
     expect(config.label).toBe("Children's Savings");
   });
 
-  it("places UGMA/UTMA in Children's Savings", () => {
+  it("places UGMA/UTMA in Education", () => {
     const config = ACCOUNT_TYPE_SIDEBAR_CONFIG[AccountType.CUSTODIAL_UGMA];
     expect(config).toBeDefined();
-    expect(config.label).toBe("Children's Savings");
+    expect(config.label).toBe("Education");
   });
 });
 

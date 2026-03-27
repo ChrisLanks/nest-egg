@@ -82,6 +82,7 @@ class AccountType(str, enum.Enum):
     SAVINGS = "savings"
     MONEY_MARKET = "money_market"
     CD = "cd"
+    CASH = "cash"  # Physical cash (home safes, etc.) — no interest, manual balance only
 
     # Credit & Debt
     CREDIT_CARD = "credit_card"
@@ -122,6 +123,7 @@ class AccountType(str, enum.Enum):
     TIPS = "tips"           # Treasury Inflation-Protected Securities
     I_BOND = "i_bond"       # Series I Savings Bonds (inflation-linked, 30-yr)
     STOCK_OPTIONS = "stock_options"
+    ESPP = "espp"  # Employee Stock Purchase Plan (Section 423)
 
     # Business
     BUSINESS_EQUITY = "business_equity"

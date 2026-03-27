@@ -14,6 +14,7 @@ export enum AccountType {
   SAVINGS = "savings",
   MONEY_MARKET = "money_market",
   CD = "cd",
+  CASH = "cash",
 
   // Credit & Debt
   CREDIT_CARD = "credit_card",
@@ -52,6 +53,7 @@ export enum AccountType {
   // Securities
   BOND = "bond",
   STOCK_OPTIONS = "stock_options",
+  ESPP = "espp",
 
   // Business
   BUSINESS_EQUITY = "business_equity",

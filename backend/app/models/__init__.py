@@ -23,6 +23,10 @@ from app.models.target_allocation import TargetAllocation
 from app.models.tax_lot import CostBasisMethod, TaxLot
 from app.models.transaction import Category, Label, Transaction, TransactionLabel
 from app.models.transaction_merge import TransactionMerge
+from app.models.dependent import Dependent
+from app.models.insurance_policy import InsurancePolicy, PolicyType
+from app.models.ss_benefit_estimate import SSBenefitEstimate
+from app.models.tax_loss_harvest import HarvestStatus, TaxLossHarvestRecord
 from app.models.user import Organization, RefreshToken, User
 
 __all__ = [
@@ -63,4 +67,10 @@ __all__ = [
     "BulkOperationLog",
     "AuditLog",
     "DividendIncome",
+    "Dependent",
+    "InsurancePolicy",
+    "PolicyType",
+    "SSBenefitEstimate",
+    "TaxLossHarvestRecord",
+    "HarvestStatus",
 ]

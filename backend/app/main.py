@@ -27,6 +27,7 @@ from app.api.v1 import (
     csv_import,
     dashboard,
     debt_payoff,
+    dependents,
     dev,
     dividend_calendar,
     dividend_income,
@@ -34,11 +35,13 @@ from app.api.v1 import (
     employer_match,
     enhanced_trends,
     enrichment,
+    espp,
     financial_planning,
     financial_ratios,
     financial_templates,
     fire,
     insurance_audit,
+    insurance_policies,
     guest_access,
     holdings,
     household,
@@ -60,6 +63,7 @@ from app.api.v1 import (
     rules,
     savings_goals,
     smart_insights,
+    social_security,
     subscriptions,
     backdoor_roth,
     capital_gains_harvesting,
@@ -78,11 +82,13 @@ from app.api.v1 import (
     tax_advisor,
     tax_equiv_yield,
     tax_buckets,
+    tax_loss_harvest_ledger,
     tax_lots,
     teller,
     transaction_merges,
     transaction_splits,
     transactions,
+    treasury_rates,
 )
 from app.api.v1 import settings as settings_router
 from app.config import settings
@@ -807,5 +813,41 @@ app.include_router(
     net_worth_percentile.router,
     prefix="/api/v1/dashboard",
     tags=["Net Worth Percentile"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    insurance_policies.router,
+    prefix="/api/v1/insurance-policies",
+    tags=["Insurance Policies"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    dependents.router,
+    prefix="/api/v1/dependents",
+    tags=["Dependents"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    espp.router,
+    prefix="/api/v1/espp",
+    tags=["ESPP"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    treasury_rates.router,
+    prefix="/api/v1/market-data",
+    tags=["Treasury Rates"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    social_security.router,
+    prefix="/api/v1/social-security",
+    tags=["Social Security"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    tax_loss_harvest_ledger.router,
+    prefix="/api/v1/tax-loss-harvesting",
+    tags=["TLH Harvest Ledger"],
     dependencies=_guest_dep,
 )

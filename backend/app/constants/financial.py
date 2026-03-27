@@ -1366,6 +1366,20 @@ class EQUITY:
 
 
 # =========================================================================
+# ESPP (Section 423 Employee Stock Purchase Plan)
+# =========================================================================
+
+
+class ESPP:
+    """Employee Stock Purchase Plan constants (IRC Section 423)."""
+
+    MAX_DISCOUNT_RATE = Decimal("0.15")  # Max 15% discount under Section 423
+    ANNUAL_PURCHASE_LIMIT = 25_000  # IRS Section 423 annual limit ($25K FMV)
+    QUALIFYING_HOLDING_PERIOD_DAYS = 730  # 2 years from offering date
+    QUALIFYING_PURCHASE_PERIOD_DAYS = 365  # 1 year from purchase date
+
+
+# =========================================================================
 # HEALTH SAVINGS ACCOUNT
 # =========================================================================
 
