@@ -27,6 +27,10 @@ from app.services.rate_limit_service import rate_limit_service
 from app.utils.datetime_utils import utc_now
 
 
+class LinkToRetirementRequest(BaseModel):
+    scenario_id: UUID
+
+
 class GoalTemplate(str, Enum):
     emergency_fund = "emergency_fund"
     vacation_fund = "vacation_fund"
@@ -344,4 +348,73 @@ async def record_contribution(
         "current_amount": float(goal.current_amount),
         "target_amount": float(goal.target_amount),
         "member_contributions": {k: float(Decimal(v)) for k, v in contributions.items()},
+    }
+
+
+@router.post("/{goal_id}/add-to-retirement-plan")
+async def add_goal_to_retirement_plan(
+    goal_id: UUID,
+    body: LinkToRetirementRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Convert a savings goal into a life event in a retirement scenario.
+
+    Creates a one-time cost life event at the goal's target date
+    with the goal's target amount.
+    """
+    from app.models.retirement import LifeEvent, LifeEventCategory, RetirementScenario
+    from app.utils.rmd_calculator import calculate_age
+
+    goal = await savings_goal_service.get_goal(db, goal_id, current_user)
+    if not goal:
+        raise HTTPException(status_code=404, detail="Savings goal not found")
+
+    # Verify scenario ownership
+    scenario_result = await db.execute(
+        select(RetirementScenario).where(
+            and_(
+                RetirementScenario.id == body.scenario_id,
+                RetirementScenario.organization_id == current_user.organization_id,
+            )
+        )
+    )
+    scenario = scenario_result.scalar_one_or_none()
+    if not scenario:
+        raise HTTPException(status_code=404, detail="Retirement scenario not found")
+
+    # Calculate age at target date
+    if not current_user.birthdate:
+        raise HTTPException(status_code=400, detail="User birthdate required")
+
+    current_age = calculate_age(current_user.birthdate)
+    if goal.target_date:
+        years_until = (goal.target_date - goal.start_date).days / 365.25
+        target_age = int(current_age + years_until)
+    else:
+        target_age = current_age + 5  # Default: 5 years from now
+
+    life_event = LifeEvent(
+        scenario_id=body.scenario_id,
+        name=f"Goal: {goal.name}",
+        category=LifeEventCategory.CUSTOM,
+        start_age=target_age,
+        end_age=None,  # One-time event
+        one_time_cost=goal.target_amount,
+        annual_cost=None,
+        income_change=None,
+        use_medical_inflation=False,
+        is_preset=False,
+    )
+    db.add(life_event)
+    await db.commit()
+    await db.refresh(life_event)
+
+    return {
+        "life_event_id": str(life_event.id),
+        "scenario_id": str(body.scenario_id),
+        "goal_name": goal.name,
+        "target_age": target_age,
+        "one_time_cost": float(goal.target_amount),
+        "message": f"Savings goal '{goal.name}' added as life event at age {target_age}",
     }

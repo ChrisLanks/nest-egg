@@ -107,6 +107,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     group: "Planning",
     items: [
+      { label: "Financial Plan", path: "/financial-plan" },
       { label: "Goals", path: "/goals" },
       { label: "Retirement", path: "/retirement" },
       {
@@ -184,6 +185,7 @@ export function buildConditionalDefaults(
     "/life-planning": true,
     "/investment-tools": true,
     "/financial-health": true,
+    "/financial-plan": true,
   };
 }
 

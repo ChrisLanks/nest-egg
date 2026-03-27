@@ -89,6 +89,99 @@ def _generate_bootstrap_return(historical_returns: list[float]) -> float:
     return random.choice(historical_returns)
 
 
+# ── Asset class correlation modeling ─────────────────────────────────────────
+
+# Default return assumptions per asset class (annualized, as decimals)
+_ASSET_CLASS_DEFAULTS = {
+    "stocks": {"mean": 0.10, "std": 0.18},
+    "bonds": {"mean": 0.04, "std": 0.06},
+    "real_estate": {"mean": 0.07, "std": 0.12},
+    "cash": {"mean": 0.03, "std": 0.01},
+}
+
+# Correlation matrix (symmetric) — order: stocks, bonds, real_estate, cash
+_ASSET_CLASSES = ["stocks", "bonds", "real_estate", "cash"]
+_CORRELATION_MATRIX = [
+    [1.00, -0.10, 0.40, 0.00],
+    [-0.10, 1.00, 0.20, 0.05],
+    [0.40, 0.20, 1.00, 0.00],
+    [0.00, 0.05, 0.00, 1.00],
+]
+
+
+def _cholesky_decomposition(matrix: list[list[float]]) -> list[list[float]]:
+    """Compute lower-triangular Cholesky decomposition of a positive-definite matrix.
+
+    Pure Python fallback when numpy is not available.
+    """
+    n = len(matrix)
+    L = [[0.0] * n for _ in range(n)]
+    for i in range(n):
+        for j in range(i + 1):
+            s = sum(L[i][k] * L[j][k] for k in range(j))
+            if i == j:
+                val = matrix[i][i] - s
+                L[i][j] = math.sqrt(max(val, 0.0))
+            else:
+                if L[j][j] == 0:
+                    L[i][j] = 0.0
+                else:
+                    L[i][j] = (matrix[i][j] - s) / L[j][j]
+    return L
+
+
+def _generate_correlated_returns(
+    asset_allocation: dict[str, float],
+    mean_return: float,
+    vol: float,
+) -> float:
+    """Generate a correlated portfolio return using Cholesky decomposition.
+
+    asset_allocation: dict like {"stocks": 0.60, "bonds": 0.30, ...}
+    mean_return: scenario mean return (used to scale individual returns)
+    vol: scenario volatility (used to scale individual volatilities)
+
+    Returns a single portfolio return as the weighted sum of correlated
+    per-asset-class returns.
+    """
+    # Map allocation to our 4 asset classes
+    weights = []
+    means = []
+    stds = []
+    for cls in _ASSET_CLASSES:
+        w = asset_allocation.get(cls, 0.0)
+        weights.append(w)
+        defaults = _ASSET_CLASS_DEFAULTS[cls]
+        means.append(defaults["mean"])
+        stds.append(defaults["std"])
+
+    # Normalize weights if they don't sum to 1
+    total_w = sum(weights)
+    if total_w > 0 and abs(total_w - 1.0) > 0.01:
+        weights = [w / total_w for w in weights]
+
+    # Cholesky decomposition of correlation matrix
+    L = _cholesky_decomposition(_CORRELATION_MATRIX)
+
+    # Generate independent standard normals
+    n = len(_ASSET_CLASSES)
+    z = []
+    for _ in range(n):
+        u1 = random.random() or 1e-10
+        u2 = random.random()
+        z.append(math.sqrt(-2 * math.log(u1)) * math.cos(2 * math.pi * u2))
+
+    # Correlate: y = L @ z
+    y = [sum(L[i][j] * z[j] for j in range(n)) for i in range(n)]
+
+    # Convert to returns: return_i = mean_i + std_i * y_i
+    returns = [means[i] + stds[i] * y[i] for i in range(n)]
+
+    # Portfolio return is weighted sum
+    portfolio_return = sum(w * r for w, r in zip(weights, returns))
+    return portfolio_return
+
+
 # Annual S&P 500 total returns (including dividends) 1928-2024.
 # Source: NYU Stern / Aswath Damodaran historical returns dataset.
 # Each value is the calendar-year return as a decimal (e.g. 0.1148 = 11.48%).
@@ -458,6 +551,9 @@ class RetirementMonteCarloService:
         # Determine return distribution type
         dist_type = getattr(scenario, "distribution_type", None) or DistributionType.NORMAL
 
+        # Asset allocation for correlated returns (optional, from account_data)
+        asset_allocation = account_data.get("asset_allocation") if account_data else None
+
         # Run simulations
         all_paths: list[list[float]] = []
         depleted_at_year: list[int] = []
@@ -480,7 +576,12 @@ class RetirementMonteCarloService:
 
                 # Investment return (stochastic) — applied only to investment balance
                 mean_return = post_return if is_retired else pre_return
-                if dist_type == DistributionType.LOG_NORMAL:
+                if asset_allocation and isinstance(asset_allocation, dict):
+                    # Use correlated multi-asset returns
+                    annual_return = _generate_correlated_returns(
+                        asset_allocation, mean_return, vol
+                    )
+                elif dist_type == DistributionType.LOG_NORMAL:
                     annual_return = _generate_lognormal_return(mean_return, vol)
                 elif dist_type == DistributionType.HISTORICAL_BOOTSTRAP:
                     annual_return = _generate_bootstrap_return(HISTORICAL_SP500_RETURNS)

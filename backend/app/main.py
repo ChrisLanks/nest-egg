@@ -20,8 +20,10 @@ from app.api.v1 import (
     attachments,
     auth,
     bank_linking,
+    bond_ladder,
     budgets,
     bulk_operations,
+    calculator_prefill,
     categories,
     contributions,
     csv_import,
@@ -36,10 +38,12 @@ from app.api.v1 import (
     enhanced_trends,
     enrichment,
     espp,
+    financial_plan,
     financial_planning,
     financial_ratios,
     financial_templates,
     fire,
+    fx_rates,
     insurance_audit,
     insurance_policies,
     guest_access,
@@ -53,6 +57,7 @@ from app.api.v1 import (
     net_worth_percentile,
     notifications,
     onboarding,
+    pe_performance,
     permissions,
     plaid,
     rebalancing,
@@ -89,6 +94,7 @@ from app.api.v1 import (
     transaction_splits,
     transactions,
     treasury_rates,
+    what_if,
 )
 from app.api.v1 import settings as settings_router
 from app.config import settings
@@ -849,5 +855,41 @@ app.include_router(
     tax_loss_harvest_ledger.router,
     prefix="/api/v1/tax-loss-harvesting",
     tags=["TLH Harvest Ledger"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    financial_plan.router,
+    prefix="/api/v1/financial-plan",
+    tags=["Financial Plan Summary"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    bond_ladder.router,
+    prefix="/api/v1/bond-ladder",
+    tags=["Bond Ladder"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    what_if.router,
+    prefix="/api/v1/what-if",
+    tags=["What-If Calculators"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    fx_rates.router,
+    prefix="/api/v1/market-data",
+    tags=["FX Rates"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    pe_performance.router,
+    prefix="/api/v1/pe-performance",
+    tags=["PE Performance"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    calculator_prefill.router,
+    prefix="/api/v1/calculators",
+    tags=["Calculator Prefill"],
     dependencies=_guest_dep,
 )

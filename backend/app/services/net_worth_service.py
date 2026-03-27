@@ -448,12 +448,34 @@ class NetWorthService:
                 }
             )
 
+        # Multi-currency: identify foreign currency accounts and convert to USD
+        foreign_currency_accounts: Dict[str, Dict] = {}
+        multi_currency = False
+        for account in accounts:
+            currency = getattr(account, "currency", "USD") or "USD"
+            if currency.upper() != "USD":
+                multi_currency = True
+                from app.services.fx_service import get_rate
+                rate = await get_rate(currency.upper(), "USD")
+                balance_local = float(account.current_balance or 0)
+                balance_usd = balance_local * rate
+                if currency.upper() not in foreign_currency_accounts:
+                    foreign_currency_accounts[currency.upper()] = {
+                        "balance_local": 0.0,
+                        "balance_usd": 0.0,
+                        "rate": rate,
+                    }
+                foreign_currency_accounts[currency.upper()]["balance_local"] += balance_local
+                foreign_currency_accounts[currency.upper()]["balance_usd"] += round(balance_usd, 2)
+
         result = {
             "total_net_worth": float(total_assets - total_liabilities),
             "total_assets": float(total_assets),
             "total_liabilities": float(total_liabilities),
             "categories": {k: float(v) for k, v in category_totals.items()},
             "accounts": per_account,
+            "multi_currency": multi_currency,
+            "foreign_currency_accounts": foreign_currency_accounts,
         }
         await cache_setex(cache_key, 300, result)
         return result

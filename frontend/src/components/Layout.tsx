@@ -925,6 +925,12 @@ export const Layout = () => {
   const allPlanningItems = [
     // ── Front and center ──────────────────────────────────────────────────
     {
+      label: "Financial Plan",
+      path: "/financial-plan",
+      tooltip:
+        "Unified financial health view — retirement, education, debt, insurance, estate, and emergency fund at a glance",
+    },
+    {
       label: "Goals",
       path: "/goals",
       tooltip:
