@@ -253,7 +253,8 @@ async def get_employer_match(
             select(UserModel).where(UserModel.id.in_(user_ids))
         )
         for u in user_result.scalars().all():
-            user_map[u.id] = u.full_name or u.email or str(u.id)
+            name = u.display_name or f"{u.first_name or ''} {u.last_name or ''}".strip() or u.email or str(u.id)
+            user_map[u.id] = name
 
     # Attach user names temporarily to avoid model mutation
     for acct in accounts:
