@@ -321,30 +321,18 @@ class TestTellerService:
 class TestTellerWebhookHandling:
     """Test suite for Teller webhook endpoints."""
 
-    @pytest.mark.skip(
-        reason="Rate limiting is bypassed in development (ENVIRONMENT=development) "
-        "and requires a live Redis instance; cannot be exercised in the test suite."
-    )
-    async def test_webhook_requires_rate_limiting(self, async_client):
-        """Should enforce rate limiting on webhook endpoint."""
-        from app.services.rate_limit_service import rate_limit_service
+    def test_webhook_requires_rate_limiting(self):
+        """Teller webhook endpoint must include a check_rate_limit call."""
+        import inspect
+        from app.api.v1.teller import handle_teller_webhook
 
-        webhook_data = {"event": "enrollment.connected", "payload": {"enrollment_id": "enr_test"}}
-
-        # Reset rate limit before test to ensure clean state
-        await rate_limit_service.reset_rate_limit("127.0.0.1", "/api/v1/teller/webhook")
-
-        # Make more requests than rate limit allows (20/minute)
-        for i in range(25):
-            response = await async_client.post("/api/v1/teller/webhook", json=webhook_data)
-
-            if i < 20:
-                # First 20 should succeed (or fail for other reasons)
-                assert response.status_code != status.HTTP_429_TOO_MANY_REQUESTS
-            else:
-                # After 20, should be rate limited
-                assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
-                break
+        source = inspect.getsource(handle_teller_webhook)
+        assert "check_rate_limit" in source, (
+            "Teller webhook must call check_rate_limit to prevent abuse"
+        )
+        assert "max_requests=20" in source, (
+            "Teller webhook rate limit must be 20 requests per window"
+        )
 
     async def test_webhook_enrollment_connected(self, async_client, db, test_user):
         """Should handle enrollment.connected webhook."""

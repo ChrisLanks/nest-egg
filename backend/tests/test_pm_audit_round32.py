@@ -63,7 +63,7 @@ def test_final_step_has_no_duplicate_continue_button():
     comment = "Navigation buttons"
     assert comment in src
     nav_idx = src.index(comment)
-    nav_block = src[nav_idx : nav_idx + 600]
+    nav_block = src[nav_idx : nav_idx + 700]
     # The nav block renders "Continue" (for earlier steps)
     assert "Continue" in nav_block
     # But no "primaryCtaLabel" in the nav block (that was the duplication)

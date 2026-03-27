@@ -29,9 +29,13 @@ def test_forgot_password_max_requests_is_3():
     not the previous 5 — prevents email flooding attacks.
     """
     src = _auth_src()
-    # Find the forgot-password function block and verify the rate limit call
-    # uses max_requests=3, not 5.
-    assert "max_requests=5" not in src, (
+    # Extract the forgot-password function block specifically, so we don't
+    # false-positive on MFA or other endpoints that may use max_requests=5.
+    fp_start = src.index("async def forgot_password")
+    # Find the next top-level async def (end of the forgot-password function)
+    fp_end = src.index("\nasync def ", fp_start + 1)
+    fp_block = src[fp_start:fp_end]
+    assert "max_requests=5" not in fp_block, (
         "forgot-password rate limit must not be 5/hour — use 3/hour to prevent email flooding"
     )
 

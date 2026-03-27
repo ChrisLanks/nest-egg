@@ -166,6 +166,9 @@ export function buildConditionalDefaults(
   );
   const hasAnyAccounts = accounts.length > 0;
 
+  // SS Optimizer is only relevant for users approaching retirement age
+  const isSsAge = userAge !== null && userAge >= 50;
+
   return {
     "/rental-properties": hasRental,
     "/education": has529,
@@ -174,6 +177,7 @@ export function buildConditionalDefaults(
     "/recurring-bills": hasLinkedAccounts,
     "/rules": hasAnyAccounts,
     "/tax-deductible": hasInvestments || hasRental,
+    "/ss-claiming": isSsAge,
     // Consolidated hubs — always visible (contain their own conditional logic)
     "/tax-center": true,
     "/life-planning": true,

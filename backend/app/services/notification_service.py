@@ -298,7 +298,7 @@ class NotificationService:
             .where(
                 and_(
                     Notification.organization_id == user.organization_id,
-                    or_(Notification.user_id == user.id, Notification.user_id.is_(None)),
+                    Notification.user_id == user.id,
                     Notification.is_read.is_(False),
                 )
             )

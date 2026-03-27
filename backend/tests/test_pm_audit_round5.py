@@ -750,7 +750,9 @@ class TestCashGrowthRate:
                 user_id=str(uuid4()),
             )
 
-        assert data["cash_growth_rate"] == pytest.approx(0.0)
+        # Savings accounts with no explicit interest_rate fall back to the
+        # conservative default APY (1.00% for savings), so growth rate = 0.01.
+        assert data["cash_growth_rate"] == pytest.approx(0.01)
 
     @pytest.mark.asyncio
     async def test_cash_growth_rate_zero_when_no_cash_accounts(self):

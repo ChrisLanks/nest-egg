@@ -500,10 +500,10 @@ class TestNotificationService:
 
     @pytest.mark.asyncio
     async def test_mark_all_as_read(self, db, test_user):
-        """Should mark all user notifications as read."""
+        """Should mark all user-specific notifications as read (not org-wide)."""
         service = NotificationService()
 
-        # Create 3 unread notifications
+        # Create 3 unread user-specific notifications
         for i in range(3):
             await service.create_notification(
                 db=db,
@@ -511,6 +511,7 @@ class TestNotificationService:
                 type=NotificationType.BUDGET_ALERT,
                 title=f"Test {i}",
                 message=f"Message {i}",
+                user_id=test_user.id,
             )
 
         # Mark all as read
@@ -529,8 +530,9 @@ class TestNotificationService:
         )
 
         for notification in notifications:
-            assert notification.is_read is True
-            assert notification.read_at is not None
+            if notification.user_id == test_user.id:
+                assert notification.is_read is True
+                assert notification.read_at is not None
 
     @pytest.mark.asyncio
     async def test_mark_all_as_read_user_specific_only(self, db, test_user, second_user):
@@ -573,8 +575,8 @@ class TestNotificationService:
             user=test_user,
         )
 
-        # Should mark 2 (user-specific + org-wide), not other user's
-        assert count == 2
+        # Should mark only user-specific (1), not org-wide or other user's
+        assert count == 1
 
         # Verify other user's notification still unread
         await db.refresh(other_notification)

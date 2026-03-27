@@ -683,8 +683,8 @@ async def get_social_security_estimate(
     current_age = calculate_age(target_user.birthdate)
     birth_year = target_user.birthdate.year
 
-    # Determine salary for estimation
-    salary = override_salary or 75000  # Default when no override provided
+    # Determine salary for estimation: explicit override > user profile income > $75k fallback
+    salary = override_salary or getattr(target_user, "current_annual_income", None) or 75000
 
     result = estimate_social_security(
         current_salary=salary,

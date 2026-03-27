@@ -108,21 +108,22 @@ def test_invite_form_label_is_their_email():
 def test_layout_shows_advanced_hint_when_nav_off():
     src = _layout_src()
     assert "!showAdvancedNav" in src
-    assert "+ Advanced" in src
+    # The hint is now a notification toast, not an inline button
+    assert "Advanced features available" in src
 
 
 def test_layout_advanced_hint_links_to_preferences():
     src = _layout_src()
-    # The hint button should navigate to /preferences
-    hint_idx = src.index("+ Advanced")
-    surrounding = src[hint_idx - 300 : hint_idx + 100]
+    # The hint notification should link to /preferences
+    hint_idx = src.index("Advanced features available")
+    surrounding = src[hint_idx - 300 : hint_idx + 300]
     assert "/preferences" in surrounding
 
 
 def test_layout_advanced_hint_has_tooltip():
     src = _layout_src()
-    hint_idx = src.index("+ Advanced")
-    surrounding = src[hint_idx - 500 : hint_idx + 100]
+    hint_idx = src.index("Advanced features available")
+    surrounding = src[hint_idx - 500 : hint_idx + 300]
     assert "FIRE planning" in surrounding or "advanced" in surrounding.lower()
 
 

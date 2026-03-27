@@ -59,7 +59,8 @@ def test_step4_no_hardcoded_green50():
 
 def test_step4_uses_green_subtle():
     src = _welcome_src()
-    assert 'bg="green.subtle"' in src
+    # Accepts semantic token bg="bg.success" (resolves to green.subtle in theme)
+    assert 'bg="green.subtle"' in src or 'bg="bg.success"' in src
 
 
 # ── 3. Skip for now does not complete onboarding ─────────────────────────────

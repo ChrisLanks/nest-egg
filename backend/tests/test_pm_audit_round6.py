@@ -377,8 +377,13 @@ class TestScenarioComparisonPartialResults:
         mock_result1.median_portfolio_at_end = 200000
 
         mock_user = MagicMock()
+        mock_user.id = uuid.uuid4()
         mock_user.organization_id = uuid.uuid4()
         mock_db = AsyncMock()
+
+        # Scenarios must be owned by the requesting user to pass ownership check
+        mock_scenario1.user_id = mock_user.id
+        mock_scenario2.user_id = mock_user.id
 
         request = ScenarioComparisonRequest(scenario_ids=[id1, id2])
 

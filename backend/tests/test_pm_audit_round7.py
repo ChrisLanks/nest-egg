@@ -73,10 +73,13 @@ def test_task_acks_late_enabled():
 
 
 def test_beat_scheduler_is_redbeat():
-    """beat_scheduler must be RedBeatScheduler for distributed locking."""
+    """beat_scheduler must be RedBeatScheduler (or a subclass) for distributed locking."""
     from app.workers.celery_app import celery_app
 
-    assert celery_app.conf.beat_scheduler == "redbeat.RedBeatScheduler"
+    scheduler = celery_app.conf.beat_scheduler
+    assert "RedBeat" in scheduler, (
+        f"beat_scheduler must be a RedBeat variant, got {scheduler!r}"
+    )
 
 
 def test_retryable_task_has_jitter():

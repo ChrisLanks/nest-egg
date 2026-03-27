@@ -74,7 +74,8 @@ def test_layout_reads_advanced_nav_preference():
 
 def test_layout_filter_visible_gates_advanced_items():
     src = (FRONTEND / "components/Layout.tsx").read_text()
-    assert "!item.advanced || showAdvancedNav" in src
+    # Advanced items are gated: hidden when !showAdvancedNav unless per-item override
+    assert "item.advanced && !showAdvancedNav" in src
 
 
 # ── 4. SS Optimizer hidden for new users ───────────────────────────────────────
