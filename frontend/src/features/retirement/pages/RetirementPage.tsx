@@ -1233,12 +1233,12 @@ export function RetirementPage() {
             </AlertDescription>
           </Alert>
         )}
-        {/* Multi-member banner — Retirement is per-person */}
+        {/* Multi-member banner — clarify household vs individual plans */}
         {isCombinedView && selectedIds.size > 1 && (
           <Alert status="info" borderRadius="lg" variant="subtle">
             <AlertIcon />
             <AlertDescription>
-              Retirement plans are per-person. Use the view switcher in the top bar to select a single member and create or edit their plan.
+              Viewing household retirement plans. Plans are saved per person but can include household members, joint income, and shared accounts. To create or edit a specific member's plan, select them individually in the view switcher above.
             </AlertDescription>
           </Alert>
         )}

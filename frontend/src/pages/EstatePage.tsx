@@ -53,8 +53,6 @@ import { FiCheckCircle, FiInfo, FiPlus, FiTrash2 } from "react-icons/fi";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import api from "../services/api";
-import { useQuery as useReactQuery } from "@tanstack/react-query";
-import { BeneficiaryAuditCard } from "./BeneficiaryAuditCard";
 
 function InfoTip({ label }: { label: string }) {
   return (

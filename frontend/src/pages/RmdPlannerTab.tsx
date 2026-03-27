@@ -181,6 +181,28 @@ export const RmdPlannerTab = () => {
         </Alert>
       )}
 
+      {data && !data.current_age && (
+        <Alert status="warning">
+          <AlertIcon />
+          <AlertDescription fontSize="sm">
+            No birthdate set on your profile. Go to{" "}
+            <strong>Preferences → Profile</strong> and add your date of birth
+            so RMD projections can calculate your age and start year.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {data && data.accounts.length === 0 && (
+        <Alert status="info">
+          <AlertIcon />
+          <AlertDescription fontSize="sm">
+            No pre-tax retirement accounts found (401k, IRA, 403b, etc.).
+            Add accounts under <strong>Accounts</strong> to see your RMD
+            projections.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {data && (
         <>
           {/* Summary */}

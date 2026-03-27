@@ -43,7 +43,7 @@ import {
   FiTrendingUp,
   FiUsers,
 } from "react-icons/fi";
-import { api } from "../lib/api";
+import api from "../services/api";
 
 interface FinancialPlanSummary {
   net_worth: { total: number; assets: number; liabilities: number };
