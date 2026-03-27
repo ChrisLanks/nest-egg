@@ -511,6 +511,43 @@ class TAX:
     NII_THRESHOLD_SINGLE = 200_000
     NII_THRESHOLD_MARRIED = 250_000
 
+    # Additional Medicare Tax (0.9% surtax) — thresholds not indexed for inflation
+    ADDITIONAL_MEDICARE_THRESHOLD_SINGLE = 200_000
+    ADDITIONAL_MEDICARE_THRESHOLD_MARRIED = 250_000
+    ADDITIONAL_MEDICARE_RATE = Decimal("0.009")
+
+    # SALT cap — year-keyed data (OBBBA 2025 raised cap to $40K for 2025-2028)
+    _SALT_CAP_DATA: Dict[int, Dict] = {
+        2024: {"cap": 10_000, "phaseout_start": None},
+        2025: {"cap": 40_000, "phaseout_start": 500_000},
+        2026: {"cap": 40_000, "phaseout_start": 500_000},
+        2027: {"cap": 40_000, "phaseout_start": 500_000},
+        2028: {"cap": 40_000, "phaseout_start": 500_000},
+    }
+
+    @classmethod
+    def salt_cap_for_year(cls, year: int | None = None) -> int:
+        """Return the SALT cap for the given year."""
+        y = year if year is not None else datetime.date.today().year
+        entry = cls._SALT_CAP_DATA.get(y)
+        if entry:
+            return entry["cap"]
+        # For years beyond table, assume reverts to $10K (TCJA default)
+        return 10_000
+
+    @classmethod
+    def salt_cap_phaseout_for_year(cls, year: int | None = None) -> int | None:
+        """Return the SALT cap AGI phase-out start for the given year, or None."""
+        y = year if year is not None else datetime.date.today().year
+        entry = cls._SALT_CAP_DATA.get(y)
+        if entry:
+            return entry["phaseout_start"]
+        return None
+
+    # Convenience current-year properties
+    SALT_CAP = _SALT_CAP_DATA[datetime.date.today().year]["cap"] if datetime.date.today().year in _SALT_CAP_DATA else 10_000
+    SALT_CAP_PHASEOUT = _SALT_CAP_DATA[datetime.date.today().year]["phaseout_start"] if datetime.date.today().year in _SALT_CAP_DATA else None
+
     # Social Security benefit taxation thresholds — not indexed for inflation
     SS_TAXATION_THRESHOLDS_SINGLE: List[Tuple[float, float]] = [
         (25_000, 0.00),  # 0% of SS taxable below $25k
@@ -543,6 +580,23 @@ class TAX:
     def for_year(cls, year: int) -> dict:
         """Return tax constants for a specific year (projects forward if year not hardcoded)."""
         return _resolve(_TAX_DATA, _TAX_PROJ, year)
+
+
+# =========================================================================
+# FICA (Federal Insurance Contributions Act)
+# =========================================================================
+
+
+class FICA:
+    """FICA payroll tax rates — statutory constants (not inflation-indexed)."""
+
+    SS_EMPLOYEE_RATE = Decimal("0.062")
+    SS_EMPLOYER_RATE = Decimal("0.062")
+    SS_SELF_EMPLOYED_RATE = Decimal("0.124")  # Both halves (employee + employer)
+    MEDICARE_EMPLOYEE_RATE = Decimal("0.0145")
+    MEDICARE_EMPLOYER_RATE = Decimal("0.0145")
+    MEDICARE_SELF_EMPLOYED_RATE = Decimal("0.029")  # Both halves
+    ADDITIONAL_MEDICARE_RATE = Decimal("0.009")  # 0.9% above threshold
 
 
 # =========================================================================
@@ -711,8 +765,26 @@ class MEDICARE:
     IRMAA_BRACKETS_SINGLE: List[Tuple[float, float, float]] = _d["IRMAA_BRACKETS_SINGLE"]
     IRMAA_BRACKETS_MARRIED: List[Tuple[float, float, float]] = _d.get("IRMAA_BRACKETS_MARRIED", _d["IRMAA_BRACKETS_SINGLE"])
 
-    # Medigap national average — update alongside PART_B when CMS publishes
-    MEDIGAP_MONTHLY = 150.00
+    # Medigap national average — year-keyed (Plan G approximate)
+    _MEDIGAP_DATA: Dict[int, float] = {
+        2024: 160.00,
+        2025: 170.00,
+        2026: 180.00,
+    }
+
+    @classmethod
+    def medigap_for_year(cls, year: int | None = None) -> float:
+        """Return Medigap monthly premium for the given year."""
+        y = year if year is not None else datetime.date.today().year
+        if y in cls._MEDIGAP_DATA:
+            return cls._MEDIGAP_DATA[y]
+        # Project at ~5% from the latest known anchor
+        anchor = max(k for k in cls._MEDIGAP_DATA if k <= y) if any(k <= y for k in cls._MEDIGAP_DATA) else max(cls._MEDIGAP_DATA)
+        base = cls._MEDIGAP_DATA[anchor]
+        return round(base * (1.05) ** (y - anchor), 2)
+
+    # Current-year value for backward compatibility
+    MEDIGAP_MONTHLY = _MEDIGAP_DATA.get(datetime.date.today().year, 180.00)
 
     # ── Non-inflation-adjusted constants ──
     ELIGIBILITY_AGE = 65
@@ -732,23 +804,49 @@ class MEDICARE:
 
 
 class HEALTHCARE:
-    """Healthcare cost assumptions (2024 dollars)."""
+    """Healthcare cost assumptions with year-keyed base data and inflation projection."""
 
-    # Pre-65 ACA marketplace (mid-tier Silver, no subsidies)
-    ACA_MONTHLY_SINGLE = 600  # Monthly premium estimate
-    ACA_MONTHLY_COUPLE = 1_200
+    # Year-keyed base values (update annually or when new data is available)
+    _HEALTHCARE_DATA: Dict[int, Dict] = {
+        2024: {"ACA_MONTHLY_SINGLE": 575, "ACA_MONTHLY_COUPLE": 1_150, "LTC_FACILITY_MONTHLY": 8_000},
+        2025: {"ACA_MONTHLY_SINGLE": 600, "ACA_MONTHLY_COUPLE": 1_200, "LTC_FACILITY_MONTHLY": 8_500},
+        2026: {"ACA_MONTHLY_SINGLE": 636, "ACA_MONTHLY_COUPLE": 1_272, "LTC_FACILITY_MONTHLY": 9_010},
+    }
+
+    # Medical inflation assumption
+    DEFAULT_MEDICAL_INFLATION = 6.0  # Percent per year
+
+    @classmethod
+    def for_year(cls, year: int | None = None) -> dict:
+        """Return healthcare cost data for `year`, projecting with medical inflation for future years."""
+        y = year if year is not None else datetime.date.today().year
+        anchor = _best_year(cls._HEALTHCARE_DATA, y)
+        base = cls._HEALTHCARE_DATA[anchor]
+        if y == anchor:
+            return dict(base)
+        factor = (1 + cls.DEFAULT_MEDICAL_INFLATION / 100) ** (y - anchor)
+        return {k: int(round(v * factor)) for k, v in base.items()}
+
+    # Current-year values for backward compatibility (computed from data table directly)
+    _hc_year = datetime.date.today().year
+    _hc_anchor = _best_year(_HEALTHCARE_DATA, _hc_year)
+    _hc_base = _HEALTHCARE_DATA[_hc_anchor]
+    if _hc_year == _hc_anchor:
+        _hc_current = dict(_hc_base)
+    else:
+        _hc_factor = (1 + 6.0 / 100) ** (_hc_year - _hc_anchor)
+        _hc_current = {k: int(round(v * _hc_factor)) for k, v in _hc_base.items()}
+    ACA_MONTHLY_SINGLE = _hc_current["ACA_MONTHLY_SINGLE"]
+    ACA_MONTHLY_COUPLE = _hc_current["ACA_MONTHLY_COUPLE"]
 
     # Out-of-pocket (dental, vision, copays)
     OOP_ANNUAL = 3_000
 
     # Long-term care defaults (national medians)
-    LTC_FACILITY_MONTHLY = 5_900  # Nursing home semi-private
+    LTC_FACILITY_MONTHLY = _hc_current["LTC_FACILITY_MONTHLY"]
     LTC_HOME_CARE_MONTHLY = 1_966  # Home health aide
     LTC_DEFAULT_MONTHS_HOME = 12  # Average months home care first
     LTC_DEFAULT_MONTHS_FACILITY = 16  # Average months in facility
-
-    # Medical inflation assumption
-    DEFAULT_MEDICAL_INFLATION = 6.0  # Percent per year
 
     # Long-term care modeling defaults (used when caller supplies no overrides)
     LTC_DEFAULT_START_AGE = 85  # Age at which LTC costs begin
@@ -840,16 +938,23 @@ class RMD:
 
 
 class EDUCATION:
-    """College cost assumptions (2024 dollars, CollegeBoard data)."""
+    """College cost assumptions (2024 base dollars, CollegeBoard data)."""
 
-    COLLEGE_COSTS: Dict[str, int] = {  # ANNUAL
+    COLLEGE_COSTS: Dict[str, int] = {  # ANNUAL — base year 2024
         "public_in_state": 23_250,
         "public_out_of_state": 41_000,
         "private": 57_000,
     }
+    COLLEGE_COSTS_BASE_YEAR = 2024
     COLLEGE_INFLATION_RATE = 0.05  # 5% annual college cost inflation
     DEFAULT_ANNUAL_RETURN = 0.06  # 6% expected return for 529
     COLLEGE_YEARS = 4
+
+    @classmethod
+    def costs_for_year(cls, year: int) -> dict:
+        """Return college costs inflated to the given year from the 2024 base."""
+        factor = (1 + cls.COLLEGE_INFLATION_RATE) ** (year - cls.COLLEGE_COSTS_BASE_YEAR)
+        return {k: int(v * factor) for k, v in cls.COLLEGE_COSTS.items()}
 
 
 # =========================================================================
@@ -1392,10 +1497,32 @@ class HSA:
     MEDICARE_CUTOFF_AGE = 65
     NON_QUALIFIED_PENALTY_RATE = Decimal("0.20")
     INVESTMENT_RETURN_DEFAULT = Decimal("0.06")
-    HDHP_MIN_DEDUCTIBLE_INDIVIDUAL = 1_650
-    HDHP_MIN_DEDUCTIBLE_FAMILY = 3_300
-    HDHP_MAX_OOP_INDIVIDUAL = 8_300
-    HDHP_MAX_OOP_FAMILY = 16_600
+
+    # HDHP limits — year-keyed (IRS Rev. Proc.)
+    _HSA_HDHP_DATA: Dict[int, Dict] = {
+        2024: {"MIN_DEDUCTIBLE_INDIVIDUAL": 1_600, "MIN_DEDUCTIBLE_FAMILY": 3_200, "MAX_OOP_INDIVIDUAL": 8_050, "MAX_OOP_FAMILY": 16_100},
+        2025: {"MIN_DEDUCTIBLE_INDIVIDUAL": 1_650, "MIN_DEDUCTIBLE_FAMILY": 3_300, "MAX_OOP_INDIVIDUAL": 8_300, "MAX_OOP_FAMILY": 16_600},
+        2026: {"MIN_DEDUCTIBLE_INDIVIDUAL": 1_700, "MIN_DEDUCTIBLE_FAMILY": 3_400, "MAX_OOP_INDIVIDUAL": 8_500, "MAX_OOP_FAMILY": 17_000},
+    }
+
+    @classmethod
+    def hdhp_for_year(cls, year: int | None = None) -> dict:
+        """Return HDHP limits for the given year, projecting ~3% for unknown years."""
+        y = year if year is not None else datetime.date.today().year
+        anchor = _best_year(cls._HSA_HDHP_DATA, y)
+        base = cls._HSA_HDHP_DATA[anchor]
+        if y == anchor:
+            return dict(base)
+        # Project forward at ~3% CPI, round to nearest $50
+        factor = (1.03) ** (y - anchor)
+        return {k: int(round(v * factor / 50) * 50) for k, v in base.items()}
+
+    # Current-year values for backward compatibility
+    _hdhp_current = _HSA_HDHP_DATA.get(datetime.date.today().year, _HSA_HDHP_DATA[max(_HSA_HDHP_DATA)])
+    HDHP_MIN_DEDUCTIBLE_INDIVIDUAL = _hdhp_current["MIN_DEDUCTIBLE_INDIVIDUAL"]
+    HDHP_MIN_DEDUCTIBLE_FAMILY = _hdhp_current["MIN_DEDUCTIBLE_FAMILY"]
+    HDHP_MAX_OOP_INDIVIDUAL = _hdhp_current["MAX_OOP_INDIVIDUAL"]
+    HDHP_MAX_OOP_FAMILY = _hdhp_current["MAX_OOP_FAMILY"]
 
 
 # =========================================================================

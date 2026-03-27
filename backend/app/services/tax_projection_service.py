@@ -31,7 +31,7 @@ from uuid import UUID
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.constants.financial import SS, TAX
+from app.constants.financial import FICA, SS, TAX
 from app.constants.state_tax_rates import STATE_NAMES
 from app.models.account import Account
 from app.models.transaction import Transaction
@@ -261,11 +261,15 @@ class TaxProjectionService:
 
         # Self-employment tax: SS portion capped at taxable max + Medicare + Additional Medicare
         if self_employment_income > 0:
-            se_ss = min(self_employment_income, SS.TAXABLE_MAX) * 0.124  # 6.2% * 2
-            se_medicare = self_employment_income * 0.029  # 1.45% * 2
+            se_ss = min(self_employment_income, SS.TAXABLE_MAX) * float(FICA.SS_SELF_EMPLOYED_RATE)
+            se_medicare = self_employment_income * float(FICA.MEDICARE_SELF_EMPLOYED_RATE)
             # Additional Medicare Tax on SE income above threshold
-            additional_medicare_threshold = 250_000 if filing_status.lower() in ("married", "mfj") else 200_000
-            se_additional_medicare = max(0, self_employment_income - additional_medicare_threshold) * 0.009
+            additional_medicare_threshold = (
+                TAX.ADDITIONAL_MEDICARE_THRESHOLD_MARRIED
+                if filing_status.lower() in ("married", "mfj")
+                else TAX.ADDITIONAL_MEDICARE_THRESHOLD_SINGLE
+            )
+            se_additional_medicare = max(0, self_employment_income - additional_medicare_threshold) * float(FICA.ADDITIONAL_MEDICARE_RATE)
             se_tax = round(se_ss + se_medicare + se_additional_medicare, 2)
         else:
             se_tax = 0.0

@@ -12,9 +12,6 @@ from app.models.user import User
 
 router = APIRouter(tags=["Deduction Optimizer"])
 
-# SALT cap per TCJA — $10,000 for both single and married filers
-SALT_CAP = 10_000
-
 
 class DeductionOptimizerRequest(BaseModel):
     filing_status: str = Field("single", description="single or married")
@@ -36,6 +33,7 @@ class DeductionOptimizerResponse(BaseModel):
     recommendation: str
     breakeven_mortgage_interest: float
     tax_year: int
+    salt_cap_note: Optional[str] = None
 
 
 @router.post("/deduction-optimizer", response_model=DeductionOptimizerResponse)
@@ -50,8 +48,18 @@ async def optimize_deductions(
 
     standard = tax_data["STANDARD_DEDUCTION_MARRIED"] if married else tax_data["STANDARD_DEDUCTION_SINGLE"]
 
-    # SALT capped at $10,000 per TCJA
-    salt_capped = min(request.state_local_taxes, SALT_CAP)
+    # SALT cap — year-resolved (OBBBA 2025 raised to $40K for 2025-2028)
+    salt_cap = TAX.salt_cap_for_year(year)
+    salt_phaseout = TAX.salt_cap_phaseout_for_year(year)
+
+    # Apply phase-out if AGI exceeds threshold
+    effective_salt_cap = salt_cap
+    if salt_phaseout and request.agi > salt_phaseout:
+        # Reduce cap by 30% for every $10K over the phase-out start
+        reduction_pct = min(1.0, 0.30 * ((request.agi - salt_phaseout) / 10_000))
+        effective_salt_cap = int(salt_cap * (1 - reduction_pct))
+
+    salt_capped = min(request.state_local_taxes, effective_salt_cap)
 
     # Medical deductible portion: only amount exceeding 7.5% of AGI
     medical_deductible = max(0, request.medical_expenses - request.agi * 0.075) if request.agi > 0 else 0
@@ -81,6 +89,12 @@ async def optimize_deductions(
     current_non_mortgage = salt_capped + request.charitable_cash + request.charitable_noncash + medical_deductible
     breakeven = max(0, standard - current_non_mortgage)
 
+    # Build SALT cap note
+    if salt_cap > 10_000:
+        salt_cap_note = f"SALT cap is ${salt_cap:,} for {year} (phase-out above ${salt_phaseout:,} AGI)" if salt_phaseout else f"SALT cap is ${salt_cap:,} for {year}"
+    else:
+        salt_cap_note = f"SALT cap is ${salt_cap:,} for {year} (TCJA)"
+
     return DeductionOptimizerResponse(
         standard_deduction=standard,
         itemized_total=round(itemized_total, 2),
@@ -90,4 +104,5 @@ async def optimize_deductions(
         recommendation=recommendation,
         breakeven_mortgage_interest=round(breakeven, 2),
         tax_year=year,
+        salt_cap_note=salt_cap_note,
     )

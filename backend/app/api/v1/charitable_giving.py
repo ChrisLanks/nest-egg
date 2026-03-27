@@ -1,5 +1,6 @@
 """Charitable giving API endpoints."""
 
+import datetime
 import logging
 from decimal import Decimal
 from typing import Optional
@@ -13,7 +14,7 @@ from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import Account
 from app.models.transaction import Label, Transaction, TransactionLabel
-from app.constants.financial import TAX
+from app.constants.financial import TAX, QCD
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ router = APIRouter(tags=["Charitable Giving"])
 # Standard deductions sourced from year-keyed constants
 STANDARD_DEDUCTION_SINGLE = TAX.STANDARD_DEDUCTION_SINGLE
 STANDARD_DEDUCTION_MFJ = TAX.STANDARD_DEDUCTION_MARRIED
-QCD_ANNUAL_LIMIT = 105_000
+QCD_ANNUAL_LIMIT = QCD.QCD_MAX_ANNUAL  # Year-resolved from constants
 QCD_AGE_THRESHOLD = 70  # age 70.5 — we check >= 70 as a proxy
 
 
@@ -55,13 +56,13 @@ async def get_donations(
 ):
     """Return transactions tagged with the selected charitable labels."""
     if not label_ids:
-        return {"donations": [], "ytd_total": 0.0, "year": year or 2026}
+        return {"donations": [], "ytd_total": 0.0, "year": year or datetime.date.today().year}
 
     ids = [UUID(lid.strip()) for lid in label_ids.split(",") if lid.strip()]
     if not ids:
-        return {"donations": [], "ytd_total": 0.0, "year": year or 2026}
+        return {"donations": [], "ytd_total": 0.0, "year": year or datetime.date.today().year}
 
-    effective_year = year or 2026
+    effective_year = year or datetime.date.today().year
 
     stmt = (
         select(Transaction)

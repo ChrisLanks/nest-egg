@@ -13,7 +13,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
-from app.constants.financial import SS, TAX
+from app.constants.financial import FICA, FIRE, SS, TAX
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.services.state_tax_service import StateTaxService
@@ -271,8 +271,8 @@ async def salary_change_comparison(
     ss_taxable_max = SS.TAXABLE_MAX
 
     def fica(salary):
-        ss = min(salary, ss_taxable_max) * 0.062
-        medicare = salary * 0.0145
+        ss = min(salary, ss_taxable_max) * float(FICA.SS_EMPLOYEE_RATE)
+        medicare = salary * float(FICA.MEDICARE_EMPLOYEE_RATE)
         return ss + medicare
 
     current_fica = fica(request.current_salary)
@@ -288,9 +288,9 @@ async def salary_change_comparison(
     new_match = request.new_salary * request.new_401k_match_pct / 100
     match_diff_annual = new_match - current_match
 
-    # FV of annual match difference over 10 years at 7%
+    # FV of annual match difference over 10 years at expected return
     if match_diff_annual != 0:
-        r = 0.07
+        r = FIRE.DEFAULT_EXPECTED_RETURN
         retirement_impact = match_diff_annual * ((1 + r) ** 10 - 1) / r
     else:
         retirement_impact = 0

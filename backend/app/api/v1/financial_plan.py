@@ -226,7 +226,7 @@ async def _build_education_section(db: AsyncSession, org_id) -> dict:
     inflation = EDUCATION.COLLEGE_INFLATION_RATE
 
     for dep in dependents:
-        start_year = getattr(dep, "expected_college_start_year", None) or 2030
+        start_year = getattr(dep, "expected_college_start_year", None) or (current_year + 10)
         years_until = max(0, start_year - current_year)
         # Inflate annual cost to start year, then sum over college_years
         projected_annual = annual_cost * (1 + inflation) ** years_until
@@ -384,6 +384,7 @@ async def _build_estate_section(db: AsyncSession, org_id, user: User, net_worth:
     beneficiary_count = ben_result.scalar() or 0
 
     # Estate tax exposure — use year-keyed exemption from constants
+    # Default to single exemption; add note about married portability
     estate_tax_exposure = net_worth > ESTATE.FEDERAL_EXEMPTION
 
     return {
@@ -391,6 +392,7 @@ async def _build_estate_section(db: AsyncSession, org_id, user: User, net_worth:
         "has_poa": has_poa,
         "beneficiaries_complete": beneficiary_count > 0,
         "estate_tax_exposure": estate_tax_exposure,
+        "note": "For married filers with portability, effective exemption is 2x" if estate_tax_exposure else None,
     }
 
 
