@@ -30,12 +30,13 @@ def calculate_age(birthdate: date, as_of_date: Optional[date] = None) -> int:
     return age
 
 
-def requires_rmd(age: int) -> bool:
+def requires_rmd(age: int, birth_year: int | None = None) -> bool:
     """Check if a person of given age requires RMD withdrawals.
 
-    RMD age is 73 as of 2023 (SECURE 2.0 Act).
+    SECURE 2.0: Age 73 for born before 1960, age 75 for born 1960+.
     """
-    return age >= RMD_CONSTANTS.TRIGGER_AGE
+    trigger = RMD_CONSTANTS.trigger_age_for_birth_year(birth_year)
+    return age >= trigger
 
 
 def calculate_rmd(account_balance: Decimal, age: int) -> Optional[Decimal]:

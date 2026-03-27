@@ -26,7 +26,10 @@ class EstatePlanningService:
             "estimated_federal_tax": float(estimated_tax),
             "above_exemption": taxable_estate > 0,
             "tcja_sunset_risk": ESTATE.TCJA_SUNSET_RISK,
-            "sunset_note": "TCJA exemption may drop to ~$7M after 2025 if not extended.",
+            "sunset_note": (
+                "TCJA high exemption extended through 2034 by the One Big Beautiful Bill Act (2025). "
+                "Exemption may revert to ~$7M (inflation-adjusted) after 2034 if not further extended."
+            ),
         }
 
     @staticmethod

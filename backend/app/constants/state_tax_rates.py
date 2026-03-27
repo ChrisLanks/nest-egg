@@ -1,8 +1,10 @@
 """
-State income tax rates for 2024.
+State income tax rates for 2025/2026.
 Simplified flat-rate approximations for common states.
 No-income-tax states return 0.
 Sources: state revenue department websites.
+Updated for 2025 rate changes: AZ (2.5% flat), IA (3.8% flat),
+NC (4.25% from 4.5%), OH (reduced top rate).
 """
 
 # State -> approximate effective rate as decimal (not bracket-based, simplified flat approx)
@@ -25,7 +27,7 @@ STATE_TAX_RATES: dict[str, float] = {
     "KY": 0.045,
     "MA": 0.05,
     "MI": 0.0425,
-    "NC": 0.0475,
+    "NC": 0.0425,  # 4.25% from 2025 (reduced from 4.5%/4.75%)
     "PA": 0.0307,
     "UT": 0.0485,
     # Progressive states (effective rate at ~$75k)
@@ -38,7 +40,7 @@ STATE_TAX_RATES: dict[str, float] = {
     "GA": 0.055,
     "HI": 0.08,
     "ID": 0.058,
-    "IA": 0.057,
+    "IA": 0.038,  # 3.8% flat from 2025
     "KS": 0.057,
     "LA": 0.04,
     "ME": 0.075,
@@ -52,7 +54,7 @@ STATE_TAX_RATES: dict[str, float] = {
     "NM": 0.059,
     "NY": 0.0685,
     "ND": 0.0264,
-    "OH": 0.04,
+    "OH": 0.035,  # Reduced top rate from 2025
     "OK": 0.0475,
     "OR": 0.099,
     "RI": 0.0599,

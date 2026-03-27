@@ -38,16 +38,22 @@ class IrmaaProjectionResponse(BaseModel):
     optimization_tip: Optional[str]
 
 
-def _irmaa_tier(magi: float, brackets: list, married: bool) -> tuple[int, str, float, float]:
+def _irmaa_tier(magi: float, brackets: list, married: bool, married_brackets: list | None = None) -> tuple[int, str, float, float]:
     """Return (tier_index, label, part_b_surcharge, part_d_surcharge)."""
-    multiplier = 2.0 if married else 1.0
+    # Use proper married brackets when available, otherwise fall back to 2x single
+    if married and married_brackets:
+        effective_brackets = married_brackets
+    elif married:
+        effective_brackets = [(t * 2.0, b, d) for t, b, d in brackets]
+    else:
+        effective_brackets = brackets
     tier_labels = ["Base (no IRMAA)", "Tier 1", "Tier 2", "Tier 3", "Tier 4", "Tier 5"]
-    for i, (threshold, b_surcharge, d_surcharge) in enumerate(brackets):
-        if magi <= threshold * multiplier:
+    for i, (threshold, b_surcharge, d_surcharge) in enumerate(effective_brackets):
+        if magi <= threshold:
             return i, tier_labels[i], b_surcharge, d_surcharge
     # Above last bracket
-    last = brackets[-1]
-    return len(brackets) - 1, tier_labels[len(brackets) - 1], last[1], last[2]
+    last = effective_brackets[-1]
+    return len(effective_brackets) - 1, tier_labels[len(effective_brackets) - 1], last[1], last[2]
 
 
 @router.get("/irmaa-projection", response_model=IrmaaProjectionResponse)
@@ -76,7 +82,8 @@ async def get_irmaa_projection(
     base_b = med["PART_B_MONTHLY"]
     base_d = med["PART_D_MONTHLY"]
 
-    tier_idx, tier_label, _, _ = _irmaa_tier(current_magi, brackets, married)
+    married_brackets = med.get("IRMAA_BRACKETS_MARRIED")
+    tier_idx, tier_label, _, _ = _irmaa_tier(current_magi, brackets, married, married_brackets)
 
     projection: List[IrmaaYearPoint] = []
     lifetime_total = 0.0
@@ -91,10 +98,11 @@ async def get_irmaa_projection(
 
         med_y = MEDICARE.for_year(proj_year)
         br_y = med_y["IRMAA_BRACKETS_SINGLE"]
+        mbr_y = med_y.get("IRMAA_BRACKETS_MARRIED")
         b_base_y = med_y["PART_B_MONTHLY"]
         d_base_y = med_y["PART_D_MONTHLY"]
 
-        t_idx, t_label, b_surcharge, d_surcharge = _irmaa_tier(magi, br_y, married)
+        t_idx, t_label, b_surcharge, d_surcharge = _irmaa_tier(magi, br_y, married, mbr_y)
 
         total_b = b_base_y + b_surcharge
         total_d = d_base_y + d_surcharge

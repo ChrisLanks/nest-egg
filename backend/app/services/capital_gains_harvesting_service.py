@@ -5,23 +5,34 @@ during low-income years by analyzing available LTCG bracket room.
 """
 from __future__ import annotations
 
+import datetime
 from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.financial import TAX
 
-# 0% LTCG threshold (2026 IRS projected figures)
-# Single: $0 - $48,350 of TAXABLE income
-# Married filing jointly: $0 - $96,700
-# Head of household: $0 - $64,750
-LTCG_0PCT_CEILING = {
-    "single": Decimal("48350"),
-    "married_filing_jointly": Decimal("96700"),
-    "married_filing_separately": Decimal("48350"),
-    "head_of_household": Decimal("64750"),
-}
+
+def _ltcg_0pct_ceiling(tax_year: int | None = None) -> dict[str, Decimal]:
+    """Derive 0% LTCG ceilings from TAX constants for the given year.
+
+    The 0% LTCG rate applies up to the first bracket threshold in
+    LTCG_BRACKETS_SINGLE / LTCG_BRACKETS_MARRIED.
+    """
+    year = tax_year or datetime.date.today().year
+    tax_data = TAX.for_year(year)
+    single_ceiling = Decimal(str(tax_data["LTCG_BRACKETS_SINGLE"][0][0]))
+    married_ceiling = Decimal(str(tax_data["LTCG_BRACKETS_MARRIED"][0][0]))
+    # HoH is approximately midpoint; use single as conservative fallback
+    hoh_ceiling = Decimal(str(int((float(single_ceiling) + float(married_ceiling)) / 2)))
+    return {
+        "single": single_ceiling,
+        "married_filing_jointly": married_ceiling,
+        "married_filing_separately": single_ceiling,
+        "head_of_household": hoh_ceiling,
+    }
 
 
 class CapitalGainsHarvestingService:
@@ -43,7 +54,8 @@ class CapitalGainsHarvestingService:
             dict with available_0pct_room, current_income, bracket_ceiling,
             suggested_harvest_amount
         """
-        ceiling = LTCG_0PCT_CEILING.get(filing_status.lower(), Decimal("48350"))
+        ceilings = _ltcg_0pct_ceiling(tax_year)
+        ceiling = ceilings.get(filing_status.lower(), ceilings["single"])
         available = max(Decimal("0"), ceiling - current_taxable_income)
         return {
             "filing_status": filing_status,

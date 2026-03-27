@@ -63,6 +63,24 @@ def _marginal_rate(income: float, filing_status: str, year: int) -> float:
     return brackets[-1][1] if brackets else 0.22
 
 
+def _bracket_tax(income: float, filing_status: str, year: int) -> float:
+    """Compute total federal income tax using full bracket calculation."""
+    if income <= 0:
+        return 0.0
+    tax_data = TAX.for_year(year)
+    brackets = tax_data["BRACKETS_MARRIED"] if filing_status.lower() in ("married", "mfj") else tax_data["BRACKETS_SINGLE"]
+    total_tax = 0.0
+    prev_ceiling = 0.0
+    for rate, ceiling in brackets:
+        if income <= prev_ceiling:
+            break
+        taxable_in_bracket = min(income, ceiling) - prev_ceiling
+        if taxable_in_bracket > 0:
+            total_tax += taxable_in_bracket * rate
+        prev_ceiling = ceiling
+    return total_tax
+
+
 @router.get("/rmd-planner", response_model=RmdPlannerResponse)
 async def get_rmd_planner(
     projection_years: int = Query(default=20, ge=1, le=40),
@@ -102,15 +120,17 @@ async def get_rmd_planner(
     ]
     total_current_balance = sum(float(a.current_balance or 0) for a in accounts)
 
-    rmd_start_age = RMD_CONSTANTS.TRIGGER_AGE
+    # Use birth-year-aware RMD start age (SECURE 2.0: age 75 for born 1960+)
+    birth_year = current_user.birthdate.year if current_user.birthdate else None
+    rmd_start_age = RMD_CONSTANTS.trigger_age_for_birth_year(birth_year)
     years_until_rmd = max(0, rmd_start_age - current_age) if current_age else 0
 
     projection: List[RmdYearPoint] = []
     lifetime_rmd = 0.0
     lifetime_tax = 0.0
 
-    # Track balances per account
-    balances = {a.id: float(a.current_balance or 0) for a in accounts}
+    # Track running balances per account (mutated each year)
+    running_balances = {a.id: float(a.current_balance or 0) for a in accounts}
 
     for i in range(projection_years):
         year = current_year + i
@@ -120,23 +140,27 @@ async def get_rmd_planner(
         total_rmd = 0.0
 
         for a in accounts:
-            proj_bal = balances[a.id] * ((1 + growth_rate) ** i)
+            # Grow balance first, then take RMD
+            grown_bal = running_balances[a.id] * (1 + growth_rate)
             rmd_amount = 0.0
             if requires_rmd(age):
-                rmd_dec = calculate_rmd(Decimal(str(proj_bal)), age)
+                rmd_dec = calculate_rmd(Decimal(str(grown_bal)), age)
                 if rmd_dec:
                     rmd_amount = float(rmd_dec)
             total_rmd += rmd_amount
+            # Update running balance: after-growth minus RMD withdrawn
+            running_balances[a.id] = grown_bal - rmd_amount
             per_account_rmds.append(RmdPerAccount(
                 account_id=str(a.id),
-                projected_balance=round(proj_bal, 2),
+                projected_balance=round(grown_bal, 2),
                 rmd_amount=round(rmd_amount, 2),
             ))
 
-        # Estimate tax on RMD using marginal bracket
-        taxable_income = other_annual_income + total_rmd
-        rate = _marginal_rate(taxable_income, filing_status, year)
-        tax_on_rmd = total_rmd * rate
+        # Estimate tax on RMD using incremental bracket math
+        tax_with_rmd = _bracket_tax(other_annual_income + total_rmd, filing_status, year)
+        tax_without_rmd = _bracket_tax(other_annual_income, filing_status, year)
+        tax_on_rmd = tax_with_rmd - tax_without_rmd
+        rate = (tax_on_rmd / total_rmd) if total_rmd > 0 else 0.0
 
         lifetime_rmd += total_rmd
         lifetime_tax += tax_on_rmd

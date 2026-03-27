@@ -51,6 +51,7 @@ _DCFSA_LIMIT_BY_YEAR: dict[int, float] = {
     2023: 5_000,
     2024: 5_000,
     2025: 5_000,  # unchanged; update if IRS revises
+    2026: 5_000,  # unchanged; update if IRS revises
 }
 
 # CDCTC eligible expense cap (Form 2441)
@@ -59,6 +60,7 @@ _CDCTC_EXPENSE_CAP_BY_YEAR: dict[int, dict] = {
     2023: {"one_dependent": 3_000, "two_or_more": 6_000},
     2024: {"one_dependent": 3_000, "two_or_more": 6_000},
     2025: {"one_dependent": 3_000, "two_or_more": 6_000},
+    2026: {"one_dependent": 3_000, "two_or_more": 6_000},
 }
 
 # CDCTC credit rate by AGI (rate applies to eligible expenses)

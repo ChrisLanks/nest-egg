@@ -291,11 +291,13 @@ class RothConversionService:
         nc_roth = inp.roth_balance * (1 + inp.expected_return) ** inp.years_to_project
 
         # Tax savings estimate: Roth withdrawals are tax-free;
-        # traditional withdrawals at estimated 22 % marginal rate
+        # traditional withdrawals at the user's actual marginal rate
+        year0_rate = _marginal_rate(taxable_0, year0_brackets)
+        future_marginal = max(year0_rate, float(TAX.FEDERAL_MARGINAL_RATE))
         converted_after_growth = total_converted * (
             (1 + inp.expected_return) ** (inp.years_to_project / 2)
         )
-        tax_savings = max(0.0, converted_after_growth * 0.22 - total_tax_cost)
+        tax_savings = max(0.0, converted_after_growth * future_marginal - total_tax_cost)
 
         if total_converted > 0:
             summary = (

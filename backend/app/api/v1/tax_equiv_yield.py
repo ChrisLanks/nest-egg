@@ -27,6 +27,11 @@ _YIELD_ACCOUNT_TYPES = frozenset({
 
 _BOND_TYPES = frozenset({AccountType.BOND, AccountType.I_BOND})
 
+# I_BOND is tax-exempt at both federal and state level for education savings,
+# but generally: exempt from state/local tax, federal tax deferred until redemption.
+# For TEY purposes, treat I_BOND interest as federal-tax-deferred (exempt from state).
+_TAX_EXEMPT_TYPES = frozenset({AccountType.I_BOND})
+
 
 class YieldHolding(BaseModel):
     account_id: str
@@ -37,13 +42,14 @@ class YieldHolding(BaseModel):
     current_balance: float
     annual_interest_income: float
     annual_tax_cost: float
-    is_muni: bool
+    is_tax_advantaged: bool
 
 
 class TaxEquivYieldResponse(BaseModel):
     assumed_federal_rate_pct: float
     assumed_state_rate_pct: float
     combined_marginal_rate_pct: float
+    itemizing: bool
     holdings: List[YieldHolding]
     portfolio_blended_nominal_yield_pct: float
     portfolio_blended_tax_equiv_yield_pct: float
@@ -56,6 +62,7 @@ class TaxEquivYieldResponse(BaseModel):
 async def get_tax_equivalent_yield(
     federal_rate_pct: Optional[float] = Query(default=None, ge=0, le=50, description="Override federal marginal rate (percent, e.g. 22)"),
     state_rate_pct: float = Query(default=5.0, ge=0, le=20, description="State income tax rate (percent)"),
+    itemizing: bool = Query(default=False, description="Whether user itemizes deductions (affects state tax deductibility)"),
     filing_status: str = Query(default="single"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -70,7 +77,12 @@ async def get_tax_equivalent_yield(
         fed_rate = float(TAX.FEDERAL_MARGINAL_RATE)
 
     state_rate = state_rate_pct / 100
-    combined_rate = fed_rate + state_rate
+
+    # Combined rate accounts for state tax deductibility when itemizing
+    if itemizing:
+        combined_rate = fed_rate + state_rate * (1 - fed_rate)
+    else:
+        combined_rate = fed_rate + state_rate
 
     result = await db.execute(
         select(Account).where(
@@ -85,6 +97,7 @@ async def get_tax_equivalent_yield(
     total_value = 0.0
     total_interest = 0.0
     total_tax = 0.0
+    total_tax_equiv_weighted = 0.0
 
     for acct in accounts:
         nominal_pct = float(acct.interest_rate or 0)
@@ -93,17 +106,26 @@ async def get_tax_equivalent_yield(
             continue
 
         nominal = nominal_pct / 100
-        is_muni = False  # Could be enhanced with ticker lookup later
+        is_tax_advantaged = acct.account_type in _TAX_EXEMPT_TYPES
 
-        # Tax-equivalent yield: nominal / (1 - combined_rate)
-        # For munis (tax-exempt), use same formula to show what taxable yield would be equivalent
-        tax_equiv = nominal / (1 - combined_rate) if combined_rate < 1.0 else nominal
-        annual_interest = balance * nominal
-        annual_tax = annual_interest * combined_rate
+        if is_tax_advantaged:
+            # I_BOND: exempt from state tax, federal tax deferred until redemption
+            # TEY = nominal / (1 - fed_rate) to compare against fully-taxable alternatives
+            tax_equiv = nominal / (1 - fed_rate) if fed_rate < 1.0 else nominal
+            annual_interest = balance * nominal
+            # Tax cost: only state tax is zero for I_BOND; federal deferred (show 0 current cost)
+            annual_tax = 0.0
+        else:
+            # Taxable bonds (CD, SAVINGS, MONEY_MARKET, regular BOND)
+            # TEY = nominal yield (taxable bonds already ARE pre-tax)
+            tax_equiv = nominal
+            annual_interest = balance * nominal
+            annual_tax = annual_interest * combined_rate
 
         total_value += balance
         total_interest += annual_interest
         total_tax += annual_tax
+        total_tax_equiv_weighted += tax_equiv * balance
 
         holdings.append(YieldHolding(
             account_id=str(acct.id),
@@ -114,19 +136,20 @@ async def get_tax_equivalent_yield(
             current_balance=round(balance, 2),
             annual_interest_income=round(annual_interest, 2),
             annual_tax_cost=round(annual_tax, 2),
-            is_muni=is_muni,
+            is_tax_advantaged=is_tax_advantaged,
         ))
 
     # Sort by tax-equivalent yield descending
     holdings.sort(key=lambda h: h.tax_equivalent_yield_pct, reverse=True)
 
     blended_nominal = (total_interest / total_value * 100) if total_value > 0 else 0.0
-    blended_tax_equiv = (blended_nominal / 100 / (1 - combined_rate) * 100) if combined_rate < 1.0 else blended_nominal
+    blended_tax_equiv = (total_tax_equiv_weighted / total_value * 100) if total_value > 0 else 0.0
 
     return TaxEquivYieldResponse(
         assumed_federal_rate_pct=round(fed_rate * 100, 2),
         assumed_state_rate_pct=round(state_rate * 100, 2),
         combined_marginal_rate_pct=round(combined_rate * 100, 2),
+        itemizing=itemizing,
         holdings=holdings,
         portfolio_blended_nominal_yield_pct=round(blended_nominal, 3),
         portfolio_blended_tax_equiv_yield_pct=round(blended_tax_equiv, 3),

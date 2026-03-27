@@ -94,20 +94,8 @@ class TaxBucketService:
         if growth_rate is None:
             growth_rate = Decimal("0.06")
 
-        # IRS Uniform Lifetime Table (age -> distribution period)
-        # Source: IRS Publication 590-B (2024 tables, effective 2022)
-        ULT: dict[int, Decimal] = {
-            72: Decimal("27.4"), 73: Decimal("26.5"), 74: Decimal("25.5"),
-            75: Decimal("24.6"), 76: Decimal("23.7"), 77: Decimal("22.9"),
-            78: Decimal("22.0"), 79: Decimal("21.1"), 80: Decimal("20.2"),
-            81: Decimal("19.4"), 82: Decimal("18.5"), 83: Decimal("17.7"),
-            84: Decimal("16.8"), 85: Decimal("16.0"), 86: Decimal("15.2"),
-            87: Decimal("14.4"), 88: Decimal("13.7"), 89: Decimal("12.9"),
-            90: Decimal("12.2"), 91: Decimal("11.5"), 92: Decimal("10.8"),
-            93: Decimal("10.1"), 94: Decimal("9.5"),  95: Decimal("8.9"),
-            96: Decimal("8.4"),  97: Decimal("7.8"),  98: Decimal("7.3"),
-            99: Decimal("6.8"), 100: Decimal("6.4"),
-        }
+        # Use the canonical Uniform Lifetime Table from constants (no duplicate)
+        ULT = RMD.UNIFORM_LIFETIME_TABLE
 
         rmd_start_age = RMD.TRIGGER_AGE
         schedule = []

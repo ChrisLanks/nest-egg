@@ -41,8 +41,17 @@ def _annual_limit(account_type: AccountType, age: Optional[int], limits: dict, h
     if account_type in (AccountType.RETIREMENT_401K, AccountType.RETIREMENT_403B, AccountType.RETIREMENT_457B):
         base = float(limits["LIMIT_401K"])
         catchup = float(limits["LIMIT_401K_CATCH_UP"])
+        super_catchup = float(limits.get("LIMIT_401K_SUPER_CATCH_UP", 0))
         eligible = age is not None and age >= catchup_age_401k
-        return base, eligible, base + (catchup if eligible else 0)
+        # SECURE 2.0: ages 60-63 get super catch-up instead of regular catch-up
+        super_eligible = (
+            eligible
+            and super_catchup > 0
+            and age is not None
+            and RETIREMENT.CATCH_UP_AGE_SUPER_401K_START <= age <= RETIREMENT.CATCH_UP_AGE_SUPER_401K_END
+        )
+        effective_catchup = super_catchup if super_eligible else (catchup if eligible else 0)
+        return base, eligible, base + effective_catchup
     if account_type in (AccountType.RETIREMENT_IRA, AccountType.RETIREMENT_ROTH):
         base = float(limits["LIMIT_IRA"])
         catchup = float(limits["LIMIT_IRA_CATCH_UP"])

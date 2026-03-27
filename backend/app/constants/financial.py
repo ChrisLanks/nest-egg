@@ -142,6 +142,7 @@ _RETIREMENT_LIMITS: dict[int, dict] = {
     2024: {
         "LIMIT_401K": 23_000,
         "LIMIT_401K_CATCH_UP": 7_500,
+        "LIMIT_401K_SUPER_CATCH_UP": 0,  # SECURE 2.0 super catch-up starts 2025
         "LIMIT_401K_TOTAL": 69_000,
         "LIMIT_IRA": 7_000,
         "LIMIT_IRA_CATCH_UP": 1_000,
@@ -158,6 +159,7 @@ _RETIREMENT_LIMITS: dict[int, dict] = {
     2025: {
         "LIMIT_401K": 23_500,
         "LIMIT_401K_CATCH_UP": 7_500,
+        "LIMIT_401K_SUPER_CATCH_UP": 11_250,  # SECURE 2.0: ages 60-63
         "LIMIT_401K_TOTAL": 70_000,
         "LIMIT_IRA": 7_000,
         "LIMIT_IRA_CATCH_UP": 1_000,
@@ -175,6 +177,7 @@ _RETIREMENT_LIMITS: dict[int, dict] = {
         # Source: IRS Notice 2025-67, IRS.gov newsroom (Oct 2025)
         "LIMIT_401K": 24_500,  # IRS confirmed
         "LIMIT_401K_CATCH_UP": 8_000,  # Age 50+ catch-up; IRS confirmed
+        "LIMIT_401K_SUPER_CATCH_UP": 12_000,  # SECURE 2.0: ages 60-63; IRS confirmed (1.5x catch-up)
         "LIMIT_401K_TOTAL": 70_000,  # Section 415(c) total (employee + employer); IRS confirmed
         "LIMIT_IRA": 7_500,  # IRS confirmed
         "LIMIT_IRA_CATCH_UP": 1_100,  # Age 50+; IRS confirmed (increased from $1,000)
@@ -195,6 +198,7 @@ _RETIREMENT_LIMITS: dict[int, dict] = {
 _RETIREMENT_PROJ: dict[str, tuple] = {
     "LIMIT_401K": (0.025, 500),  # IRS CPI-W indexed, $500 increments
     "LIMIT_401K_CATCH_UP": (0.025, 500),
+    "LIMIT_401K_SUPER_CATCH_UP": (0.025, 500),  # SECURE 2.0: ages 60-63
     "LIMIT_401K_TOTAL": (0.025, 1_000),  # Section 415(c) total
     "LIMIT_IRA": (0.025, 500),
     "LIMIT_IRA_CATCH_UP": (0.025, 100),
@@ -213,6 +217,7 @@ _TAX_DATA: dict[int, dict] = {
     2024: {
         "STANDARD_DEDUCTION_SINGLE": 14_600,
         "STANDARD_DEDUCTION_MARRIED": 29_200,
+        "STANDARD_DEDUCTION_HOH": 21_900,
         "STANDARD_DEDUCTION_OVER_65_EXTRA_SINGLE": 1_950,
         "STANDARD_DEDUCTION_OVER_65_EXTRA_MARRIED": 1_550,
         # Ordinary income brackets: list of (rate, ceiling) — ceiling is top of bracket
@@ -234,6 +239,15 @@ _TAX_DATA: dict[int, dict] = {
             (0.35, 731_200),
             (0.37, float("inf")),
         ],
+        "BRACKETS_HOH": [
+            (0.10, 16_550),
+            (0.12, 63_100),
+            (0.22, 100_500),
+            (0.24, 191_950),
+            (0.32, 243_700),
+            (0.35, 609_350),
+            (0.37, float("inf")),
+        ],
         "LTCG_BRACKETS_SINGLE": [
             (47_025, 0.00),
             (518_900, 0.15),
@@ -248,6 +262,7 @@ _TAX_DATA: dict[int, dict] = {
     2025: {
         "STANDARD_DEDUCTION_SINGLE": 15_000,
         "STANDARD_DEDUCTION_MARRIED": 30_000,
+        "STANDARD_DEDUCTION_HOH": 22_500,
         "STANDARD_DEDUCTION_OVER_65_EXTRA_SINGLE": 2_000,
         "STANDARD_DEDUCTION_OVER_65_EXTRA_MARRIED": 1_600,
         "BRACKETS_SINGLE": [
@@ -268,6 +283,15 @@ _TAX_DATA: dict[int, dict] = {
             (0.35, 751_600),
             (0.37, float("inf")),
         ],
+        "BRACKETS_HOH": [
+            (0.10, 16_550),
+            (0.12, 63_100),
+            (0.22, 100_500),
+            (0.24, 191_950),
+            (0.32, 243_700),
+            (0.35, 609_350),
+            (0.37, float("inf")),
+        ],
         "LTCG_BRACKETS_SINGLE": [
             (48_350, 0.00),
             (533_400, 0.15),
@@ -283,6 +307,7 @@ _TAX_DATA: dict[int, dict] = {
         # Source: IRS Rev. Proc. 2025-32 / IRS newsroom (Oct 2025), includes OBBBA amendments
         "STANDARD_DEDUCTION_SINGLE": 16_100,  # IRS confirmed
         "STANDARD_DEDUCTION_MARRIED": 32_200,  # IRS confirmed
+        "STANDARD_DEDUCTION_HOH": 24_150,  # Projected from 2025 (~3% inflation)
         "STANDARD_DEDUCTION_OVER_65_EXTRA_SINGLE": 2_100,  # Inflation-adjusted estimate
         "STANDARD_DEDUCTION_OVER_65_EXTRA_MARRIED": 1_700,  # Inflation-adjusted estimate
         "BRACKETS_SINGLE": [
@@ -303,6 +328,15 @@ _TAX_DATA: dict[int, dict] = {
             (0.35, 775_100),
             (0.37, float("inf")),
         ],
+        "BRACKETS_HOH": [
+            (0.10, 17_050),  # Projected ~3% from 2025
+            (0.12, 65_000),
+            (0.22, 103_500),
+            (0.24, 197_700),
+            (0.32, 251_000),
+            (0.35, 627_650),
+            (0.37, float("inf")),
+        ],
         "LTCG_BRACKETS_SINGLE": [
             (49_450, 0.00),  # 0% up to $49,450; IRS confirmed
             (545_500, 0.15),  # 15% up to $545,500; IRS confirmed
@@ -320,11 +354,13 @@ _TAX_DATA: dict[int, dict] = {
 _TAX_PROJ: dict[str, tuple] = {
     "STANDARD_DEDUCTION_SINGLE": (0.025, 50),
     "STANDARD_DEDUCTION_MARRIED": (0.025, 50),
+    "STANDARD_DEDUCTION_HOH": (0.025, 50),
     "STANDARD_DEDUCTION_OVER_65_EXTRA_SINGLE": (0.025, 50),
     "STANDARD_DEDUCTION_OVER_65_EXTRA_MARRIED": (0.025, 50),
     # Ordinary brackets: scale income thresholds (pos 0) by CPI-W ~2.5%; rates (pos 1) fixed
     "BRACKETS_SINGLE": (0.025, 25),
     "BRACKETS_MARRIED": (0.025, 25),
+    "BRACKETS_HOH": (0.025, 25),
     "LTCG_BRACKETS_SINGLE": (0.025, 50),  # Scales income thresholds; rates unchanged
     "LTCG_BRACKETS_MARRIED": (0.025, 50),
 }
@@ -368,6 +404,14 @@ _MEDICARE_DATA: dict[int, dict] = {
             (500_000, 342.30, 74.20),
             (float("inf"), 395.60, 81.00),
         ],
+        "IRMAA_BRACKETS_MARRIED": [
+            (206_000, 0.00, 0.00),
+            (258_000, 70.90, 12.90),
+            (322_000, 161.40, 33.30),
+            (386_000, 251.90, 53.80),
+            (750_000, 342.30, 74.20),
+            (float("inf"), 395.60, 81.00),
+        ],
     },
     2025: {
         "PART_B_MONTHLY": 185.00,
@@ -378,6 +422,14 @@ _MEDICARE_DATA: dict[int, dict] = {
             (167_000, 185.00, 35.30),
             (200_000, 295.90, 57.00),
             (500_000, 406.90, 78.60),
+            (float("inf"), 443.30, 85.80),
+        ],
+        "IRMAA_BRACKETS_MARRIED": [
+            (212_000, 0.00, 0.00),
+            (266_000, 74.00, 13.70),
+            (334_000, 185.00, 35.30),
+            (400_000, 295.90, 57.00),
+            (750_000, 406.90, 78.60),
             (float("inf"), 443.30, 85.80),
         ],
     },
@@ -395,6 +447,14 @@ _MEDICARE_DATA: dict[int, dict] = {
             (500_000, 446.40, 83.20),  # Tier 4 (3.2×); Part D estimated
             (float("inf"), 487.00, 91.00),  # Tier 5 (3.4×); confirmed
         ],
+        "IRMAA_BRACKETS_MARRIED": [
+            (218_000, 0.00, 0.00),  # Standard — no surcharge
+            (274_000, 81.20, 14.50),  # Tier 1
+            (344_000, 202.90, 37.40),  # Tier 2
+            (410_000, 324.60, 60.30),  # Tier 3
+            (750_000, 446.40, 83.20),  # Tier 4
+            (float("inf"), 487.00, 91.00),  # Tier 5
+        ],
     },
 }
 
@@ -408,6 +468,11 @@ _MEDICARE_PROJ: dict[str, object] = {
         (0.030, 1_000),  # income threshold: CPI ~3%, round to $1k
         (0.050, 0.10),  # Part B surcharge: tracks Part B growth ~5%
         (0.040, 0.10),  # Part D surcharge: tracks Part D growth ~4%
+    ],
+    "IRMAA_BRACKETS_MARRIED": [
+        (0.030, 1_000),
+        (0.050, 0.10),
+        (0.040, 0.10),
     ],
 }
 
@@ -431,11 +496,13 @@ class TAX:
 
     STANDARD_DEDUCTION_SINGLE = _d["STANDARD_DEDUCTION_SINGLE"]
     STANDARD_DEDUCTION_MARRIED = _d["STANDARD_DEDUCTION_MARRIED"]
+    STANDARD_DEDUCTION_HOH = _d.get("STANDARD_DEDUCTION_HOH", _d["STANDARD_DEDUCTION_SINGLE"])
     STANDARD_DEDUCTION_OVER_65_EXTRA_SINGLE = _d["STANDARD_DEDUCTION_OVER_65_EXTRA_SINGLE"]
     STANDARD_DEDUCTION_OVER_65_EXTRA_MARRIED = _d["STANDARD_DEDUCTION_OVER_65_EXTRA_MARRIED"]
     # Ordinary income brackets for current tax year (COLA-projected if year not in table)
     BRACKETS_SINGLE: List[Tuple[float, float]] = _d["BRACKETS_SINGLE"]
     BRACKETS_MARRIED: List[Tuple[float, float]] = _d["BRACKETS_MARRIED"]
+    BRACKETS_HOH: List[Tuple[float, float]] = _d.get("BRACKETS_HOH", _d["BRACKETS_SINGLE"])
     LTCG_BRACKETS_SINGLE: List[Tuple[float, float]] = _d["LTCG_BRACKETS_SINGLE"]
     LTCG_BRACKETS_MARRIED: List[Tuple[float, float]] = _d["LTCG_BRACKETS_MARRIED"]
 
@@ -476,6 +543,7 @@ class RETIREMENT:
 
     LIMIT_401K = _d["LIMIT_401K"]
     LIMIT_401K_CATCH_UP = _d["LIMIT_401K_CATCH_UP"]
+    LIMIT_401K_SUPER_CATCH_UP = _d.get("LIMIT_401K_SUPER_CATCH_UP", 0)
     LIMIT_401K_TOTAL = _d["LIMIT_401K_TOTAL"]
 
     LIMIT_IRA = _d["LIMIT_IRA"]
@@ -505,6 +573,9 @@ class RETIREMENT:
     # Catch-up contribution eligibility ages (IRS rules — watch SECURE 3.0)
     CATCH_UP_AGE_401K = 50  # Age 50+: 401k / 403b / IRA catch-up eligible
     CATCH_UP_AGE_HSA = 55  # Age 55+: HSA catch-up eligible
+    # SECURE 2.0 super catch-up for ages 60-63 (effective 2025+)
+    CATCH_UP_AGE_SUPER_401K_START = 60
+    CATCH_UP_AGE_SUPER_401K_END = 63
 
     @classmethod
     def for_year(cls, year: int) -> dict:
@@ -519,6 +590,23 @@ class RETIREMENT:
 
 class SS:
     """Social Security parameters."""
+
+    # Historical Social Security taxable maximum by year (SSA.gov)
+    HISTORICAL_TAXABLE_MAX: Dict[int, int] = {
+        1990: 51_300, 1991: 53_400, 1992: 55_500, 1993: 57_600,
+        1994: 60_600, 1995: 61_200, 1996: 62_700, 1997: 65_400,
+        1998: 68_400, 1999: 72_600, 2000: 76_200, 2001: 80_400,
+        2002: 84_900, 2003: 87_000, 2004: 87_900, 2005: 90_000,
+        2006: 94_200, 2007: 97_500, 2008: 102_000, 2009: 106_800,
+        2010: 106_800, 2011: 106_800, 2012: 110_100, 2013: 113_700,
+        2014: 117_000, 2015: 118_500, 2016: 118_500, 2017: 127_200,
+        2018: 128_400, 2019: 132_900, 2020: 137_700, 2021: 142_800,
+        2022: 147_000, 2023: 160_200, 2024: 168_600, 2025: 176_100,
+        2026: 184_500,
+    }
+
+    # COLA rate for projecting taxable max beyond the table
+    TAXABLE_MAX_COLA = 0.03
 
     # ── Inflation-adjusted — auto-selected for current tax year ──
     TAX_YEAR = datetime.date.today().year
@@ -568,6 +656,23 @@ class SS:
     PLANNING_START_AGE = 60
 
     @classmethod
+    def taxable_max_for_year(cls, year: int) -> float:
+        """Return the SS taxable maximum for a specific year.
+
+        Uses historical table when available; projects forward from the
+        latest known year at ~3% COLA for future years.
+        """
+        if year in cls.HISTORICAL_TAXABLE_MAX:
+            return float(cls.HISTORICAL_TAXABLE_MAX[year])
+        max_known = max(cls.HISTORICAL_TAXABLE_MAX)
+        if year > max_known:
+            base = cls.HISTORICAL_TAXABLE_MAX[max_known]
+            return float(base) * (1 + cls.TAXABLE_MAX_COLA) ** (year - max_known)
+        # year before table — use earliest known
+        min_known = min(cls.HISTORICAL_TAXABLE_MAX)
+        return float(cls.HISTORICAL_TAXABLE_MAX[min_known])
+
+    @classmethod
     def for_year(cls, year: int) -> dict:
         """Return Social Security parameters for `year`; projects forward if not hardcoded."""
         return _resolve(_SS_DATA, _SS_PROJ, year)
@@ -588,11 +693,10 @@ class MEDICARE:
     PART_B_MONTHLY = _d["PART_B_MONTHLY"]
     PART_D_MONTHLY = _d["PART_D_MONTHLY"]
     IRMAA_BRACKETS_SINGLE: List[Tuple[float, float, float]] = _d["IRMAA_BRACKETS_SINGLE"]
+    IRMAA_BRACKETS_MARRIED: List[Tuple[float, float, float]] = _d.get("IRMAA_BRACKETS_MARRIED", _d["IRMAA_BRACKETS_SINGLE"])
 
     # Medigap national average — update alongside PART_B when CMS publishes
     MEDIGAP_MONTHLY = 150.00
-
-    # Married thresholds are approximately 2x single (applied via multiplier in code)
 
     # ── Non-inflation-adjusted constants ──
     ELIGIBILITY_AGE = 65
@@ -645,8 +749,17 @@ class HEALTHCARE:
 class RMD:
     """RMD rules under SECURE 2.0 Act."""
 
-    # Age when RMDs begin  (watch for SECURE 3.0)
-    TRIGGER_AGE = 73
+    # Age when RMDs begin (SECURE 2.0: 73 for born 1951-1959, 75 for born 1960+)
+    TRIGGER_AGE = 73  # Default for born before 1960
+    TRIGGER_AGE_2033 = 75  # For born 1960+, effective 2033
+    TRIGGER_AGE_BIRTH_YEAR_THRESHOLD = 1960  # Birth year cutoff for age-75 rule
+
+    @classmethod
+    def trigger_age_for_birth_year(cls, birth_year: int | None) -> int:
+        """Return RMD start age based on birth year (SECURE 2.0)."""
+        if birth_year is not None and birth_year >= cls.TRIGGER_AGE_BIRTH_YEAR_THRESHOLD:
+            return cls.TRIGGER_AGE_2033
+        return cls.TRIGGER_AGE
 
     # Penalty rate for shortfall (reduced from 50% by SECURE 2.0)
     PENALTY_RATE = Decimal("0.25")  # 25%
@@ -1090,14 +1203,143 @@ class NET_WORTH_BENCHMARKS:
 # =========================================================================
 
 
+# ── AMT year-keyed data ──────────────────────────────────────────────────
+_AMT_DATA: dict[int, dict] = {
+    2024: {
+        "AMT_EXEMPTION_SINGLE": 85_700,
+        "AMT_EXEMPTION_MARRIED": 133_300,
+        "AMT_PHASEOUT_SINGLE": 609_350,
+        "AMT_PHASEOUT_MARRIED": 1_218_700,
+        "AMT_RATE_26_THRESHOLD": 232_600,
+    },
+    2025: {
+        "AMT_EXEMPTION_SINGLE": 88_100,
+        "AMT_EXEMPTION_MARRIED": 137_000,
+        "AMT_PHASEOUT_SINGLE": 626_350,
+        "AMT_PHASEOUT_MARRIED": 1_252_700,
+        "AMT_RATE_26_THRESHOLD": 239_100,
+    },
+    2026: {
+        # Projected ~3% COLA from 2025
+        "AMT_EXEMPTION_SINGLE": 90_700,
+        "AMT_EXEMPTION_MARRIED": 141_100,
+        "AMT_PHASEOUT_SINGLE": 645_100,
+        "AMT_PHASEOUT_MARRIED": 1_290_300,
+        "AMT_RATE_26_THRESHOLD": 246_300,
+    },
+}
+_AMT_PROJ: dict[str, tuple] = {
+    "AMT_EXEMPTION_SINGLE": (0.03, 100),
+    "AMT_EXEMPTION_MARRIED": (0.03, 100),
+    "AMT_PHASEOUT_SINGLE": (0.03, 50),
+    "AMT_PHASEOUT_MARRIED": (0.03, 100),
+    "AMT_RATE_26_THRESHOLD": (0.03, 100),
+}
+
+# ── QBI year-keyed data ──────────────────────────────────────────────────
+_QBI_DATA: dict[int, dict] = {
+    2024: {
+        "QBI_THRESHOLD_SINGLE": 191_950,
+        "QBI_THRESHOLD_MARRIED": 383_900,
+    },
+    2025: {
+        "QBI_THRESHOLD_SINGLE": 197_300,
+        "QBI_THRESHOLD_MARRIED": 394_600,
+    },
+    2026: {
+        # Projected ~5% COLA from 2025
+        "QBI_THRESHOLD_SINGLE": 207_250,
+        "QBI_THRESHOLD_MARRIED": 414_500,
+    },
+}
+_QBI_PROJ: dict[str, tuple] = {
+    "QBI_THRESHOLD_SINGLE": (0.05, 50),
+    "QBI_THRESHOLD_MARRIED": (0.05, 100),
+}
+
+# ── WEP year-keyed data ──────────────────────────────────────────────────
+_WEP_DATA: dict[int, dict] = {
+    2024: {"WEP_MAX_MONTHLY_REDUCTION": 578},
+    2025: {"WEP_MAX_MONTHLY_REDUCTION": 587},
+    2026: {"WEP_MAX_MONTHLY_REDUCTION": 619},  # Projected ~COLA from 2025
+}
+_WEP_PROJ: dict[str, tuple] = {
+    "WEP_MAX_MONTHLY_REDUCTION": (0.03, 1),
+}
+
+# ── QCD year-keyed data (SECURE 2.0: inflation-indexed from 2024) ────────
+_QCD_DATA: dict[int, dict] = {
+    2024: {"QCD_MAX_ANNUAL": 105_000},
+    2025: {"QCD_MAX_ANNUAL": 108_000},
+    2026: {"QCD_MAX_ANNUAL": 108_000},  # Unchanged or slightly higher; conservative
+}
+_QCD_PROJ: dict[str, tuple] = {
+    "QCD_MAX_ANNUAL": (0.025, 1_000),  # SECURE 2.0 inflation-indexed
+}
+
+
+class AMT:
+    """Alternative Minimum Tax year-keyed constants."""
+    TAX_YEAR = datetime.date.today().year
+    _d = _resolve(_AMT_DATA, _AMT_PROJ)
+    AMT_EXEMPTION_SINGLE = _d["AMT_EXEMPTION_SINGLE"]
+    AMT_EXEMPTION_MARRIED = _d["AMT_EXEMPTION_MARRIED"]
+    AMT_PHASEOUT_SINGLE = _d["AMT_PHASEOUT_SINGLE"]
+    AMT_PHASEOUT_MARRIED = _d["AMT_PHASEOUT_MARRIED"]
+    AMT_RATE_26_THRESHOLD = _d["AMT_RATE_26_THRESHOLD"]
+    AMT_RATE_26 = Decimal("0.26")
+    AMT_RATE_28 = Decimal("0.28")
+
+    @classmethod
+    def for_year(cls, year: int) -> dict:
+        return _resolve(_AMT_DATA, _AMT_PROJ, year)
+
+
+class QBI:
+    """Qualified Business Income deduction year-keyed constants."""
+    TAX_YEAR = datetime.date.today().year
+    _d = _resolve(_QBI_DATA, _QBI_PROJ)
+    QBI_THRESHOLD_SINGLE = _d["QBI_THRESHOLD_SINGLE"]
+    QBI_THRESHOLD_MARRIED = _d["QBI_THRESHOLD_MARRIED"]
+    DEDUCTION_RATE = Decimal("0.20")
+
+    @classmethod
+    def for_year(cls, year: int) -> dict:
+        return _resolve(_QBI_DATA, _QBI_PROJ, year)
+
+
+class WEP:
+    """Windfall Elimination Provision year-keyed constants."""
+    TAX_YEAR = datetime.date.today().year
+    _d = _resolve(_WEP_DATA, _WEP_PROJ)
+    WEP_MAX_MONTHLY_REDUCTION = Decimal(str(_d["WEP_MAX_MONTHLY_REDUCTION"]))
+
+    @classmethod
+    def for_year(cls, year: int) -> dict:
+        return _resolve(_WEP_DATA, _WEP_PROJ, year)
+
+
+class QCD:
+    """Qualified Charitable Distribution year-keyed constants (SECURE 2.0)."""
+    TAX_YEAR = datetime.date.today().year
+    _d = _resolve(_QCD_DATA, _QCD_PROJ)
+    QCD_MAX_ANNUAL = _d["QCD_MAX_ANNUAL"]
+    QCD_ELIGIBLE_AGE = Decimal("70.5")
+
+    @classmethod
+    def for_year(cls, year: int) -> dict:
+        return _resolve(_QCD_DATA, _QCD_PROJ, year)
+
+
 class EQUITY:
     """Stock options and equity compensation constants."""
 
-    AMT_EXEMPTION_SINGLE = 137_000
-    AMT_EXEMPTION_MARRIED = 274_000
-    AMT_PHASEOUT_SINGLE = 1_049_850
-    AMT_PHASEOUT_MARRIED = 2_099_850
-    AMT_RATE_26_THRESHOLD = 220_700
+    # AMT values now sourced from year-keyed AMT class
+    AMT_EXEMPTION_SINGLE = AMT.AMT_EXEMPTION_SINGLE
+    AMT_EXEMPTION_MARRIED = AMT.AMT_EXEMPTION_MARRIED
+    AMT_PHASEOUT_SINGLE = AMT.AMT_PHASEOUT_SINGLE
+    AMT_PHASEOUT_MARRIED = AMT.AMT_PHASEOUT_MARRIED
+    AMT_RATE_26_THRESHOLD = AMT.AMT_RATE_26_THRESHOLD
     AMT_RATE_26 = Decimal("0.26")
     AMT_RATE_28 = Decimal("0.28")
     ISO_DISQUALIFYING_DISPOSITION_DAYS = 730
@@ -1157,8 +1399,10 @@ class ESTATE:
     ANNUAL_GIFT_EXCLUSION = 19_000
     ANNUAL_GIFT_EXCLUSION_MARRIED = 38_000
     PORTABILITY_ELECTION_DEADLINE_MONTHS = 9
-    # Note: TCJA exemption sunsets after 2025; if not extended, drops to ~$7M
-    TCJA_SUNSET_RISK = True
+    # TCJA exemption extended through 2034 by One Big Beautiful Bill Act (signed 2025).
+    # Sunset risk deferred to 2034, not imminent.
+    TCJA_SUNSET_RISK = False
+    TCJA_SUNSET_YEAR = 2034
 
 
 # =========================================================================
@@ -1242,7 +1486,7 @@ class PENSION:
     COLA_DEFAULT_RATE = Decimal("0.02")
     SURVIVOR_100_COST_PCT = Decimal("0.10")
     SURVIVOR_50_COST_PCT = Decimal("0.05")
-    WEP_MAX_MONTHLY_REDUCTION = Decimal("587")
+    WEP_MAX_MONTHLY_REDUCTION = WEP.WEP_MAX_MONTHLY_REDUCTION
     GPO_REDUCTION_RATE = Decimal("0.667")
     LUMP_SUM_HURDLE_RATE = Decimal("0.045")
     WEP_SUBSTANTIAL_EARNINGS_YEARS_FULL_EXEMPTION = 30
@@ -1322,8 +1566,8 @@ class LENDING:
 class CHARITABLE:
     """Charitable giving optimization constants (2026)."""
 
-    QCD_MAX_ANNUAL = 108_000
-    QCD_ELIGIBLE_AGE = Decimal("70.5")
+    QCD_MAX_ANNUAL = QCD.QCD_MAX_ANNUAL
+    QCD_ELIGIBLE_AGE = QCD.QCD_ELIGIBLE_AGE
     BUNCHING_HORIZON_YEARS = 3
     DEDUCTION_LIMIT_CASH_PCT_AGI = Decimal("0.60")
     DEDUCTION_LIMIT_PROPERTY_PCT_AGI = Decimal("0.30")

@@ -90,13 +90,17 @@ def estimate_aime_from_salary(
     wage_growth = SS.WAGE_GROWTH  # Assumed historical wage growth
 
     # Build earnings history (in today's dollars, roughly indexed)
+    import datetime
+    current_year = datetime.date.today().year
     earnings = []
     for y in range(years_worked):
         # Estimate past salary: current_salary / (1 + growth)^(years_worked - y)
         years_ago = years_worked - y
         past_salary = current_salary / ((1 + wage_growth) ** years_ago)
-        # Cap at Social Security taxable maximum (approximate: $168,600 for 2024)
-        earnings.append(min(past_salary, SS.TAXABLE_MAX))
+        # Cap at year-specific Social Security taxable maximum
+        earning_year = current_year - years_ago
+        year_max = SS.taxable_max_for_year(earning_year)
+        earnings.append(min(past_salary, year_max))
 
     # Use top N years (or all if less)
     earnings.sort(reverse=True)
