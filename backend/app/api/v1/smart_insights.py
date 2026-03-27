@@ -115,6 +115,7 @@ class RothConversionResponse(BaseModel):
     estimated_tax_savings: float
     summary: str
     has_retirement_accounts: bool
+    data_source: Optional[dict] = None  # DataSourceMeta — static/cached/live indicator
 
 
 class HoldingFeeDetailResponse(BaseModel):

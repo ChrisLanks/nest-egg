@@ -89,7 +89,7 @@ _FICA_RATE = 0.0765  # unchanged by law until Social Security wage base adjustme
 
 _DATA_NOTE = (
     "Based on IRS Publication 503 and IRC §129 / §21. "
-    "DC-FSA limit: $5,000/household (unchanged 2022–2025). "
+    "DC-FSA limit: $5,000/household (unchanged 2022–2026). "
     "CDCTC expense caps: $3,000 (1 dependent) / $6,000 (2+). "
     "⚠ Verify against the most current IRS guidance at irs.gov/publications/p503."
 )

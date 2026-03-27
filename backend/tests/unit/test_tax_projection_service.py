@@ -226,7 +226,8 @@ class TestTaxProjectionService:
             prior_year_tax=20_000,
             today=date(2025, 7, 1),
         )
-        assert result.safe_harbour_amount == pytest.approx(20_000, abs=0.01)
+        # AGI > $150k (annualized ~$200k) → 110% rule applies: $20k * 1.10 = $22k
+        assert result.safe_harbour_amount == pytest.approx(22_000, abs=0.01)
         assert result.safe_harbour_met is not None
 
     async def test_no_safe_harbour_without_prior_year(self):

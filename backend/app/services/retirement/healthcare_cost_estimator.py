@@ -36,11 +36,13 @@ def get_irmaa_surcharge(
     Returns:
         Tuple of (monthly Part B surcharge, monthly Part D surcharge)
     """
-    brackets = IRMAA_BRACKETS_SINGLE
-    multiplier = 2.0 if filing_status == "married" else 1.0
+    if filing_status == "married":
+        brackets = MEDICARE.IRMAA_BRACKETS_MARRIED
+    else:
+        brackets = IRMAA_BRACKETS_SINGLE
 
     for threshold, part_b, part_d in brackets:
-        if annual_income <= threshold * multiplier:
+        if annual_income <= threshold:
             return (part_b, part_d)
 
     # Above highest bracket
@@ -117,9 +119,10 @@ def estimate_annual_healthcare_cost(
             # Subsequent years: facility care
             costs["long_term_care"] = LTC_FACILITY_MONTHLY * 12
 
-    # Sum total in today's dollars (before inflation)
+    # Sum base total, then apply medical inflation from current_age to target age
     base_total = sum(costs.values())
-    costs["total"] = base_total
+    years_from_now = max(0, age - current_age)
+    costs["total"] = base_total * (1 + medical_inflation_rate / 100) ** years_from_now
 
     return costs
 

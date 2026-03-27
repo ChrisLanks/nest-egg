@@ -154,7 +154,8 @@ class TestLongTermCare:
 
 class TestTotalCosts:
     def test_total_is_sum_of_components(self):
-        costs = estimate_annual_healthcare_cost(age=70, retirement_income=150000, current_age=55)
+        # When current_age == age, no inflation is applied, so total == component sum
+        costs = estimate_annual_healthcare_cost(age=70, retirement_income=150000, current_age=70)
         component_sum = (
             costs["aca_insurance"]
             + costs["medicare_part_b"]
@@ -165,6 +166,12 @@ class TestTotalCosts:
             + costs["long_term_care"]
         )
         assert costs["total"] == pytest.approx(component_sum, abs=0.01)
+
+    def test_total_includes_medical_inflation(self):
+        """Total at a future age should include medical inflation from current_age."""
+        costs_now = estimate_annual_healthcare_cost(age=70, retirement_income=150000, current_age=70)
+        costs_later = estimate_annual_healthcare_cost(age=70, retirement_income=150000, current_age=55)
+        assert costs_later["total"] > costs_now["total"]
 
     def test_costs_increase_with_age_phases(self):
         """65+ should cost more than pre-65 at standard income."""

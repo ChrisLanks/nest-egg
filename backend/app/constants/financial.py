@@ -284,12 +284,12 @@ _TAX_DATA: dict[int, dict] = {
             (0.37, float("inf")),
         ],
         "BRACKETS_HOH": [
-            (0.10, 16_550),
-            (0.12, 63_100),
-            (0.22, 100_500),
-            (0.24, 191_950),
-            (0.32, 243_700),
-            (0.35, 609_350),
+            (0.10, 17_000),   # IRS-confirmed 2025 HoH brackets
+            (0.12, 64_850),
+            (0.22, 103_350),
+            (0.24, 197_300),
+            (0.32, 250_500),
+            (0.35, 626_350),
             (0.37, float("inf")),
         ],
         "LTCG_BRACKETS_SINGLE": [
@@ -523,6 +523,22 @@ class TAX:
         (float("inf"), 0.85),
     ]
 
+    # Roth IRA income phase-out ranges (year-keyed)
+    _ROTH_PHASEOUT_DATA: Dict[int, Dict] = {
+        2024: {"single": (146_000, 161_000), "married": (230_000, 240_000)},
+        2025: {"single": (150_000, 165_000), "married": (236_000, 246_000)},
+        2026: {"single": (155_000, 170_000), "married": (242_000, 252_000)},
+    }
+
+    @classmethod
+    def roth_phaseout(cls, filing_status: str = "single", year: int | None = None) -> tuple:
+        """Return (start, end) Roth IRA phase-out for filing_status and year."""
+        y = year if year is not None else datetime.date.today().year
+        anchor = _best_year(cls._ROTH_PHASEOUT_DATA, y)
+        data = cls._ROTH_PHASEOUT_DATA[anchor]
+        key = "married" if filing_status.lower() in ("married", "mfj") else "single"
+        return data[key]
+
     @classmethod
     def for_year(cls, year: int) -> dict:
         """Return tax constants for a specific year (projects forward if year not hardcoded)."""
@@ -719,7 +735,7 @@ class HEALTHCARE:
     """Healthcare cost assumptions (2024 dollars)."""
 
     # Pre-65 ACA marketplace (mid-tier Silver, no subsidies)
-    ACA_MONTHLY_SINGLE = 600  # ANNUAL
+    ACA_MONTHLY_SINGLE = 600  # Monthly premium estimate
     ACA_MONTHLY_COUPLE = 1_200
 
     # Out-of-pocket (dental, vision, copays)
@@ -1087,7 +1103,7 @@ class SAVINGS_GOALS:
     """Default amounts for pre-built savings goal templates (2024 dollars)."""
 
     # Emergency fund: fallback monthly expense assumption when no tx history
-    DEFAULT_MONTHLY_EXPENSES = Decimal("3000")  # ANNUAL (median US household)
+    DEFAULT_MONTHLY_EXPENSES = Decimal("3000")  # Monthly (median US household)
 
     # Vacation fund template target
     VACATION_TARGET = Decimal("4000")  # ANNUAL
@@ -1345,7 +1361,8 @@ class EQUITY:
     ISO_DISQUALIFYING_DISPOSITION_DAYS = 730
     NSO_TAX_TREATMENT = "ordinary_income"
     RSU_TAX_EVENT = "ordinary_income"
-    QSBS_EXCLUSION_RATE = Decimal("0.50")
+    # 100% exclusion applies to stock acquired after Sep 27, 2010 (IRC §1202(a)(4))
+    QSBS_EXCLUSION_RATE = Decimal("1.00")
 
 
 # =========================================================================
@@ -1531,8 +1548,8 @@ class VARIABLE_INCOME:
     STATE_TAX_RATE_DEFAULT = Decimal("0.00") # 0% — user must set for their state
     SAFE_FLOOR_PCT = Decimal("0.80")         # 80% of worst month = spending cap
     QBI_DEDUCTION_RATE = Decimal("0.20")
-    QBI_THRESHOLD_SINGLE = 197_300
-    QBI_THRESHOLD_MARRIED = 394_600
+    QBI_THRESHOLD_SINGLE: Decimal = Decimal(str(QBI.QBI_THRESHOLD_SINGLE))
+    QBI_THRESHOLD_MARRIED: Decimal = Decimal(str(QBI.QBI_THRESHOLD_MARRIED))
     SAFE_HARBOR_110_PCT_INCOME_THRESHOLD = 150_000
     SAFE_HARBOR_RATE_NORMAL = Decimal("1.00")
     SAFE_HARBOR_RATE_HIGH_INCOME = Decimal("1.10")

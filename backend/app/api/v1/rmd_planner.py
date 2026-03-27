@@ -51,16 +51,17 @@ class RmdPlannerResponse(BaseModel):
     projection: List[RmdYearPoint]
     total_lifetime_rmd_estimate: float
     total_lifetime_tax_estimate: float
+    data_source: Optional[dict] = None  # DataSourceMeta — static/cached/live indicator
 
 
 def _marginal_rate(income: float, filing_status: str, year: int) -> float:
     """Estimate marginal federal rate from income and filing status."""
     tax_data = TAX.for_year(year)
     brackets = tax_data["BRACKETS_MARRIED"] if filing_status.lower() in ("married", "mfj") else tax_data["BRACKETS_SINGLE"]
-    for threshold, rate in brackets:
-        if income <= threshold:
+    for rate, ceiling in brackets:
+        if income <= ceiling:
             return rate
-    return brackets[-1][1] if brackets else 0.22
+    return brackets[-1][0] if brackets else 0.22
 
 
 def _bracket_tax(income: float, filing_status: str, year: int) -> float:

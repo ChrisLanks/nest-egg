@@ -109,13 +109,14 @@ class TestProjectInheritanceScenarios:
         legacy = next(s for s in result.scenarios if "Legacy" in s.strategy_name)
         assert "500,000" in legacy.strategy_name
 
-    def test_tcja_sunset_applies_true_when_projection_past_2025(self):
+    def test_tcja_sunset_applies_true_when_projection_past_sunset(self):
+        from app.constants.financial import ESTATE
         today = datetime.date.today().year
-        # Force projection to extend well past 2025
-        life_expectancy = max(65 + (2026 - today) + 5, 70)
+        # Force projection to extend well past TCJA_SUNSET_YEAR (2034)
+        years_needed = ESTATE.TCJA_SUNSET_YEAR - today + 2
+        life_expectancy = 65 + years_needed
         result = _run(current_age=65, life_expectancy=life_expectancy)
-        if today + (life_expectancy - 65) > 2025:
-            assert result.tcja_sunset_applies is True
+        assert result.tcja_sunset_applies is True
 
     def test_data_note_present_and_mentions_exemption(self):
         result = _run()

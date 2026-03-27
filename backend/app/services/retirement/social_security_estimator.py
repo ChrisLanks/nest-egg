@@ -1,6 +1,6 @@
 """Social Security benefit estimator.
 
-Implements PIA (Primary Insurance Amount) estimation using 2024 bend points,
+Implements PIA (Primary Insurance Amount) estimation using year-resolved bend points,
 early/delayed claiming adjustments, and FRA (Full Retirement Age) lookup.
 """
 

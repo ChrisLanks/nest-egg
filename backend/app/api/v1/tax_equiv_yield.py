@@ -56,6 +56,7 @@ class TaxEquivYieldResponse(BaseModel):
     total_fixed_income_value: float
     total_annual_interest: float
     total_annual_tax_cost: float
+    data_source: Optional[dict] = None  # DataSourceMeta — static/cached/live indicator
 
 
 @router.get("/tax-equivalent-yield", response_model=TaxEquivYieldResponse)

@@ -35,7 +35,7 @@ class TaxLossOpportunity:
         unrealized_loss: Decimal,
         loss_percentage: Decimal,
         estimated_tax_savings: Decimal,
-        wash_sale_risk: bool,
+        wash_sale_risk: Optional[bool],
         wash_sale_reason: Optional[str],
         sector: Optional[str],
         suggested_replacements: List[str],
@@ -150,8 +150,8 @@ class TaxLossHarvestingService:
                     unrealized_loss=abs(unrealized_loss),
                     loss_percentage=abs(loss_pct),
                     estimated_tax_savings=tax_savings,
-                    wash_sale_risk=False,  # Needs txn history
-                    wash_sale_reason=None,
+                    wash_sale_risk=None,  # Unknown — requires transaction history to determine
+                    wash_sale_reason="Unable to determine wash sale risk without 30-day transaction history",
                     sector=h.sector,
                     suggested_replacements=replacements[:3],
                 )

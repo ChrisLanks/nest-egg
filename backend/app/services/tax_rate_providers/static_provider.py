@@ -12,10 +12,10 @@ class StaticStateTaxProvider(StateTaxProvider):
     """
 
     def source_name(self) -> str:
-        return "static_bundled_rates_2024"
+        return "static_bundled_rates_2026"
 
     def tax_year(self) -> int:
-        return 2024
+        return 2026
 
     async def get_rate(self, state: str, filing_status: str, income: float) -> float:
         """Return the flat-rate approximation for the given state."""

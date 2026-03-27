@@ -113,6 +113,7 @@ class MemberHeadroom(BaseModel):
 class ContributionHeadroomResponse(BaseModel):
     tax_year: int
     members: List[MemberHeadroom]
+    data_source: Optional[dict] = None  # DataSourceMeta — static/cached/live indicator
 
 
 @router.get("/contribution-headroom", response_model=ContributionHeadroomResponse)

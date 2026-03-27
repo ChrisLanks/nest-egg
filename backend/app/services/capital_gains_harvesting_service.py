@@ -81,7 +81,7 @@ class CapitalGainsHarvestingService:
         from app.models.tax_lot import TaxLot
         from datetime import date, timedelta
 
-        ltcg_cutoff = date.today() - timedelta(days=365)
+        ltcg_cutoff = date.today() - timedelta(days=366)  # Must hold > 1 year (366 days)
 
         # TaxLot doesn't have a user_id — filter via account join if user_id given
         if user_id:

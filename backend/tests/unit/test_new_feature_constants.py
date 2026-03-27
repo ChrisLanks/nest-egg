@@ -43,7 +43,8 @@ class TestEquity:
         assert EQUITY.ISO_DISQUALIFYING_DISPOSITION_DAYS == 730
 
     def test_qsbs_exclusion_rate(self):
-        assert EQUITY.QSBS_EXCLUSION_RATE == Decimal("0.50")
+        # 100% exclusion for stock acquired after Sep 27, 2010 (IRC §1202(a)(4))
+        assert EQUITY.QSBS_EXCLUSION_RATE == Decimal("1.00")
 
     def test_nso_and_rsu_tax_treatment_strings(self):
         assert EQUITY.NSO_TAX_TREATMENT == "ordinary_income"

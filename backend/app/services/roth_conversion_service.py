@@ -65,6 +65,22 @@ def _marginal_rate(taxable_income: float, brackets: list[tuple[float, float]]) -
     return brackets[-1][0]
 
 
+def _bracket_tax(taxable_income: float, brackets: list[tuple[float, float]]) -> float:
+    """Compute total tax using full bracket calculation."""
+    if taxable_income <= 0:
+        return 0.0
+    total_tax = 0.0
+    prev_ceiling = 0.0
+    for rate, ceiling in brackets:
+        if taxable_income <= prev_ceiling:
+            break
+        in_bracket = min(taxable_income, ceiling) - prev_ceiling
+        if in_bracket > 0:
+            total_tax += in_bracket * rate
+        prev_ceiling = ceiling
+    return total_tax
+
+
 def _bracket_headroom(taxable_income: float, brackets: list[tuple[float, float]]) -> float:
     """Return dollars available before crossing into the next bracket."""
     for _, ceiling in brackets:
@@ -83,10 +99,13 @@ def _standard_deduction(filing_status: str, years_from_now: int) -> float:
     return float(base) * (1 + _BRACKET_COLA) ** years_from_now
 
 
-def _irmaa_headroom(magi: float, years_from_now: int) -> float:
+def _irmaa_headroom(magi: float, years_from_now: int, filing_status: str = "single") -> float:
     """Return dollars before the next IRMAA tier, or float('inf') if already at top."""
     # Project IRMAA thresholds forward (CPI ~3 %)
-    brackets = MEDICARE.IRMAA_BRACKETS_SINGLE
+    if filing_status.lower() in ("married", "mfj"):
+        brackets = MEDICARE.IRMAA_BRACKETS_MARRIED
+    else:
+        brackets = MEDICARE.IRMAA_BRACKETS_SINGLE
     cola = 0.03
     for threshold, _, _ in brackets:
         if threshold == float("inf"):
@@ -230,7 +249,8 @@ class RothConversionService:
 
             brackets = _get_brackets(inp.filing_status, i)
             std_ded = _standard_deduction(inp.filing_status, i)
-            taxable_income = max(0.0, inp.current_income - std_ded)
+            inflated_income = inp.current_income * (1 + _BRACKET_COLA) ** i
+            taxable_income = max(0.0, inflated_income - std_ded)
 
             # RMD calculation (age at START of projection year)
             rmd = _rmd_amount(trad, age)
@@ -246,9 +266,9 @@ class RothConversionService:
                     break
 
             # IRMAA cap
-            if inp.respect_irmaa and age >= 55:
-                magi = inp.current_income + rmd  # before conversion
-                irmaa_room = _irmaa_headroom(magi, i)
+            if inp.respect_irmaa and age >= MEDICARE.IRMAA_PLANNING_AGE:
+                magi = inp.current_income * (1 + _BRACKET_COLA) ** i + rmd  # inflated income before conversion
+                irmaa_room = _irmaa_headroom(magi, i, inp.filing_status)
                 if irmaa_room < headroom:
                     headroom = irmaa_room
                     notes.append("Capped by IRMAA boundary")
@@ -260,7 +280,11 @@ class RothConversionService:
                 conversion = 0.0
 
             rate_at_conversion = _marginal_rate(taxable_income + rmd + conversion, brackets)
-            tax_cost = round(conversion * rate_at_conversion, 2)
+            tax_cost = round(
+                _bracket_tax(taxable_income + rmd + conversion, brackets)
+                - _bracket_tax(taxable_income + rmd, brackets),
+                2,
+            )
 
             trad_end = round((trad - rmd - conversion) * (1 + inp.expected_return), 2)
             roth_end = round((roth + conversion) * (1 + inp.expected_return), 2)
@@ -286,9 +310,14 @@ class RothConversionService:
             trad = trad_end
             roth = roth_end
 
-        # Build no-conversion baseline for comparison
-        nc_trad = inp.traditional_balance * (1 + inp.expected_return) ** inp.years_to_project
-        nc_roth = inp.roth_balance * (1 + inp.expected_return) ** inp.years_to_project
+        # Build no-conversion baseline with year-by-year RMD subtraction
+        nc_trad = inp.traditional_balance
+        nc_roth = inp.roth_balance
+        for nc_i in range(inp.years_to_project):
+            nc_age = inp.current_age + nc_i
+            nc_rmd = _rmd_amount(nc_trad, nc_age)
+            nc_trad = max(0.0, (nc_trad - nc_rmd) * (1 + inp.expected_return))
+            nc_roth = nc_roth * (1 + inp.expected_return)
 
         # Tax savings estimate: Roth withdrawals are tax-free;
         # traditional withdrawals at the user's actual marginal rate

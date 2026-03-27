@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.constants.financial import RETIREMENT
+from app.constants.financial import RETIREMENT, TAX
 from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import Account, AccountType
@@ -19,9 +19,9 @@ from app.utils.account_type_groups import TRADITIONAL_IRA_TYPES, EMPLOYER_PLAN_T
 
 router = APIRouter(tags=["Backdoor Roth"])
 
-# Roth IRA income phase-out ranges (2026 — not in financial.py yet)
-_ROTH_PHASEOUT_SINGLE = (146_000, 161_000)   # (start, end)
-_ROTH_PHASEOUT_MARRIED = (230_000, 240_000)
+# Roth IRA income phase-out ranges — sourced from financial.py TAX class
+def _roth_phaseout(filing_status: str, year: int) -> tuple:
+    return TAX.roth_phaseout(filing_status, year)
 
 
 class IraAccountDetail(BaseModel):
@@ -63,6 +63,7 @@ class BackdoorRothResponse(BaseModel):
     direct_roth_eligible: Optional[bool]
     user_magi_estimate: Optional[float]
     tax_year: int
+    data_source: Optional[dict] = None  # DataSourceMeta — static/cached/live indicator
 
 
 @router.get("/backdoor-roth-analysis", response_model=BackdoorRothResponse)
@@ -166,8 +167,7 @@ async def get_backdoor_roth_analysis(
     # Direct Roth eligibility
     direct_roth_eligible = None
     if estimated_magi is not None:
-        married = filing_status.lower() in ("married", "mfj")
-        lo, hi = _ROTH_PHASEOUT_MARRIED if married else _ROTH_PHASEOUT_SINGLE
+        lo, hi = _roth_phaseout(filing_status, tax_year)
         direct_roth_eligible = estimated_magi < lo
 
     return BackdoorRothResponse(

@@ -155,23 +155,22 @@ def _ltcg_tax(gains: float, ordinary_taxable: float, filing_status: str) -> floa
     brackets = TAX.LTCG_BRACKETS_SINGLE if filing_status == "single" else TAX.LTCG_BRACKETS_MARRIED
     tax = 0.0
     base = ordinary_taxable  # LTCG stacks on top
+    remaining_gains = gains
 
     for threshold, rate in brackets:
         if base >= threshold:
-            base += gains
-            continue
-        # Gains that fit below this threshold at this rate
+            continue  # already past this bracket — don't modify base
         room = threshold - base
-        gains_at_rate = min(gains, room)
-        tax += round(gains_at_rate * rate, 2)
-        gains -= gains_at_rate
-        base = threshold
-        if gains <= 0:
+        taxable_at_rate = min(remaining_gains, room)
+        tax += round(taxable_at_rate * rate, 2)
+        base += taxable_at_rate
+        remaining_gains -= taxable_at_rate
+        if remaining_gains <= 0:
             break
 
-    # Any remaining gains at top LTCG rate
-    if gains > 0:
-        tax += round(gains * brackets[-1][1], 2)
+    # Any remaining gains above highest threshold
+    if remaining_gains > 0:
+        tax += round(remaining_gains * brackets[-1][1], 2)
 
     return round(tax, 2)
 
@@ -252,7 +251,8 @@ class TaxProjectionService:
         # Annualise income from YTD transactions
         ytd_income = await self._ytd_income(organization_id, user_id, tax_year)
         days_elapsed = (today - date(tax_year, 1, 1)).days + 1
-        days_in_year = 366 if tax_year % 4 == 0 else 365
+        import calendar
+        days_in_year = 366 if calendar.isleap(tax_year) else 365
         annualisation_factor = days_in_year / max(days_elapsed, 1)
         annualised_income = round(ytd_income * annualisation_factor, 2)
 
@@ -298,8 +298,11 @@ class TaxProjectionService:
         safe_harbour: Optional[float] = None
         safe_harbour_met: Optional[bool] = None
         if prior_year_tax is not None and prior_year_tax > 0:
-            safe_harbour = round(prior_year_tax * 1.0, 2)  # 100% prior-year rule
-            safe_harbour_met = total_tax <= safe_harbour * 1.10  # 10% buffer
+            # AGI > $150k: must pay 110% of prior-year tax; else 100%
+            agi_estimate = ordinary_income + estimated_capital_gains
+            sh_rate = 1.10 if agi_estimate > 150_000 else 1.00
+            safe_harbour = round(prior_year_tax * sh_rate, 2)
+            safe_harbour_met = total_quarterly >= safe_harbour
 
         summary = self._build_summary(
             ordinary_income,

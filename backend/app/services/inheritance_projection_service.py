@@ -36,7 +36,7 @@ import datetime
 from dataclasses import dataclass
 from typing import Optional
 
-from app.constants.financial import FIRE
+from app.constants.financial import ESTATE, FIRE
 
 # ---------------------------------------------------------------------------
 # Federal estate tax exemption (per individual)
@@ -45,25 +45,16 @@ from app.constants.financial import FIRE
 # reverting to ~$7M (2017 base, inflation-adjusted) unless Congress acts.
 # Update this table each November when IRS publishes new exemptions.
 # ---------------------------------------------------------------------------
-_ESTATE_TAX_EXEMPTION: dict[int, float] = {
-    2022: 12_060_000,
-    2023: 12_920_000,
-    2024: 13_610_000,
-    2025: 13_990_000,
-    # 2026+: TCJA sunset — estimated ~$7M (will update when IRS confirms)
-    # 2026: 7_000_000,  # uncomment and update when known
-}
-_ESTATE_TAX_RATE = 0.40  # Top marginal rate above exemption (IRC §2001)
+_ESTATE_TAX_RATE = float(ESTATE.FEDERAL_TAX_RATE)  # Top marginal rate above exemption (IRC §2001)
 _TCJA_SUNSET_WARNING = (
-    "⚠ Federal estate tax exemption is scheduled to revert after Dec 31, 2025 "
-    "under the TCJA sunset provisions (~$7M/individual vs ~$14M today). "
-    "Consult an estate attorney for planning."
+    "⚠ Federal estate tax exemption TCJA provisions extended through "
+    f"{ESTATE.TCJA_SUNSET_YEAR} by the One Big Beautiful Bill Act. "
+    "Consult an estate attorney for planning beyond that date."
 )
 
 
 def _best_year_exemption(year: int) -> float:
-    y = max((k for k in _ESTATE_TAX_EXEMPTION if k <= year), default=min(_ESTATE_TAX_EXEMPTION))
-    return _ESTATE_TAX_EXEMPTION[y]
+    return float(ESTATE.FEDERAL_EXEMPTION)
 
 
 @dataclass
@@ -145,7 +136,7 @@ def project_inheritance(
     end_year = today_year + years
 
     exemption = _best_year_exemption(today_year)
-    tcja_sunset = end_year > 2025
+    tcja_sunset = end_year > ESTATE.TCJA_SUNSET_YEAR
 
     def _project(annual_withdrawal: float) -> SpendDownScenario:
         raise NotImplementedError  # placeholder; defined inline below

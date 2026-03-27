@@ -130,11 +130,11 @@ class TestStaticStateTaxProvider:
 
     def test_source_name(self):
         provider = StaticStateTaxProvider()
-        assert provider.source_name() == "static_bundled_rates_2024"
+        assert provider.source_name() == "static_bundled_rates_2026"
 
     def test_tax_year(self):
         provider = StaticStateTaxProvider()
-        assert provider.tax_year() == 2024
+        assert provider.tax_year() == 2026
 
 
 # ── TaxGraphsProvider: fallback when network is unavailable ───────────────────

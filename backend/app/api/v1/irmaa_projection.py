@@ -36,6 +36,7 @@ class IrmaaProjectionResponse(BaseModel):
     projection: List[IrmaaYearPoint]
     lifetime_premium_estimate: float
     optimization_tip: Optional[str]
+    data_source: Optional[dict] = None  # DataSourceMeta — static/cached/live indicator
 
 
 def _irmaa_tier(magi: float, brackets: list, married: bool, married_brackets: list | None = None) -> tuple[int, str, float, float]:

@@ -258,7 +258,14 @@ class SSClaimingStrategyService:
         spousal: Optional[SpousalBenefit] = None
         if spouse_pia is not None and spouse_pia > 0:
             sp_fra_monthly = round(spouse_pia * 0.50, 2)
-            sp_at_62 = round(sp_fra_monthly * 0.675, 2)  # max reduction at 62
+            # Spousal benefit reduction for claiming at 62:
+            # FRA 67 = 60 months early → first 36 months at 25/36% + 24 months at 5/12%
+            # = 25% + 10% = 35% reduction → multiplier = 0.65
+            months_early = round((fra - 62) * 12)
+            first_36 = min(months_early, 36)
+            beyond_36 = max(0, months_early - 36)
+            spousal_reduction = first_36 * (25 / 36 / 100) + beyond_36 * (5 / 12 / 100)
+            sp_at_62 = round(sp_fra_monthly * (1 - spousal_reduction), 2)
             sp_at_70 = sp_fra_monthly  # no credits beyond FRA for spousal
             spousal = SpousalBenefit(
                 higher_earner_pia=round(pia, 2),
