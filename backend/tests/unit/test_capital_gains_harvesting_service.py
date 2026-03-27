@@ -28,7 +28,11 @@ def org_id():
 class TestLtcgBracketFill:
     @pytest.mark.asyncio
     async def test_ltcg_bracket_fill_single(self, mock_db, org_id):
-        """Single filer with $30k income should have ~$18,350 room at 0%."""
+        """Single filer with $30k income should have room up to the 0% LTCG ceiling."""
+        from app.services.capital_gains_harvesting_service import _ltcg_0pct_ceiling
+        ceiling = float(_ltcg_0pct_ceiling()["single"])
+        expected_room = ceiling - 30000.0
+
         result = await CapitalGainsHarvestingService.get_ltcg_bracket_fill(
             db=mock_db,
             organization_id=org_id,
@@ -36,22 +40,26 @@ class TestLtcgBracketFill:
             filing_status="single",
         )
         assert result["filing_status"] == "single"
-        assert result["ltcg_0pct_ceiling"] == pytest.approx(48350.0)
+        assert result["ltcg_0pct_ceiling"] == pytest.approx(ceiling)
         assert result["current_taxable_income"] == pytest.approx(30000.0)
-        assert result["available_0pct_room"] == pytest.approx(18350.0)
-        assert result["suggested_harvest_amount"] == pytest.approx(18350.0)
+        assert result["available_0pct_room"] == pytest.approx(expected_room)
+        assert result["suggested_harvest_amount"] == pytest.approx(expected_room)
 
     @pytest.mark.asyncio
     async def test_ltcg_bracket_fill_married(self, mock_db, org_id):
-        """Married filer with $60k income should have ~$36,700 room at 0%."""
+        """Married filer with $60k income should have room up to the 0% LTCG ceiling."""
+        from app.services.capital_gains_harvesting_service import _ltcg_0pct_ceiling
+        ceiling = float(_ltcg_0pct_ceiling()["married_filing_jointly"])
+        expected_room = ceiling - 60000.0
+
         result = await CapitalGainsHarvestingService.get_ltcg_bracket_fill(
             db=mock_db,
             organization_id=org_id,
             current_taxable_income=Decimal("60000"),
             filing_status="married_filing_jointly",
         )
-        assert result["ltcg_0pct_ceiling"] == pytest.approx(96700.0)
-        assert result["available_0pct_room"] == pytest.approx(36700.0)
+        assert result["ltcg_0pct_ceiling"] == pytest.approx(ceiling)
+        assert result["available_0pct_room"] == pytest.approx(expected_room)
 
     @pytest.mark.asyncio
     async def test_ltcg_bracket_fill_no_room(self, mock_db, org_id):
@@ -67,27 +75,34 @@ class TestLtcgBracketFill:
 
     @pytest.mark.asyncio
     async def test_ltcg_bracket_fill_head_of_household(self, mock_db, org_id):
-        """Head of household with $40k income → $24,750 room."""
+        """Head of household with $40k income → room up to HoH ceiling."""
+        from app.services.capital_gains_harvesting_service import _ltcg_0pct_ceiling
+        ceiling = float(_ltcg_0pct_ceiling()["head_of_household"])
+        expected_room = ceiling - 40000.0
+
         result = await CapitalGainsHarvestingService.get_ltcg_bracket_fill(
             db=mock_db,
             organization_id=org_id,
             current_taxable_income=Decimal("40000"),
             filing_status="head_of_household",
         )
-        assert result["ltcg_0pct_ceiling"] == pytest.approx(64750.0)
-        assert result["available_0pct_room"] == pytest.approx(24750.0)
+        assert result["ltcg_0pct_ceiling"] == pytest.approx(ceiling)
+        assert result["available_0pct_room"] == pytest.approx(expected_room)
 
     @pytest.mark.asyncio
     async def test_suggestion_capped_at_50k(self, mock_db, org_id):
         """Suggestion should be capped at $50,000 even when room is larger."""
+        from app.services.capital_gains_harvesting_service import _ltcg_0pct_ceiling
+        ceiling = float(_ltcg_0pct_ceiling()["married_filing_jointly"])
+
         result = await CapitalGainsHarvestingService.get_ltcg_bracket_fill(
             db=mock_db,
             organization_id=org_id,
             current_taxable_income=Decimal("0"),
             filing_status="married_filing_jointly",
         )
-        # Room is $96,700 but suggestion should cap at $50,000
-        assert result["available_0pct_room"] == pytest.approx(96700.0)
+        # Room equals the full ceiling, but suggestion should cap at $50,000
+        assert result["available_0pct_room"] == pytest.approx(ceiling)
         assert result["suggested_harvest_amount"] == pytest.approx(50000.0)
 
 

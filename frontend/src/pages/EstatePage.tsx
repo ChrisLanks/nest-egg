@@ -7,6 +7,7 @@
  * - Estate tax exposure calculator using real net worth + user-entered overrides
  */
 
+import { BeneficiaryAuditCard } from "./BeneficiaryAuditCard";
 import {
   Alert,
   AlertIcon,

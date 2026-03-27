@@ -127,7 +127,12 @@ class TestGetBucketSummary:
         assert result["imbalanced"] is False
 
     @pytest.mark.asyncio
-    async def test_null_tax_treatment_goes_to_other(self):
+    async def test_null_tax_treatment_defaults_to_taxable(self):
+        """Accounts with null tax_treatment and unknown account_type fall back to TAXABLE bucket.
+
+        TAX_TREATMENT_DEFAULTS.get(account_type, TaxTreatment.TAXABLE) returns TAXABLE
+        when the account_type is not in the defaults map (e.g. a MagicMock).
+        """
         accounts = [
             _make_account(None, Decimal("25000")),
         ]
@@ -135,7 +140,8 @@ class TestGetBucketSummary:
 
         result = await TaxBucketService.get_bucket_summary(db, uuid4())
 
-        assert result["buckets"]["other"] == pytest.approx(25_000)
+        assert result["buckets"]["taxable"] == pytest.approx(25_000)
+        assert result["buckets"]["other"] == pytest.approx(0.0)
 
     @pytest.mark.asyncio
     async def test_user_id_filter_passed_to_query(self):

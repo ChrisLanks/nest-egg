@@ -25,11 +25,14 @@ from app.constants.financial import (
 
 class TestEquity:
     def test_amt_exemption_single_range(self):
-        assert EQUITY.AMT_EXEMPTION_SINGLE > 100_000
+        # IRS AMT exemption for single filers (2026: $90,700; year-keyed so will grow with COLA)
+        assert EQUITY.AMT_EXEMPTION_SINGLE > 80_000
         assert EQUITY.AMT_EXEMPTION_SINGLE < 500_000
 
-    def test_amt_exemption_married_is_double_single(self):
-        assert EQUITY.AMT_EXEMPTION_MARRIED == EQUITY.AMT_EXEMPTION_SINGLE * 2
+    def test_amt_exemption_married_greater_than_single(self):
+        # Married AMT exemption is higher than single but NOT exactly double (IRS rule)
+        assert EQUITY.AMT_EXEMPTION_MARRIED > EQUITY.AMT_EXEMPTION_SINGLE
+        assert EQUITY.AMT_EXEMPTION_MARRIED < EQUITY.AMT_EXEMPTION_SINGLE * 2
 
     def test_amt_rates_are_decimals(self):
         assert isinstance(EQUITY.AMT_RATE_26, Decimal)

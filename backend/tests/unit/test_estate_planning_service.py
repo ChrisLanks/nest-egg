@@ -35,11 +35,15 @@ class TestEstateTaxExposure:
         # Married has higher exemption, so less taxable
         assert married["taxable_estate"] < single["taxable_estate"]
 
-    def test_tcja_sunset_flagged(self):
+    def test_tcja_sunset_not_active(self):
+        """TCJA was extended via the One Big Beautiful Bill Act (2025).
+        Sunset risk is False; next sunset is 2034."""
+        from app.constants.financial import ESTATE
         result = EstatePlanningService.calculate_estate_tax_exposure(
             net_worth=Decimal("5_000_000"),
         )
-        assert result["tcja_sunset_risk"] is True
+        assert result["tcja_sunset_risk"] is False
+        assert ESTATE.TCJA_SUNSET_YEAR == 2034
 
 
 class TestBeneficiaryCoverage:

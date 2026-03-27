@@ -145,6 +145,14 @@ export const CalendarPage: React.FC = () => {
   const today = new Date();
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth());
+  const [viewMode, setViewMode] = useState<"monthly" | "weekly">("monthly");
+  // Weekly view: track which week (Sunday start)
+  const [weekStart, setWeekStart] = useState<Date>(() => {
+    const d = new Date(today);
+    d.setDate(d.getDate() - d.getDay());
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
 
   // Financial calendar toggle filters (persisted to localStorage)
   const [showBills, setShowBills] = useState(
@@ -430,40 +438,104 @@ export const CalendarPage: React.FC = () => {
               </CardBody>
             </Card>
 
-            {/* Month navigation */}
-            <HStack justify="space-between">
-              <Text color="text.secondary" fontSize="sm">
-                {monthName}
-              </Text>
+            {/* View mode toggle + navigation */}
+            <HStack justify="space-between" flexWrap="wrap" gap={2}>
               <HStack>
                 <Button
                   size="sm"
-                  variant="outline"
-                  onClick={prevMonth}
-                  leftIcon={<FiChevronLeft />}
+                  variant={viewMode === "monthly" ? "solid" : "outline"}
+                  colorScheme={viewMode === "monthly" ? "brand" : "gray"}
+                  onClick={() => setViewMode("monthly")}
                 >
-                  Prev
+                  Monthly
                 </Button>
                 <Button
                   size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setCalMonth(today.getMonth());
-                    setCalYear(today.getFullYear());
-                  }}
+                  variant={viewMode === "weekly" ? "solid" : "outline"}
+                  colorScheme={viewMode === "weekly" ? "brand" : "gray"}
+                  onClick={() => setViewMode("weekly")}
                 >
-                  Today
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={nextMonth}
-                  rightIcon={<FiChevronRight />}
-                >
-                  Next
+                  Weekly
                 </Button>
               </HStack>
+              {viewMode === "monthly" ? (
+                <HStack>
+                  <Text color="text.secondary" fontSize="sm" mr={2}>{monthName}</Text>
+                  <Button size="sm" variant="outline" onClick={prevMonth} leftIcon={<FiChevronLeft />}>Prev</Button>
+                  <Button size="sm" variant="outline" onClick={() => { setCalMonth(today.getMonth()); setCalYear(today.getFullYear()); }}>Today</Button>
+                  <Button size="sm" variant="outline" onClick={nextMonth} rightIcon={<FiChevronRight />}>Next</Button>
+                </HStack>
+              ) : (
+                <HStack>
+                  <Text color="text.secondary" fontSize="sm" mr={2}>
+                    {weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    {" – "}
+                    {new Date(weekStart.getTime() + 6 * 86400000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  </Text>
+                  <Button size="sm" variant="outline" leftIcon={<FiChevronLeft />} onClick={() => setWeekStart(new Date(weekStart.getTime() - 7 * 86400000))}>Prev</Button>
+                  <Button size="sm" variant="outline" onClick={() => { const d = new Date(today); d.setDate(d.getDate() - d.getDay()); d.setHours(0,0,0,0); setWeekStart(d); }}>This Week</Button>
+                  <Button size="sm" variant="outline" rightIcon={<FiChevronRight />} onClick={() => setWeekStart(new Date(weekStart.getTime() + 7 * 86400000))}>Next</Button>
+                </HStack>
+              )}
             </HStack>
+
+            {/* Weekly view */}
+            {viewMode === "weekly" && (() => {
+              const weekDays = Array.from({ length: 7 }, (_, i) => new Date(weekStart.getTime() + i * 86400000));
+              const weekEvents = filteredEvents.filter((ev) => {
+                const d = new Date(ev.date);
+                return d >= weekStart && d < new Date(weekStart.getTime() + 7 * 86400000);
+              });
+              const totalInflow = weekEvents.filter((e) => e.type === "income").reduce((s, e) => s + Math.abs(e.amount), 0);
+              const totalOutflow = weekEvents.filter((e) => e.type !== "income").reduce((s, e) => s + Math.abs(e.amount), 0);
+              return (
+                <VStack align="stretch" spacing={3}>
+                  <Grid templateColumns="repeat(7, 1fr)" gap={2}>
+                    {weekDays.map((day) => {
+                      const dateStr = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
+                      const dayEvents = filteredEvents.filter((ev) => ev.date === dateStr);
+                      const isToday = day.toDateString() === today.toDateString();
+                      const dayInflow = dayEvents.filter((e) => e.type === "income").reduce((s, e) => s + Math.abs(e.amount), 0);
+                      const dayOutflow = dayEvents.filter((e) => e.type !== "income").reduce((s, e) => s + Math.abs(e.amount), 0);
+                      const dayNet = dayInflow - dayOutflow;
+                      return (
+                        <GridItem key={dateStr} borderWidth="1px" borderRadius="md" p={2} bg={isToday ? "brand.50" : undefined} _dark={{ bg: isToday ? "brand.900" : undefined }} minH="120px">
+                          <Text fontSize="xs" fontWeight="bold" color={isToday ? "brand.500" : "text.secondary"} mb={1}>
+                            {day.toLocaleDateString("en-US", { weekday: "short", month: "numeric", day: "numeric" })}
+                          </Text>
+                          <VStack align="stretch" spacing={1}>
+                            {dayEvents.slice(0, 4).map((ev, i) => (
+                              <Badge key={i} colorScheme={eventTypeColor(ev.type)} fontSize="xs" noOfLines={1} textAlign="left" display="block">
+                                {ev.merchant_name ?? ev.description ?? eventTypeLabel(ev.type)} {formatCurrencyShort(Math.abs(ev.amount))}
+                              </Badge>
+                            ))}
+                            {dayEvents.length > 4 && <Text fontSize="xs" color="text.muted">+{dayEvents.length - 4} more</Text>}
+                          </VStack>
+                          {dayEvents.length > 0 && (
+                            <Text fontSize="xs" mt={1} color={dayNet >= 0 ? "green.500" : "red.500"} fontWeight="bold">
+                              Net: {dayNet >= 0 ? "+" : ""}{formatCurrencyShort(dayNet)}
+                            </Text>
+                          )}
+                        </GridItem>
+                      );
+                    })}
+                  </Grid>
+                  {/* Weekly summary */}
+                  <Card variant="outline" size="sm">
+                    <CardBody py={2}>
+                      <HStack spacing={6} flexWrap="wrap">
+                        <Text fontSize="sm"><Text as="span" color="green.500" fontWeight="bold">+{formatCurrencyShort(totalInflow)}</Text> inflow</Text>
+                        <Text fontSize="sm"><Text as="span" color="red.500" fontWeight="bold">−{formatCurrencyShort(totalOutflow)}</Text> outflow</Text>
+                        <Text fontSize="sm">Net: <Text as="span" fontWeight="bold" color={(totalInflow - totalOutflow) >= 0 ? "green.500" : "red.500"}>{formatCurrencyShort(totalInflow - totalOutflow)}</Text></Text>
+                      </HStack>
+                    </CardBody>
+                  </Card>
+                </VStack>
+              );
+            })()}
+
+            {/* Monthly calendar (hidden in weekly mode) */}
+            {viewMode === "monthly" && (<>
 
             {/* Calendar grid */}
             <Box borderWidth="1px" borderRadius="lg" overflow="hidden">
@@ -715,6 +787,7 @@ export const CalendarPage: React.FC = () => {
                 </Card>
               </Grid>
             )}
+            </>)}
           </VStack>
         )}
       </VStack>
