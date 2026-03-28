@@ -4,7 +4,7 @@ import datetime
 from decimal import Decimal
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -107,8 +107,9 @@ async def get_rmd_planner(
             )
         )
         member = member_result.scalar_one_or_none()
-        if member:
-            subject_user = member
+        if not member:
+            raise HTTPException(status_code=404, detail="Household member not found")
+        subject_user = member
 
     current_age: Optional[int] = None
     if subject_user.birthdate:

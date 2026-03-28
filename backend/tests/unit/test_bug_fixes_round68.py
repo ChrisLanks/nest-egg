@@ -4,6 +4,7 @@ Tests for round-68 bug fixes:
 2. estate.py: acct.account_name → acct.name (AttributeError fix)
 3. irmaa_projection.py: inverted age guard — age is None should NOT count toward lifetime_total
 4. smart_insights_service.py: division by zero guard when median_nw is 0
+5. rmd_planner.py: silent fallback to current_user when member not found → 404
 """
 import inspect
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -189,3 +190,36 @@ class TestSmartInsightsMedianNwGuard:
             or "median_nw <= 0" in method_source
             or "if median_nw" in method_source
         ), "Division by median_nw without a zero guard"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. rmd_planner: silent fallback → 404
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestRmdPlanner404:
+    """When user_id provided but not found, get_rmd_planner must raise 404."""
+
+    @pytest.mark.asyncio
+    async def test_rmd_planner_404_for_unknown_member(self):
+        from fastapi import HTTPException
+        from app.api.v1.rmd_planner import get_rmd_planner
+
+        current_user = MagicMock()
+        current_user.id = uuid4()
+        current_user.organization_id = uuid4()
+        current_user.birthdate = None
+
+        db = AsyncMock()
+        result_mock = MagicMock()
+        result_mock.scalar_one_or_none.return_value = None
+        db.execute = AsyncMock(return_value=result_mock)
+
+        unknown_id = str(uuid4())
+
+        with pytest.raises(HTTPException) as exc_info:
+            await get_rmd_planner(
+                user_id=unknown_id,
+                current_user=current_user,
+                db=db,
+            )
+        assert exc_info.value.status_code == 404
