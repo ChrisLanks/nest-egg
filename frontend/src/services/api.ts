@@ -62,6 +62,8 @@ export const clearTokenRefresh = () => {
 };
 let isRefreshing = false;
 let refreshPromise: Promise<string | null> | null = null;
+let refreshFailureCount = 0;
+const MAX_REFRESH_FAILURES = 3;
 
 // Decode JWT token to get expiration time
 const decodeToken = (token: string): { exp: number } | null => {
@@ -95,6 +97,9 @@ const isTokenExpired = (token: string, bufferMinutes: number = 0): boolean => {
 
 // Proactively refresh token before it expires
 export const scheduleTokenRefresh = (accessToken?: string) => {
+  // A successful login/token-set resets the failure counter
+  refreshFailureCount = 0;
+
   // Clear existing timer
   if (refreshTimer) {
     clearTimeout(refreshTimer);
@@ -134,6 +139,14 @@ export const scheduleTokenRefresh = (accessToken?: string) => {
 
 // Refresh token immediately — all concurrent callers share the same in-flight promise
 const refreshTokenNow = (): Promise<string | null> => {
+  // Stop retrying after too many consecutive failures — force logout instead
+  // to prevent an infinite refresh loop when the backend is returning 500s.
+  if (refreshFailureCount >= MAX_REFRESH_FAILURES) {
+    devError("[Auth] Too many refresh failures, logging out");
+    useAuthStore.getState().logout();
+    return Promise.resolve(null);
+  }
+
   if (isRefreshing && refreshPromise) {
     devLog(
       "[Auth] Token refresh already in progress, waiting for in-flight request...",
@@ -156,6 +169,9 @@ const refreshTokenNow = (): Promise<string | null> => {
 
       const { access_token, user } = response.data;
 
+      // Reset failure count on success
+      refreshFailureCount = 0;
+
       // Update Zustand store (in-memory only — no localStorage)
       const store = useAuthStore.getState();
       if (user) {
@@ -167,9 +183,14 @@ const refreshTokenNow = (): Promise<string | null> => {
 
       return access_token;
     } catch (error: any) {
+      refreshFailureCount += 1;
       const errorDetail =
         error?.response?.data?.detail || error.message || "Unknown error";
-      devError("[Auth] Token refresh failed:", errorDetail);
+      devError(`[Auth] Token refresh failed (attempt ${refreshFailureCount}/${MAX_REFRESH_FAILURES}):`, errorDetail);
+      if (refreshFailureCount >= MAX_REFRESH_FAILURES) {
+        devError("[Auth] Max refresh failures reached, forcing logout");
+        useAuthStore.getState().logout();
+      }
       return null;
     } finally {
       isRefreshing = false;
