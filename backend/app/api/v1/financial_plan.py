@@ -87,7 +87,7 @@ async def get_financial_plan_summary(
     insurance_section = await _build_insurance_section(db, org_id, nw_data["total_net_worth"])
 
     # ── Estate ───────────────────────────────────────────────────────────
-    estate_section = await _build_estate_section(db, org_id, current_user, nw_data["total_net_worth"])
+    estate_section = await _build_estate_section(db, org_id, subject_user, nw_data["total_net_worth"])
 
     # ── Emergency Fund ───────────────────────────────────────────────────
     emergency_section = await _build_emergency_fund_section(db, org_id)
@@ -227,7 +227,7 @@ async def _build_education_section(db: AsyncSession, org_id) -> dict:
         select(func.coalesce(func.sum(Account.current_balance), 0)).where(
             and_(
                 Account.organization_id == org_id,
-                Account.account_type == _AccountType.EDUCATION_529,
+                Account.account_type == _AccountType.RETIREMENT_529,
                 Account.is_active == True,  # noqa: E712
             )
         )
