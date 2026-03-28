@@ -646,11 +646,11 @@ async def get_invitation_details(
 
     # Get invited_by user email
     result = await db.execute(select(User).where(User.id == invitation.invited_by_user_id))
-    invited_by = result.scalar_one()
+    invited_by = result.scalar_one_or_none()
 
     return {
         "email": _mask_email(invitation.email),
-        "invited_by_name": invited_by.display_name or invited_by.first_name or "A household member",
+        "invited_by_name": (invited_by.display_name or invited_by.first_name or "A household member") if invited_by else "A household member",
         "status": invitation.status,
         "expires_at": invitation.expires_at,
     }

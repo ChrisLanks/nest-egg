@@ -210,7 +210,7 @@ async def invite_guest(
         org_name_result = await db.execute(
             select(Organization.name).where(Organization.id == admin.organization_id)
         )
-        household_name = org_name_result.scalar_one()
+        household_name = org_name_result.scalar_one_or_none() or "your household"
         await email_service.send_invitation_email(
             to_email=body.email,
             invitation_code=invitation_code,
@@ -656,7 +656,7 @@ async def preview_invitation(
     org_result = await db.execute(
         select(Organization.name).where(Organization.id == invitation.organization_id)
     )
-    org_name = org_result.scalar_one()
+    org_name = org_result.scalar_one_or_none() or "Unknown Household"
 
     inviter_email = ""
     if invitation.invited_by_id:
