@@ -489,3 +489,184 @@ describe("CalendarPage error state", () => {
     expect(calendarRetryButtonLabel).toBe("Retry");
   });
 });
+
+// ── Dividend event filtering (round-70 fix) ──────────────────────────────────
+//
+// Before the fix, dividendEvents were pre-filtered to calMonthStr inside the
+// filteredEvents memo. This meant the weekly view never received dividends from
+// other months.  After the fix, NO calMonthStr filter is applied in the memo —
+// each view is responsible for scoping events to its own date range.
+
+type CalendarEventWithDividend = FinancialCalendarEvent & {
+  account?: string;
+};
+
+interface DividendMonthEvent {
+  pay_date?: string;
+  ex_date?: string;
+  ticker?: string;
+  income_type?: string;
+  amount: number;
+  account_name?: string;
+}
+
+interface DividendCalendar {
+  months: { events: DividendMonthEvent[] }[];
+}
+
+/** Mirrors the FIXED filteredEvents dividend merge (no calMonthStr filter). */
+function mergeDividendEvents(
+  base: CalendarEventWithDividend[],
+  dividendCalendar: DividendCalendar | null,
+  showDividends: boolean,
+): CalendarEventWithDividend[] {
+  if (!showDividends || !dividendCalendar) return base;
+
+  const dividendEvents: CalendarEventWithDividend[] = [];
+  for (const month of dividendCalendar.months) {
+    for (const ev of month.events) {
+      const date = ev.pay_date ?? ev.ex_date;
+      if (!date) continue;
+      // NO calMonthStr filter — include all dividend dates
+      dividendEvents.push({
+        date,
+        type: "income" as const,
+        name: ev.ticker ?? ev.income_type ?? "Dividend",
+        amount: ev.amount,
+        account: ev.account_name,
+      });
+    }
+  }
+  return [...base, ...dividendEvents];
+}
+
+/** Mirrors the FIXED weekly date range filter (local midnight, not UTC). */
+function filterEventsForWeek(
+  events: CalendarEventWithDividend[],
+  weekStart: Date,
+): CalendarEventWithDividend[] {
+  const weekEnd = new Date(weekStart.getTime() + 7 * 86400000);
+  return events.filter((ev) => {
+    const [y, m, d] = ev.date.split("-").map(Number);
+    const evDate = new Date(y, m - 1, d); // local midnight — no UTC shift
+    return evDate >= weekStart && evDate < weekEnd;
+  });
+}
+
+describe("Dividend toggle: no calMonthStr pre-filter in memo", () => {
+  const base: CalendarEventWithDividend[] = [
+    { date: "2026-03-15", name: "Salary", amount: 5000, type: "income" },
+  ];
+
+  const dividendCalendar: DividendCalendar = {
+    months: [
+      {
+        events: [
+          { pay_date: "2026-03-10", ticker: "AAPL", amount: 120, account_name: "Brokerage" },
+          { pay_date: "2026-04-05", ticker: "MSFT", amount: 80, account_name: "Brokerage" },
+          { pay_date: "2026-02-20", ticker: "VTI",  amount: 60, account_name: "IRA" },
+        ],
+      },
+    ],
+  };
+
+  it("includes dividends from ALL months when showDividends is true", () => {
+    const result = mergeDividendEvents(base, dividendCalendar, true);
+    const dividends = result.filter((e) => e.name !== "Salary");
+    expect(dividends).toHaveLength(3); // AAPL (Mar), MSFT (Apr), VTI (Feb)
+  });
+
+  it("includes dividends from months other than calMonth (Feb + Apr)", () => {
+    const result = mergeDividendEvents(base, dividendCalendar, true);
+    const dates = result.map((e) => e.date);
+    expect(dates).toContain("2026-04-05"); // next month dividend visible
+    expect(dates).toContain("2026-02-20"); // previous month dividend visible
+  });
+
+  it("returns only base events when showDividends is false", () => {
+    const result = mergeDividendEvents(base, dividendCalendar, false);
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe("Salary");
+  });
+
+  it("returns only base events when dividendCalendar is null", () => {
+    const result = mergeDividendEvents(base, null, true);
+    expect(result).toHaveLength(1);
+  });
+
+  it("skips dividend events with no date", () => {
+    const cal: DividendCalendar = {
+      months: [{ events: [{ amount: 50 }] }], // no pay_date or ex_date
+    };
+    const result = mergeDividendEvents(base, cal, true);
+    expect(result).toHaveLength(1); // only base, no dividend added
+  });
+
+  it("uses ex_date when pay_date is absent", () => {
+    const cal: DividendCalendar = {
+      months: [{ events: [{ ex_date: "2026-03-08", ticker: "BND", amount: 30 }] }],
+    };
+    const result = mergeDividendEvents(base, cal, true);
+    expect(result.find((e) => e.date === "2026-03-08")).toBeDefined();
+  });
+});
+
+describe("Weekly view: local-midnight date parsing prevents UTC offset shift", () => {
+  // Week starting Sunday 2026-03-22 (local)
+  const weekStart = new Date(2026, 2, 22, 0, 0, 0, 0); // local midnight
+
+  const events: CalendarEventWithDividend[] = [
+    { date: "2026-03-22", name: "Sunday Bill",  amount: -50,  type: "bill" },
+    { date: "2026-03-25", name: "Mid-week",     amount: -100, type: "subscription" },
+    { date: "2026-03-28", name: "Saturday Pay", amount: 200,  type: "income" },
+    { date: "2026-03-29", name: "Next Sunday",  amount: -30,  type: "bill" }, // outside week
+    { date: "2026-03-21", name: "Last Saturday",amount: -20,  type: "bill" }, // outside week
+  ];
+
+  it("includes all 7 days of the week", () => {
+    const result = filterEventsForWeek(events, weekStart);
+    expect(result).toHaveLength(3);
+  });
+
+  it("includes the first day of the week (Sunday)", () => {
+    const result = filterEventsForWeek(events, weekStart);
+    expect(result.find((e) => e.date === "2026-03-22")).toBeDefined();
+  });
+
+  it("includes the last day of the week (Saturday)", () => {
+    const result = filterEventsForWeek(events, weekStart);
+    expect(result.find((e) => e.date === "2026-03-28")).toBeDefined();
+  });
+
+  it("excludes the day after the week ends (next Sunday)", () => {
+    const result = filterEventsForWeek(events, weekStart);
+    expect(result.find((e) => e.date === "2026-03-29")).toBeUndefined();
+  });
+
+  it("excludes the day before the week starts (prior Saturday)", () => {
+    const result = filterEventsForWeek(events, weekStart);
+    expect(result.find((e) => e.date === "2026-03-21")).toBeUndefined();
+  });
+
+  it("returns empty for a week with no matching events", () => {
+    const nextWeekStart = new Date(2026, 3, 5, 0, 0, 0, 0); // April 5
+    const result = filterEventsForWeek(events, nextWeekStart);
+    expect(result).toHaveLength(0);
+  });
+});
+
+describe("Source: calMonthStr filter removed from dividend memo", () => {
+  it("CalendarPage source does not filter dividends by calMonthStr", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("src/pages/CalendarPage.tsx", "utf-8");
+    // The old buggy line was: if (!date.startsWith(calMonthStr)) continue;
+    expect(source).not.toContain("date.startsWith(calMonthStr)");
+  });
+
+  it("CalendarPage weekly range filter uses local date parsing", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("src/pages/CalendarPage.tsx", "utf-8");
+    // The fix parses dates as local midnight via split("-")
+    expect(source).toContain('ev.date.split("-").map(Number)');
+  });
+});
