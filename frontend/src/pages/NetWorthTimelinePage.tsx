@@ -232,6 +232,14 @@ export default function NetWorthTimelinePage() {
     total_liabilities: pt.total_liabilities,
   }));
 
+  // Only show layers that have at least one non-zero value across the dataset
+  const activeAssetLayers = ASSET_LAYERS.filter(({ key }) =>
+    data.some((pt) => (pt[key as keyof NetWorthPoint] as number) !== 0)
+  );
+  const activeDebtLayers = DEBT_LAYERS.filter(({ key }) =>
+    data.some((pt) => (pt[key as keyof NetWorthPoint] as number) !== 0)
+  );
+
   const latest = data[data.length - 1];
   const earliest = data[0];
   const netWorthChange =
@@ -431,7 +439,7 @@ export default function NetWorthTimelinePage() {
                   />
                   <Legend iconSize={10} wrapperStyle={{ fontSize: 12 }} />
                   <defs>
-                    {ASSET_LAYERS.map(({ key, color }) => (
+                    {activeAssetLayers.map(({ key, color }) => (
                       <linearGradient
                         key={key}
                         id={`grad-${key}`}
@@ -448,7 +456,7 @@ export default function NetWorthTimelinePage() {
                         />
                       </linearGradient>
                     ))}
-                    {DEBT_LAYERS.map(({ key, color }) => (
+                    {activeDebtLayers.map(({ key, color }) => (
                       <linearGradient
                         key={key}
                         id={`grad-${key}`}
@@ -466,7 +474,7 @@ export default function NetWorthTimelinePage() {
                       </linearGradient>
                     ))}
                   </defs>
-                  {ASSET_LAYERS.map(({ key, label, color }) => (
+                  {activeAssetLayers.map(({ key, label, color }) => (
                     <Area
                       key={key}
                       type="monotone"
@@ -477,7 +485,7 @@ export default function NetWorthTimelinePage() {
                       fill={`url(#grad-${key})`}
                     />
                   ))}
-                  {DEBT_LAYERS.map(({ key, label, color }) => (
+                  {activeDebtLayers.map(({ key, label, color }) => (
                     <Area
                       key={key}
                       type="monotone"

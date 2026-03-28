@@ -693,6 +693,85 @@ describe("NetWorthTimeline: local date formatting avoids UTC shift", () => {
   });
 });
 
+// ── Net Worth Timeline: hide zero layers ─────────────────────────────────────
+
+interface NWPoint {
+  [key: string]: number | string;
+}
+
+function filterActiveLayers<T extends { key: string }>(
+  layers: readonly T[],
+  data: NWPoint[],
+): T[] {
+  return layers.filter(({ key }) =>
+    data.some((pt) => (pt[key] as number) !== 0)
+  );
+}
+
+const ALL_ASSET_KEYS = [
+  "cash_and_checking", "savings", "investments", "retirement",
+  "property", "vehicles", "other_assets",
+];
+const ALL_DEBT_KEYS = [
+  "mortgages", "credit_cards", "loans", "student_loans", "other_debts",
+];
+
+function makePoint(overrides: Partial<Record<string, number>> = {}): NWPoint {
+  const pt: NWPoint = {};
+  for (const k of [...ALL_ASSET_KEYS, ...ALL_DEBT_KEYS]) pt[k] = 0;
+  return { ...pt, ...overrides };
+}
+
+describe("Net Worth Timeline: hide zero-value layers", () => {
+  it("hides all layers when all values are zero", () => {
+    const data = [makePoint()];
+    const assetLayers = ALL_ASSET_KEYS.map((key) => ({ key, label: key, color: "#000" }));
+    const debtLayers  = ALL_DEBT_KEYS.map((key)  => ({ key, label: key, color: "#000" }));
+    expect(filterActiveLayers(assetLayers, data)).toHaveLength(0);
+    expect(filterActiveLayers(debtLayers, data)).toHaveLength(0);
+  });
+
+  it("shows only layers with non-zero values", () => {
+    const data = [makePoint({ investments: 50000, retirement: 120000, credit_cards: 3000 })];
+    const assetLayers = ALL_ASSET_KEYS.map((key) => ({ key, label: key, color: "#000" }));
+    const debtLayers  = ALL_DEBT_KEYS.map((key)  => ({ key, label: key, color: "#000" }));
+    const activeAssets = filterActiveLayers(assetLayers, data);
+    const activeDebts  = filterActiveLayers(debtLayers, data);
+    expect(activeAssets.map((l) => l.key)).toEqual(["investments", "retirement"]);
+    expect(activeDebts.map((l) => l.key)).toEqual(["credit_cards"]);
+  });
+
+  it("includes a layer if any data point is non-zero (not just the latest)", () => {
+    // Layer has value in first point but not last
+    const data = [
+      makePoint({ savings: 10000 }),
+      makePoint({ savings: 0 }),
+    ];
+    const layers = [{ key: "savings", label: "Savings", color: "#000" }];
+    expect(filterActiveLayers(layers, data)).toHaveLength(1);
+  });
+
+  it("shows all layers when all have values", () => {
+    const overrides: Partial<Record<string, number>> = {};
+    for (const k of [...ALL_ASSET_KEYS, ...ALL_DEBT_KEYS]) overrides[k] = 1000;
+    const data = [makePoint(overrides)];
+    const assetLayers = ALL_ASSET_KEYS.map((key) => ({ key, label: key, color: "#000" }));
+    const debtLayers  = ALL_DEBT_KEYS.map((key)  => ({ key, label: key, color: "#000" }));
+    expect(filterActiveLayers(assetLayers, data)).toHaveLength(ALL_ASSET_KEYS.length);
+    expect(filterActiveLayers(debtLayers, data)).toHaveLength(ALL_DEBT_KEYS.length);
+  });
+
+  it("NetWorthTimelinePage source uses activeAssetLayers and activeDebtLayers", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("src/pages/NetWorthTimelinePage.tsx", "utf-8");
+    expect(source).toContain("activeAssetLayers");
+    expect(source).toContain("activeDebtLayers");
+    // Must not render all layers unconditionally in breakdown chart
+    expect(source).not.toMatch(/\{ASSET_LAYERS\.map/);
+    expect(source).not.toMatch(/\{DEBT_LAYERS\.map/);
+  });
+});
+
 describe("Source: calMonthStr filter removed from dividend memo", () => {
   it("CalendarPage source does not filter dividends by calMonthStr", async () => {
     const fs = await import("fs");
