@@ -17,9 +17,28 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Create the enum type for PE transaction types
-    pe_txn_type = sa.Enum("capital_call", "distribution", "nav_update", name="petransactiontype")
-    pe_txn_type.create(op.get_bind(), checkfirst=True)
+    bind = op.get_bind()
+
+    # Create enum only if it doesn't already exist
+    type_exists = bind.execute(
+        sa.text("SELECT EXISTS(SELECT 1 FROM pg_type WHERE typname='petransactiontype')")
+    ).scalar()
+    if not type_exists:
+        op.execute(
+            sa.text(
+                "CREATE TYPE petransactiontype AS ENUM "
+                "('capital_call', 'distribution', 'nav_update')"
+            )
+        )
+
+    pe_txn_type = sa.Enum("capital_call", "distribution", "nav_update", name="petransactiontype", create_type=False)
+
+    # Create table only if it doesn't already exist
+    table_exists = bind.execute(
+        sa.text("SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='pe_transactions')")
+    ).scalar()
+    if table_exists:
+        return
 
     op.create_table(
         "pe_transactions",

@@ -17,6 +17,13 @@ depends_on = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    exists = bind.execute(
+        sa.text("SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='gift_records')")
+    ).scalar()
+    if exists:
+        return
+
     op.create_table(
         "gift_records",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),

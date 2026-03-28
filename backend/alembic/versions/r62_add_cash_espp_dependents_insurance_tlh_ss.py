@@ -57,83 +57,95 @@ def upgrade() -> None:
         "); EXCEPTION WHEN duplicate_object THEN null; END $$;"
     )
 
+    bind = op.get_bind()
+
+    def table_exists(name: str) -> bool:
+        return bind.execute(
+            sa.text("SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name=:n)"),
+            {"n": name},
+        ).scalar()
+
     # -- insurance_policies table --
-    op.create_table(
-        'insurance_policies',
-        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('household_id', postgresql.UUID(as_uuid=True),
-                   sa.ForeignKey('organizations.id', ondelete='CASCADE'), nullable=False, index=True),
-        sa.Column('user_id', postgresql.UUID(as_uuid=True),
-                   sa.ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True),
-        sa.Column('policy_type', sa.Enum('term_life', 'whole_life', 'universal_life',
-                   'disability_short_term', 'disability_long_term',
-                   'umbrella', 'homeowners', 'renters', 'auto',
-                   'health', 'dental', 'vision', 'long_term_care', 'other',
-                   name='policytype', create_type=False), nullable=False),
-        sa.Column('provider', sa.String(200), nullable=True),
-        sa.Column('policy_number', sa.String(100), nullable=True),
-        sa.Column('coverage_amount', sa.Numeric(15, 2), nullable=True),
-        sa.Column('annual_premium', sa.Numeric(10, 2), nullable=True),
-        sa.Column('monthly_premium', sa.Numeric(10, 2), nullable=True),
-        sa.Column('deductible', sa.Numeric(10, 2), nullable=True),
-        sa.Column('effective_date', sa.Date, nullable=True),
-        sa.Column('expiration_date', sa.Date, nullable=True),
-        sa.Column('beneficiary_name', sa.String(200), nullable=True),
-        sa.Column('notes', sa.Text, nullable=True),
-        sa.Column('is_active', sa.Boolean, default=True, nullable=False),
-        sa.Column('created_at', sa.DateTime, nullable=False),
-        sa.Column('updated_at', sa.DateTime, nullable=False),
-    )
+    if not table_exists('insurance_policies'):
+        op.create_table(
+            'insurance_policies',
+            sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
+            sa.Column('household_id', postgresql.UUID(as_uuid=True),
+                       sa.ForeignKey('organizations.id', ondelete='CASCADE'), nullable=False, index=True),
+            sa.Column('user_id', postgresql.UUID(as_uuid=True),
+                       sa.ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True),
+            sa.Column('policy_type', sa.Enum('term_life', 'whole_life', 'universal_life',
+                       'disability_short_term', 'disability_long_term',
+                       'umbrella', 'homeowners', 'renters', 'auto',
+                       'health', 'dental', 'vision', 'long_term_care', 'other',
+                       name='policytype', create_type=False), nullable=False),
+            sa.Column('provider', sa.String(200), nullable=True),
+            sa.Column('policy_number', sa.String(100), nullable=True),
+            sa.Column('coverage_amount', sa.Numeric(15, 2), nullable=True),
+            sa.Column('annual_premium', sa.Numeric(10, 2), nullable=True),
+            sa.Column('monthly_premium', sa.Numeric(10, 2), nullable=True),
+            sa.Column('deductible', sa.Numeric(10, 2), nullable=True),
+            sa.Column('effective_date', sa.Date, nullable=True),
+            sa.Column('expiration_date', sa.Date, nullable=True),
+            sa.Column('beneficiary_name', sa.String(200), nullable=True),
+            sa.Column('notes', sa.Text, nullable=True),
+            sa.Column('is_active', sa.Boolean, default=True, nullable=False),
+            sa.Column('created_at', sa.DateTime, nullable=False),
+            sa.Column('updated_at', sa.DateTime, nullable=False),
+        )
 
     # -- dependents table --
-    op.create_table(
-        'dependents',
-        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('household_id', postgresql.UUID(as_uuid=True),
-                   sa.ForeignKey('organizations.id', ondelete='CASCADE'), nullable=False, index=True),
-        sa.Column('first_name', sa.String(100), nullable=False),
-        sa.Column('date_of_birth', sa.Date, nullable=False),
-        sa.Column('relationship', sa.String(50), nullable=False),
-        sa.Column('expected_college_start_year', sa.Integer, nullable=True),
-        sa.Column('expected_college_cost_annual', sa.Numeric(10, 2), nullable=True),
-        sa.Column('notes', sa.Text, nullable=True),
-        sa.Column('created_at', sa.DateTime, nullable=False),
-        sa.Column('updated_at', sa.DateTime, nullable=False),
-    )
+    if not table_exists('dependents'):
+        op.create_table(
+            'dependents',
+            sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
+            sa.Column('household_id', postgresql.UUID(as_uuid=True),
+                       sa.ForeignKey('organizations.id', ondelete='CASCADE'), nullable=False, index=True),
+            sa.Column('first_name', sa.String(100), nullable=False),
+            sa.Column('date_of_birth', sa.Date, nullable=False),
+            sa.Column('relationship', sa.String(50), nullable=False),
+            sa.Column('expected_college_start_year', sa.Integer, nullable=True),
+            sa.Column('expected_college_cost_annual', sa.Numeric(10, 2), nullable=True),
+            sa.Column('notes', sa.Text, nullable=True),
+            sa.Column('created_at', sa.DateTime, nullable=False),
+            sa.Column('updated_at', sa.DateTime, nullable=False),
+        )
 
     # -- tax_loss_harvest_records table --
-    op.create_table(
-        'tax_loss_harvest_records',
-        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('organization_id', postgresql.UUID(as_uuid=True),
-                   sa.ForeignKey('organizations.id', ondelete='CASCADE'), nullable=False, index=True),
-        sa.Column('user_id', postgresql.UUID(as_uuid=True),
-                   sa.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True),
-        sa.Column('date_harvested', sa.Date, nullable=False),
-        sa.Column('ticker_sold', sa.String(20), nullable=False),
-        sa.Column('lot_acquisition_date', sa.Date, nullable=True),
-        sa.Column('loss_amount', sa.Numeric(15, 2), nullable=False),
-        sa.Column('replacement_ticker', sa.String(20), nullable=True),
-        sa.Column('wash_sale_window_end', sa.Date, nullable=False),
-        sa.Column('status', sa.Enum('active_window', 'window_closed', 'wash_sale_triggered',
-                   name='harveststatus', create_type=False), nullable=False),
-        sa.Column('created_at', sa.DateTime, nullable=False),
-        sa.Column('updated_at', sa.DateTime, nullable=False),
-    )
+    if not table_exists('tax_loss_harvest_records'):
+        op.create_table(
+            'tax_loss_harvest_records',
+            sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
+            sa.Column('organization_id', postgresql.UUID(as_uuid=True),
+                       sa.ForeignKey('organizations.id', ondelete='CASCADE'), nullable=False, index=True),
+            sa.Column('user_id', postgresql.UUID(as_uuid=True),
+                       sa.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True),
+            sa.Column('date_harvested', sa.Date, nullable=False),
+            sa.Column('ticker_sold', sa.String(20), nullable=False),
+            sa.Column('lot_acquisition_date', sa.Date, nullable=True),
+            sa.Column('loss_amount', sa.Numeric(15, 2), nullable=False),
+            sa.Column('replacement_ticker', sa.String(20), nullable=True),
+            sa.Column('wash_sale_window_end', sa.Date, nullable=False),
+            sa.Column('status', sa.Enum('active_window', 'window_closed', 'wash_sale_triggered',
+                       name='harveststatus', create_type=False), nullable=False),
+            sa.Column('created_at', sa.DateTime, nullable=False),
+            sa.Column('updated_at', sa.DateTime, nullable=False),
+        )
 
     # -- ss_benefit_estimates table --
-    op.create_table(
-        'ss_benefit_estimates',
-        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('user_id', postgresql.UUID(as_uuid=True),
-                   sa.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, unique=True, index=True),
-        sa.Column('age_62_benefit', sa.Numeric(10, 2), nullable=True),
-        sa.Column('age_67_benefit', sa.Numeric(10, 2), nullable=True),
-        sa.Column('age_70_benefit', sa.Numeric(10, 2), nullable=True),
-        sa.Column('as_of_year', sa.Integer, nullable=True),
-        sa.Column('created_at', sa.DateTime, nullable=False),
-        sa.Column('updated_at', sa.DateTime, nullable=False),
-    )
+    if not table_exists('ss_benefit_estimates'):
+        op.create_table(
+            'ss_benefit_estimates',
+            sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
+            sa.Column('user_id', postgresql.UUID(as_uuid=True),
+                       sa.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, unique=True, index=True),
+            sa.Column('age_62_benefit', sa.Numeric(10, 2), nullable=True),
+            sa.Column('age_67_benefit', sa.Numeric(10, 2), nullable=True),
+            sa.Column('age_70_benefit', sa.Numeric(10, 2), nullable=True),
+            sa.Column('as_of_year', sa.Integer, nullable=True),
+            sa.Column('created_at', sa.DateTime, nullable=False),
+            sa.Column('updated_at', sa.DateTime, nullable=False),
+        )
 
 
 def downgrade() -> None:
