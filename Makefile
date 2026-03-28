@@ -112,7 +112,7 @@ docker-reset:
 		docker compose down -v; \
 		docker compose up -d db redis; \
 		sleep 5; \
-		cd backend && source venv/bin/activate && alembic upgrade head; \
+		cd backend && source venv/bin/activate && alembic upgrade heads; \
 	fi
 
 ###############################################################################
@@ -175,7 +175,7 @@ format-frontend:
 
 db-migrate:
 	@echo "📊 Running database migrations..."
-	cd backend && source venv/bin/activate && alembic upgrade head
+	cd backend && source venv/bin/activate && alembic upgrade heads
 
 db-revision:
 	@read -p "Enter migration message: " msg; \
@@ -188,7 +188,7 @@ db-reset:
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
 		docker compose exec db psql -U nestegg -c "DROP DATABASE IF EXISTS nestegg;"; \
 		docker compose exec db psql -U nestegg -c "CREATE DATABASE nestegg;"; \
-		cd backend && source venv/bin/activate && alembic upgrade head; \
+		cd backend && source venv/bin/activate && alembic upgrade heads; \
 		echo "✓ Database reset complete"; \
 	fi
 

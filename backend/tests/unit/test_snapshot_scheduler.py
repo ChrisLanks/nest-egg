@@ -73,7 +73,9 @@ class TestGetNextRunTime:
         # Should be today or tomorrow
         from datetime import timedelta
 
-        today = datetime.now().date()
+        from datetime import timezone
+
+        today = datetime.now(timezone.utc).date()
         assert next_run.date() in (today, today + timedelta(days=1))
 
 
