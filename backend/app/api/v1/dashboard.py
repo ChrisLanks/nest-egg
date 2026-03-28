@@ -1124,17 +1124,38 @@ async def get_net_worth_history(
     result = await db.execute(query)
     snapshots = result.scalars().all()
 
-    # Lazy bootstrap: if no snapshots exist yet, capture today's snapshot so the
-    # chart isn't empty for new users waiting for the nightly Celery task.
-    if not snapshots:
+    # Lazy bootstrap: if no snapshots exist yet, OR if only a stale $0 snapshot
+    # exists (captured before accounts were added), re-capture today's snapshot.
+    only_zero = snapshots and all(
+        (s.total_net_worth is None or s.total_net_worth == 0) for s in snapshots
+    )
+    if not snapshots or only_zero:
         from app.services.net_worth_service import NetWorthService
+        import logging as _logging
+        _logger = _logging.getLogger(__name__)
         try:
             svc = NetWorthService()
-            await svc.capture_snapshot(db, current_user.organization_id, user_id or None)
-            await db.commit()
-            result2 = await db.execute(query)
-            snapshots = result2.scalars().all()
+            # capture_snapshot commits internally; do not double-commit
+            snap = await svc.capture_snapshot(db, current_user.organization_id, user_id or None)
+            # Only use the bootstrapped snapshot if it has real data (non-zero net worth)
+            # — avoids persisting a $0 placeholder when the org has no accounts yet.
+            if snap and snap.total_net_worth and snap.total_net_worth != 0:
+                # Rebuild query fresh after commit — original query object is stale
+                fresh_query = select(NetWorthSnapshot).where(
+                    NetWorthSnapshot.organization_id == current_user.organization_id,
+                    NetWorthSnapshot.snapshot_date >= start_date,
+                )
+                if end_date:
+                    fresh_query = fresh_query.where(NetWorthSnapshot.snapshot_date <= end_date)
+                if user_id:
+                    fresh_query = fresh_query.where(NetWorthSnapshot.user_id == user_id)
+                else:
+                    fresh_query = fresh_query.where(NetWorthSnapshot.user_id.is_(None))
+                fresh_query = fresh_query.order_by(asc(NetWorthSnapshot.snapshot_date))
+                result2 = await db.execute(fresh_query)
+                snapshots = result2.scalars().all()
         except Exception:
+            _logger.exception("Net worth lazy bootstrap failed for org %s", current_user.organization_id)
             pass  # Non-fatal: return empty list if bootstrap fails
 
     def _float(v) -> float:

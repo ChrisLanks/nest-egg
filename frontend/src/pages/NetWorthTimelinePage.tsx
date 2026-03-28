@@ -192,10 +192,14 @@ export default function NetWorthTimelinePage() {
     ],
     queryFn: async () => {
       const { start, end } = getDateRange(timeRange, customStart, customEnd);
+      // Format as local date (YYYY-MM-DD) — toISOString() converts to UTC which
+      // can shift the date by a day for users in negative UTC offset timezones.
+      const toLocalDate = (d: Date) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       const params: Record<string, string> = {
-        start_date: start.toISOString().split("T")[0],
+        start_date: toLocalDate(start),
       };
-      if (end) params.end_date = end.toISOString().split("T")[0];
+      if (end) params.end_date = toLocalDate(end);
       if (selectedUserId) params.user_id = selectedUserId;
       const response = await api.get("/dashboard/net-worth-history", {
         params,

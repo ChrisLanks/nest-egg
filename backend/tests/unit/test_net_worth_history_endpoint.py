@@ -197,3 +197,43 @@ def test_net_worth_history_source_has_lazy_bootstrap():
     assert "NetWorthService" in source, "dashboard.py must import NetWorthService for lazy bootstrap"
     assert "capture_snapshot" in source, "dashboard.py must call capture_snapshot for lazy bootstrap"
     assert "not snapshots" in source, "dashboard.py must check 'if not snapshots' to trigger bootstrap"
+    assert "only_zero" in source, "dashboard.py must re-bootstrap when only $0 snapshots exist"
+
+
+@pytest.mark.asyncio
+async def test_net_worth_history_zero_snapshots_triggers_rebootstrap():
+    """When all existing snapshots have total_net_worth=0, bootstrap re-runs."""
+    user = _make_user()
+    zero_snap = _make_snapshot(0)
+    real_snap = _make_snapshot(50000)
+
+    call_count = 0
+
+    async def mock_execute(query):
+        nonlocal call_count
+        call_count += 1
+        result = MagicMock()
+        # First call returns stale $0 snapshot; second (after bootstrap) returns real data
+        result.scalars.return_value.all.return_value = [zero_snap] if call_count == 1 else [real_snap]
+        return result
+
+    db = AsyncMock()
+    db.execute = mock_execute
+    db.commit = AsyncMock()
+
+    mock_svc = MagicMock()
+    mock_svc.capture_snapshot = AsyncMock(return_value=real_snap)
+
+    with patch("app.services.net_worth_service.NetWorthService", return_value=mock_svc):
+        result = await get_net_worth_history(
+            start_date=None,
+            end_date=None,
+            user_id=None,
+            current_user=user,
+            db=db,
+        )
+
+    # Bootstrap should have been triggered and returned real data
+    mock_svc.capture_snapshot.assert_awaited_once()
+    assert len(result) == 1
+    assert result[0].total_net_worth == 50000.0

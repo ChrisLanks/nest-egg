@@ -655,6 +655,44 @@ describe("Weekly view: local-midnight date parsing prevents UTC offset shift", (
   });
 });
 
+// ── NetWorthTimeline: local date formatting (round-70 fix) ───────────────────
+//
+// toISOString() converts the local date to UTC, which shifts the date by a day
+// for users in negative UTC offset timezones. The fix uses local date parts.
+
+function toLocalDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+describe("NetWorthTimeline: local date formatting avoids UTC shift", () => {
+  it("formats a date using local year/month/day (no UTC conversion)", () => {
+    // Simulate a date that would shift when converted to UTC ISO string
+    // e.g. 2026-03-28 at 20:00 in UTC-5 → UTC is 2026-03-29T01:00:00Z
+    const d = new Date(2026, 2, 28, 20, 0, 0); // March 28 at 8pm local
+    expect(toLocalDateStr(d)).toBe("2026-03-28"); // must stay as local date
+  });
+
+  it("pads month and day with leading zeros", () => {
+    const d = new Date(2026, 0, 5); // Jan 5
+    expect(toLocalDateStr(d)).toBe("2026-01-05");
+  });
+
+  it("handles December 31 correctly", () => {
+    const d = new Date(2026, 11, 31);
+    expect(toLocalDateStr(d)).toBe("2026-12-31");
+  });
+
+  it("NetWorthTimelinePage source uses local date formatting", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("src/pages/NetWorthTimelinePage.tsx", "utf-8");
+    // Must NOT use toISOString() for start_date/end_date params
+    expect(source).not.toContain("start.toISOString().split");
+    expect(source).not.toContain("end.toISOString().split");
+    // Must use toLocalDate helper
+    expect(source).toContain("toLocalDate");
+  });
+});
+
 describe("Source: calMonthStr filter removed from dividend memo", () => {
   it("CalendarPage source does not filter dividends by calMonthStr", async () => {
     const fs = await import("fs");
