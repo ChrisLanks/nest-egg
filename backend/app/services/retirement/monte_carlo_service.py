@@ -91,22 +91,14 @@ def _generate_bootstrap_return(historical_returns: list[float]) -> float:
 
 # ── Asset class correlation modeling ─────────────────────────────────────────
 
-# Default return assumptions per asset class (annualized, as decimals)
-_ASSET_CLASS_DEFAULTS = {
-    "stocks": {"mean": 0.10, "std": 0.18},
-    "bonds": {"mean": 0.04, "std": 0.06},
-    "real_estate": {"mean": 0.07, "std": 0.12},
-    "cash": {"mean": 0.03, "std": 0.01},
-}
+# Default return assumptions per asset class — sourced from FIRE.MC_ASSET_CLASS_DEFAULTS
+# in app.constants.financial so they live in one place.
+_ASSET_CLASS_DEFAULTS = FIRE.MC_ASSET_CLASS_DEFAULTS
 
 # Correlation matrix (symmetric) — order: stocks, bonds, real_estate, cash
-_ASSET_CLASSES = ["stocks", "bonds", "real_estate", "cash"]
-_CORRELATION_MATRIX = [
-    [1.00, -0.10, 0.40, 0.00],
-    [-0.10, 1.00, 0.20, 0.05],
-    [0.40, 0.20, 1.00, 0.00],
-    [0.00, 0.05, 0.00, 1.00],
-]
+# Sourced from FIRE.MC_CORRELATION_MATRIX in app.constants.financial.
+_ASSET_CLASSES = list(FIRE.MC_ASSET_CLASS_DEFAULTS.keys())
+_CORRELATION_MATRIX = FIRE.MC_CORRELATION_MATRIX
 
 
 def _cholesky_decomposition(matrix: list[list[float]]) -> list[list[float]]:

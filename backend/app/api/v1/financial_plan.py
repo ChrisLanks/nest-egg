@@ -22,7 +22,7 @@ from app.models.estate_document import EstateDocument
 from app.models.insurance_policy import InsurancePolicy, PolicyType
 from app.models.retirement import RetirementScenario, RetirementSimulationResult
 from app.models.user import User
-from app.constants.financial import EDUCATION, ESTATE, SAVINGS_GOALS
+from app.constants.financial import EDUCATION, ESTATE, FIRE, HEALTH, RETIREMENT, SAVINGS_GOALS
 from app.services.net_worth_service import NetWorthService
 
 logger = logging.getLogger(__name__)
@@ -107,8 +107,9 @@ async def get_financial_plan_summary(
     # ── Status per section ─────────────────────────────────────────────
     net_worth_section["status"] = "on_track" if nw_data["total_net_worth"] > 0 else "needs_attention"
     retirement_section["status"] = (
-        "on_track" if retirement_section.get("on_track")
-        else "critical" if retirement_section.get("gap", 0) > 2000
+        "no_scenario" if retirement_section.get("no_scenario")
+        else "on_track" if retirement_section.get("on_track")
+        else "critical" if retirement_section.get("gap", 0) > HEALTH.RETIREMENT_GAP_CRITICAL
         else "needs_attention"
     )
     education_section["status"] = (
@@ -117,12 +118,12 @@ async def get_financial_plan_summary(
     )
     debt_section["status"] = (
         "on_track" if debt_section.get("high_interest_debt", 0) == 0
-        else "critical" if debt_section.get("high_interest_debt", 0) > 20000
+        else "critical" if debt_section.get("high_interest_debt", 0) > HEALTH.DEBT_HIGH_INTEREST_CRITICAL
         else "needs_attention"
     )
     insurance_section["status"] = (
-        "on_track" if insurance_section.get("_coverage_score", 0) >= 80
-        else "critical" if insurance_section.get("_coverage_score", 0) < 40
+        "on_track" if insurance_section.get("_coverage_score", 0) >= HEALTH.INSURANCE_SCORE_GOOD
+        else "critical" if insurance_section.get("_coverage_score", 0) < HEALTH.INSURANCE_SCORE_CRITICAL
         else "needs_attention"
     )
     estate_section["status"] = (
@@ -131,8 +132,8 @@ async def get_financial_plan_summary(
         else "needs_attention"
     )
     emergency_section["status"] = (
-        "on_track" if emergency_section.get("months_covered", 0) >= 6
-        else "critical" if emergency_section.get("months_covered", 0) < 1
+        "on_track" if emergency_section.get("months_covered", 0) >= HEALTH.EMERGENCY_FUND_TARGET_MONTHS
+        else "critical" if emergency_section.get("months_covered", 0) < HEALTH.EMERGENCY_FUND_CRITICAL_MONTHS
         else "needs_attention"
     )
 
@@ -173,8 +174,9 @@ async def _build_retirement_section(db: AsyncSession, org_id, user: User) -> dic
             "monthly_income_projected": 0,
             "monthly_income_needed": 0,
             "gap": 0,
-            "retirement_age": 65,
+            "retirement_age": RETIREMENT.DEFAULT_RETIREMENT_AGE,
             "years_until_retirement": 0,
+            "no_scenario": True,
         }
 
     # Get latest simulation result
@@ -194,10 +196,10 @@ async def _build_retirement_section(db: AsyncSession, org_id, user: User) -> dic
     years_until = max(0, scenario.retirement_age - current_age)
     projected = float(sim.median_portfolio_at_retirement or 0) if sim else 0
     monthly_spending = float(scenario.annual_spending_retirement) / 12
-    # Rough projected monthly income from portfolio (4% rule / 12)
-    monthly_income = projected * 0.04 / 12 if projected > 0 else 0
+    # Projected monthly income from portfolio using the configured safe withdrawal rate
+    monthly_income = projected * FIRE.DEFAULT_WITHDRAWAL_RATE / 12 if projected > 0 else 0
     success_rate = float(sim.success_rate) if sim else 0
-    on_track = success_rate >= 70
+    on_track = success_rate >= FIRE.MC_ON_TRACK_SUCCESS_RATE
 
     return {
         "on_track": on_track,
@@ -207,46 +209,71 @@ async def _build_retirement_section(db: AsyncSession, org_id, user: User) -> dic
         "gap": round(max(0, monthly_spending - monthly_income)),
         "retirement_age": scenario.retirement_age,
         "years_until_retirement": years_until,
+        "success_rate": round(success_rate, 1),
+        "no_scenario": False,
     }
 
 
 async def _build_education_section(db: AsyncSession, org_id) -> dict:
-    """Summarize education planning from dependents."""
+    """Summarize education planning from dependents, crediting existing 529 balances."""
     result = await db.execute(
         select(Dependent).where(Dependent.household_id == org_id)
     )
     dependents = result.scalars().all()
 
+    # Sum all active 529 account balances for this household
+    from app.models.account import AccountType as _AccountType
+    savings_result = await db.execute(
+        select(func.coalesce(func.sum(Account.current_balance), 0)).where(
+            and_(
+                Account.organization_id == org_id,
+                Account.account_type == _AccountType.EDUCATION_529,
+                Account.is_active == True,  # noqa: E712
+            )
+        )
+    )
+    total_529_balance = float(savings_result.scalar() or 0)
+
     children = []
-    total_gap = 0
+    total_projected_cost = 0
     import datetime as _dt
     current_year = _dt.date.today().year
-    annual_cost = EDUCATION.COLLEGE_COSTS.get("public_in_state", 23_250)
     college_years = EDUCATION.COLLEGE_YEARS
     inflation = EDUCATION.COLLEGE_INFLATION_RATE
 
     for dep in dependents:
         start_year = getattr(dep, "expected_college_start_year", None) or (current_year + 10)
         years_until = max(0, start_year - current_year)
-        # Inflate annual cost to start year, then sum over college_years
-        projected_annual = annual_cost * (1 + inflation) ** years_until
-        gap = round(projected_annual * college_years)
+        # Use year-keyed cost data, projected to enrollment year
+        projected_costs = EDUCATION.costs_for_year(start_year)
+        annual_cost = projected_costs.get("public_in_state", 23_250)
+        projected_total = round(annual_cost * college_years)
         children.append({
             "name": dep.first_name if hasattr(dep, 'first_name') else str(dep.id)[:8],
             "start_year": start_year,
-            "gap": gap,
+            "projected_total_cost": projected_total,
         })
-        total_gap += gap
+        total_projected_cost += projected_total
+
+    # Offset projected cost by existing 529 savings (529 balance also grows, but conservative)
+    total_gap = max(0, total_projected_cost - total_529_balance)
 
     return {
         "total_children": len(children),
-        "total_education_gap": total_gap,
+        "total_education_gap": round(total_gap),
+        "total_projected_cost": round(total_projected_cost),
+        "total_529_balance": round(total_529_balance),
         "children": children,
     }
 
 
 async def _build_debt_section(db: AsyncSession, org_id) -> dict:
-    """Summarize debt from accounts."""
+    """Summarize debt from accounts.
+
+    Monthly payment estimates use actual transaction data (payments made to debt
+    accounts in the last 90 days) where available, falling back to account-level
+    ``monthly_payment`` field, then a computed amortization estimate.
+    """
     debt_types = [AccountType.CREDIT_CARD, AccountType.LOAN,
                   AccountType.STUDENT_LOAN, AccountType.MORTGAGE]
     result = await db.execute(
@@ -260,6 +287,31 @@ async def _build_debt_section(db: AsyncSession, org_id) -> dict:
     )
     debt_accounts = result.scalars().all()
 
+    # Look up recent actual payments: positive transactions on debt accounts
+    # (deposits/credits on a debt account = payments made)
+    import datetime as _dtm
+    from app.models.transaction import Transaction as _Transaction
+    _90d_ago = _dtm.date.today() - _dtm.timedelta(days=90)
+    debt_account_ids = [acct.id for acct in debt_accounts]
+
+    actual_payments: dict = {}
+    if debt_account_ids:
+        payment_result = await db.execute(
+            select(
+                _Transaction.account_id,
+                func.avg(func.abs(_Transaction.amount)).label("avg_monthly"),
+            ).where(
+                and_(
+                    _Transaction.account_id.in_(debt_account_ids),
+                    _Transaction.date >= _90d_ago,
+                    _Transaction.amount > 0,  # positive = payment on a debt account
+                    _Transaction.is_transfer.is_(False),
+                )
+            ).group_by(_Transaction.account_id)
+        )
+        for row in payment_result:
+            actual_payments[row.account_id] = float(row.avg_monthly or 0)
+
     total_debt = Decimal("0")
     high_interest = Decimal("0")
     monthly_payments = Decimal("0")
@@ -269,20 +321,19 @@ async def _build_debt_section(db: AsyncSession, org_id) -> dict:
         balance = abs(acct.current_balance or Decimal("0"))
         total_debt += balance
 
-        # Credit card = high interest
+        # Credit card = high interest (any credit card balance triggers this)
         if acct.account_type == AccountType.CREDIT_CARD:
             high_interest += balance
 
-        # Estimate monthly payment (rough: debt / 360 for mortgage, debt / 60 for others)
         if acct.account_type == AccountType.MORTGAGE:
-            # Try to compute remaining term from balance, rate, and payment
-            import datetime as _dtm
+            import math as _math
             rate = float(getattr(acct, 'interest_rate', None) or 0)
+            # Prefer: account-level monthly_payment → actual transactions → amortization
             monthly_pmt = float(getattr(acct, 'monthly_payment', None) or 0)
+            if not monthly_pmt:
+                monthly_pmt = actual_payments.get(acct.id, 0)
             if rate > 0 and monthly_pmt > 0 and float(balance) > 0:
-                import math as _math
-                monthly_rate = rate / 12
-                # n = -log(1 - r*B/P) / log(1+r)
+                monthly_rate = rate / 100 / 12
                 ratio = monthly_rate * float(balance) / monthly_pmt
                 if ratio < 1:
                     years_left = (-_math.log(1 - ratio) / _math.log(1 + monthly_rate)) / 12
@@ -290,12 +341,25 @@ async def _build_debt_section(db: AsyncSession, org_id) -> dict:
                 else:
                     mortgage_payoff = _dtm.date.today().year + 30
                 monthly_payments += Decimal(str(monthly_pmt))
+            elif monthly_pmt > 0:
+                monthly_payments += Decimal(str(monthly_pmt))
+                if mortgage_payoff is None:
+                    mortgage_payoff = _dtm.date.today().year + 30
             else:
+                # Fallback: 30-year amortization
                 monthly_payments += balance / 360
                 if mortgage_payoff is None:
                     mortgage_payoff = _dtm.date.today().year + 30
         else:
-            monthly_payments += balance / 60
+            # Prefer actual transaction data, then account monthly_payment, then estimate
+            pmt = actual_payments.get(acct.id, 0)
+            if not pmt:
+                pmt = float(getattr(acct, 'monthly_payment', None) or 0)
+            if not pmt and float(balance) > 0:
+                # Fallback: estimate based on typical minimum payment (2% of balance or $25)
+                from app.constants.financial import DEBT as _DEBT
+                pmt = max(25.0, float(balance) * _DEBT.MIN_PAYMENT_RATE)
+            monthly_payments += Decimal(str(pmt))
 
     return {
         "total_debt": float(total_debt),
@@ -322,30 +386,46 @@ async def _build_insurance_section(db: AsyncSession, org_id, net_worth: float) -
     has_life = any(t in policy_types for t in [PolicyType.TERM_LIFE, PolicyType.WHOLE_LIFE, PolicyType.UNIVERSAL_LIFE])
     has_disability = any(t in policy_types for t in [PolicyType.DISABILITY_SHORT_TERM, PolicyType.DISABILITY_LONG_TERM])
     has_umbrella = PolicyType.UMBRELLA in policy_types
-    umbrella_recommended = net_worth > 500000
+    umbrella_recommended = net_worth > HEALTH.UMBRELLA_RECOMMEND_NET_WORTH
 
-    # Estimate life coverage gap (10x income - existing coverage)
+    # Estimate life coverage gap (10x annual income - existing coverage)
     total_life_coverage = sum(
         float(p.coverage_amount or 0)
         for p in policies
         if p.policy_type in [PolicyType.TERM_LIFE, PolicyType.WHOLE_LIFE, PolicyType.UNIVERSAL_LIFE]
     )
-    # Try to estimate income from salary/income accounts
+
+    # Estimate gross annual income from YTD transaction income (last 12 months)
+    import datetime as _dtins
+    _12m_ago = _dtins.date.today() - _dtins.timedelta(days=365)
+    from app.models.transaction import Transaction as _TxIns
     income_result = await db.execute(
-        select(func.sum(Account.current_balance)).where(
+        select(func.coalesce(func.sum(_TxIns.amount), 0)).join(
+            Account, _TxIns.account_id == Account.id
+        ).where(
             and_(
                 Account.organization_id == org_id,
-                Account.account_type.in_([AccountType.CHECKING, AccountType.SAVINGS]),
                 Account.is_active == True,  # noqa: E712
+                _TxIns.date >= _12m_ago,
+                _TxIns.amount > 0,  # income = positive transaction
+                _TxIns.is_transfer.is_(False),
             )
         )
     )
-    # Use 10x income; fall back to $1M if no income data
-    estimated_need = 1_000_000
+    annual_income = float(income_result.scalar() or 0)
+
+    if annual_income > 0:
+        estimated_need = round(annual_income * HEALTH.LIFE_INSURANCE_INCOME_MULTIPLE)
+    else:
+        # Fallback when no income data is available — use conservative constant, not $1M
+        estimated_need = HEALTH.LIFE_INSURANCE_FALLBACK_NEED
     life_gap = max(0, estimated_need - total_life_coverage)
 
     return {
         "life_coverage_gap": life_gap,
+        "life_coverage_need": estimated_need,
+        "life_coverage_existing": round(total_life_coverage),
+        "income_used_for_estimate": round(annual_income),
         "has_disability": has_disability,
         "has_umbrella": has_umbrella,
         "umbrella_recommended": umbrella_recommended,
@@ -434,7 +514,7 @@ async def _build_emergency_fund_section(db: AsyncSession, org_id) -> dict:
         monthly_expenses = ytd_expenses / days_elapsed * 30.44  # Average month
     else:
         monthly_expenses = float(SAVINGS_GOALS.DEFAULT_MONTHLY_EXPENSES)
-    recommended_months = 6
+    recommended_months = HEALTH.EMERGENCY_FUND_TARGET_MONTHS
     months_covered = liquid_balance / monthly_expenses if monthly_expenses > 0 else 0
     recommended_amount = monthly_expenses * recommended_months
     shortfall = max(0, recommended_amount - liquid_balance)
@@ -450,22 +530,27 @@ async def _build_emergency_fund_section(db: AsyncSession, org_id) -> dict:
 
 
 def _compute_health_score(retirement, emergency, insurance, debt, estate) -> int:
-    """Compute weighted 0-100 financial health score."""
+    """Compute weighted 0-100 financial health score.
+
+    Weights: Retirement 30pts, Emergency Fund 20pts, Insurance 20pts,
+             Debt 15pts, Estate 15pts.
+    Thresholds sourced from HEALTH constants.
+    """
     score = 0
 
-    # Retirement (30 points)
+    # Retirement (30 points) — 0 for no scenario, 15 for any projection, 30 if on track
     if retirement.get("on_track"):
         score += 30
-    elif retirement.get("projected_at_retirement", 0) > 0:
+    elif not retirement.get("no_scenario") and retirement.get("projected_at_retirement", 0) > 0:
         score += 15
 
     # Emergency fund (20 points)
     months = emergency.get("months_covered", 0)
-    if months >= 6:
+    if months >= HEALTH.EMERGENCY_FUND_TARGET_MONTHS:
         score += 20
-    elif months >= 3:
+    elif months >= HEALTH.EMERGENCY_FUND_GOOD:
         score += 12
-    elif months >= 1:
+    elif months >= HEALTH.EMERGENCY_FUND_CRITICAL_MONTHS:
         score += 5
 
     # Insurance (20 points)
@@ -476,9 +561,9 @@ def _compute_health_score(retirement, emergency, insurance, debt, estate) -> int
     high_interest = debt.get("high_interest_debt", 0)
     if high_interest == 0:
         score += 15
-    elif high_interest < 5000:
+    elif high_interest < HEALTH.DEBT_HIGH_INTEREST_MODERATE:
         score += 10
-    elif high_interest < 20000:
+    elif high_interest < HEALTH.DEBT_HIGH_INTEREST_CRITICAL:
         score += 5
 
     # Estate planning (15 points)
@@ -495,35 +580,96 @@ def _compute_health_score(retirement, emergency, insurance, debt, estate) -> int
 
 
 def _generate_top_actions(retirement, emergency, insurance, debt, estate, education) -> list:
-    """Generate prioritized action items."""
+    """Generate prioritized action items with navigation links.
+
+    Each action is a dict with:
+      - message: human-readable text
+      - href: frontend route to resolve the issue
+      - priority: "critical" | "important" | "suggestion"
+    """
     actions = []
 
     if not estate.get("has_will"):
-        actions.append("Create a will — estate planning is incomplete")
+        actions.append({
+            "message": "Create a will — estate planning is incomplete without one",
+            "href": "/life-planning?tab=estate",
+            "priority": "critical",
+        })
 
     if insurance.get("umbrella_recommended") and not insurance.get("has_umbrella"):
-        actions.append("Add umbrella insurance — net worth exceeds $500K threshold")
+        threshold = HEALTH.UMBRELLA_RECOMMEND_NET_WORTH
+        actions.append({
+            "message": f"Add umbrella insurance — net worth exceeds ${threshold:,.0f}",
+            "href": "/life-planning?tab=insurance",
+            "priority": "important",
+        })
 
     shortfall = emergency.get("shortfall", 0)
     if shortfall > 0:
-        actions.append(f"Increase emergency fund by ${shortfall:,.0f} to reach 6-month target")
+        months = HEALTH.EMERGENCY_FUND_TARGET_MONTHS
+        actions.append({
+            "message": f"Increase emergency fund by ${shortfall:,.0f} to reach {months}-month target",
+            "href": "/financial-health?tab=liquidity",
+            "priority": "critical" if emergency.get("months_covered", 0) < 1 else "important",
+        })
 
-    if not retirement.get("on_track"):
-        actions.append("Review retirement savings — projections show a potential shortfall")
+    if retirement.get("no_scenario"):
+        actions.append({
+            "message": "Create a retirement scenario to see if you're on track",
+            "href": "/retirement",
+            "priority": "important",
+        })
+    elif not retirement.get("on_track"):
+        gap = retirement.get("gap", 0)
+        actions.append({
+            "message": f"Review retirement plan — projected ${gap:,.0f}/month shortfall",
+            "href": "/retirement",
+            "priority": "critical" if gap > HEALTH.RETIREMENT_GAP_CRITICAL else "important",
+        })
 
-    if debt.get("high_interest_debt", 0) > 0:
-        actions.append(f"Pay down ${debt['high_interest_debt']:,.0f} in high-interest debt")
+    high_interest = debt.get("high_interest_debt", 0)
+    if high_interest > 0:
+        actions.append({
+            "message": f"Pay down ${high_interest:,.0f} in high-interest credit card debt",
+            "href": "/debt-payoff",
+            "priority": "critical" if high_interest > HEALTH.DEBT_HIGH_INTEREST_CRITICAL else "important",
+        })
 
     if not insurance.get("_has_life", True):
-        actions.append("Consider term life insurance for income protection")
+        need = insurance.get("life_coverage_need", HEALTH.LIFE_INSURANCE_FALLBACK_NEED)
+        actions.append({
+            "message": f"Consider term life insurance — estimated need ${need:,.0f}",
+            "href": "/life-planning?tab=insurance",
+            "priority": "important",
+        })
 
     if not insurance.get("has_disability"):
-        actions.append("Evaluate disability insurance coverage")
+        actions.append({
+            "message": "Evaluate disability insurance — protects your income if you can't work",
+            "href": "/life-planning?tab=insurance",
+            "priority": "important",
+        })
 
     if not estate.get("has_poa"):
-        actions.append("Set up a power of attorney")
+        actions.append({
+            "message": "Set up a power of attorney for financial and healthcare decisions",
+            "href": "/life-planning?tab=estate",
+            "priority": "important",
+        })
 
-    if education.get("total_education_gap", 0) > 0:
-        actions.append(f"Address ${education['total_education_gap']:,.0f} education funding gap")
+    gap = education.get("total_education_gap", 0)
+    if gap > 0:
+        existing = education.get("total_529_balance", 0)
+        msg = f"Address ${gap:,.0f} education funding gap"
+        if existing > 0:
+            msg += f" (${existing:,.0f} in 529 already saved)"
+        actions.append({
+            "message": msg,
+            "href": "/education",
+            "priority": "suggestion",
+        })
 
-    return actions[:5]  # Top 5 actions
+    # Sort by priority: critical > important > suggestion, then return top 5
+    _priority_order = {"critical": 0, "important": 1, "suggestion": 2}
+    actions.sort(key=lambda a: _priority_order.get(a["priority"], 99))
+    return actions[:5]

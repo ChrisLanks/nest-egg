@@ -81,6 +81,7 @@ class _Insight:
         "icon",
         "priority_score",
         "amount",
+        "amount_label",  # Optional[str] – describes what `amount` represents in context
         "data_vintage",  # Optional[str] – ISO year string, set when insight uses static/stale data
         "data_is_stale",  # Optional[bool] – True when data source is outdated
     )
@@ -96,6 +97,7 @@ class _Insight:
         icon: str,
         priority_score: float,
         amount: Optional[float] = None,
+        amount_label: Optional[str] = None,
         data_vintage: Optional[str] = None,
         data_is_stale: Optional[bool] = None,
     ) -> None:
@@ -108,6 +110,7 @@ class _Insight:
         self.icon = icon
         self.priority_score = priority_score
         self.amount = amount
+        self.amount_label = amount_label
         self.data_vintage = data_vintage
         self.data_is_stale = data_is_stale
 
@@ -122,6 +125,7 @@ class _Insight:
             "icon": self.icon,
             "priority_score": self.priority_score,
             "amount": self.amount,
+            "amount_label": self.amount_label,
             "data_vintage": self.data_vintage,
             "data_is_stale": self.data_is_stale,
         }
@@ -297,6 +301,7 @@ class SmartInsightsService:
             icon="🏦",
             priority_score=90 - (months_covered * 15),
             amount=round(gap, 2),
+            amount_label="Shortfall to 3-month target",
         )
 
     async def _check_cash_drag(
@@ -340,6 +345,7 @@ class SmartInsightsService:
             icon="💸",
             priority_score=min(75, 40 + months_covered),
             amount=round(excess, 2),
+            amount_label="Investable excess cash",
         )
 
     async def _check_fund_fees(
@@ -399,6 +405,7 @@ class SmartInsightsService:
             icon="📊",
             priority_score=min(80, weighted_er * 5_000),
             amount=round(annual_fees, 2),
+            amount_label="Annual fee drag",
         )
 
     async def _check_stock_concentration(
@@ -452,6 +459,7 @@ class SmartInsightsService:
             icon="⚠️",
             priority_score=min(85, concentration * 200),
             amount=round(float(top.position_value), 2),
+            amount_label="Concentrated position value",
         )
 
     async def _check_ltcg_opportunity(
@@ -509,6 +517,7 @@ class SmartInsightsService:
             icon="📈",
             priority_score=min(70, harvestable / 200),
             amount=round(harvestable, 2),
+            amount_label="Tax-free gain opportunity",
         )
 
     async def _check_irmaa_cliff(
@@ -552,6 +561,7 @@ class SmartInsightsService:
                         icon="🏥",
                         priority_score=80 - (gap / 200),
                         amount=round(annual_increase, 2),
+                        amount_label="Annual Medicare surcharge if crossed",
                     )
         return None
 
@@ -589,6 +599,7 @@ class SmartInsightsService:
             icon="🔄",
             priority_score=55,
             amount=round(traditional_balance, 2),
+            amount_label="Pre-tax balance eligible for conversion",
         )
 
     def _check_hsa_opportunity_sync(self, accounts: list[Account]) -> Optional[_Insight]:
@@ -618,6 +629,7 @@ class SmartInsightsService:
             icon="🏥",
             priority_score=35,
             amount=round(gap, 2),
+            amount_label="Remaining contribution headroom",
         )
 
     async def _check_net_worth_benchmark(
@@ -727,6 +739,7 @@ class SmartInsightsService:
             icon="📊",
             priority_score=priority_score,
             amount=round(net_worth, 2),
+            amount_label="Your current net worth",
             data_vintage=vintage_label,
             data_is_stale=is_stale,
         )

@@ -63,6 +63,8 @@ interface UpdateProfileData {
   birth_day?: number | null;
   birth_month?: number | null;
   birth_year?: number | null;
+  state_of_residence?: string | null;
+  target_retirement_state?: string | null;
 }
 
 interface ChangePasswordData {
@@ -577,6 +579,8 @@ export default function PreferencesPage() {
   const [birthMonth, setBirthMonth] = useState<number | null>(null);
   const [birthYear, setBirthYear] = useState<number | null>(null);
   const [defaultCurrency, setDefaultCurrency] = useState("USD");
+  const [stateOfResidence, setStateOfResidence] = useState<string>("");
+  const [targetRetirementState, setTargetRetirementState] = useState<string>("");
 
   // Password state
   const [currentPassword, setCurrentPassword] = useState("");
@@ -609,7 +613,24 @@ export default function PreferencesPage() {
     setBirthMonth(profileData.birth_month || null);
     setBirthYear(profileData.birth_year || null);
     setDefaultCurrency(profileData.default_currency || "USD");
+    setStateOfResidence(profileData.state_of_residence || "");
+    setTargetRetirementState(profileData.target_retirement_state || "");
   }, [profileData]);
+
+  // Fetch state list for dropdowns
+  const { data: statesData } = useQuery({
+    queryKey: ["stateList"],
+    queryFn: async () => {
+      const response = await api.get("/settings/financial-constants/states");
+      return response.data.states as Array<{
+        code: string;
+        name: string;
+        income_tax_rate: number;
+        no_income_tax: boolean;
+      }>;
+    },
+    staleTime: Infinity,
+  });
 
   // Update profile mutation
   const updateProfileMutation = useMutation({
@@ -778,6 +799,8 @@ export default function PreferencesPage() {
       birth_day: birthDay,
       birth_month: birthMonth,
       birth_year: birthYear,
+      state_of_residence: stateOfResidence || null,
+      target_retirement_state: targetRetirementState || null,
     });
   };
 
@@ -874,6 +897,47 @@ export default function PreferencesPage() {
                 </FormHelperText>
               </FormControl>
             )}
+
+            {/* State of Residence */}
+            <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+              <FormControl>
+                <FormLabel>State of Residence</FormLabel>
+                <Select
+                  value={stateOfResidence}
+                  onChange={(e) => setStateOfResidence(e.target.value)}
+                  placeholder="Select state"
+                >
+                  {(statesData ?? []).map((s) => (
+                    <option key={s.code} value={s.code}>
+                      {s.name}{s.no_income_tax ? " (no income tax)" : ` (${(s.income_tax_rate * 100).toFixed(1)}%)`}
+                    </option>
+                  ))}
+                </Select>
+                <FormHelperText>
+                  Used for state tax estimates in Tax Projection, FIRE metrics,
+                  and other tools. Each household member sets their own state.
+                </FormHelperText>
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Planned Retirement State</FormLabel>
+                <Select
+                  value={targetRetirementState}
+                  onChange={(e) => setTargetRetirementState(e.target.value)}
+                  placeholder="Same as current"
+                >
+                  {(statesData ?? []).map((s) => (
+                    <option key={s.code} value={s.code}>
+                      {s.name}{s.no_income_tax ? " (no income tax)" : ` (${(s.income_tax_rate * 100).toFixed(1)}%)`}
+                    </option>
+                  ))}
+                </Select>
+                <FormHelperText>
+                  If you plan to move states in retirement (e.g., from CA to FL),
+                  this is used to estimate your post-retirement state tax burden.
+                </FormHelperText>
+              </FormControl>
+            </SimpleGrid>
 
             <FormControl>
               <FormLabel>Birthday</FormLabel>

@@ -57,6 +57,10 @@ class UserProfileResponse(BaseModel):
     default_currency: Optional[str] = None
     dashboard_layout: Optional[List[Any]] = None
     onboarding_goal: Optional[str] = None
+    # State tax fields — each user independently sets their own state.
+    # In multi-member households every member may be in a different state.
+    state_of_residence: Optional[str] = None
+    target_retirement_state: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -161,6 +165,8 @@ async def get_user_profile(
         default_currency=org.default_currency if org else None,
         dashboard_layout=current_user.dashboard_layout,
         onboarding_goal=current_user.onboarding_goal,
+        state_of_residence=getattr(current_user, "state_of_residence", None),
+        target_retirement_state=getattr(current_user, "target_retirement_state", None),
     )
 
 
@@ -194,6 +200,28 @@ async def update_user_profile(
         )
     if update_data.onboarding_goal is not None:
         current_user.onboarding_goal = update_data.onboarding_goal
+
+    # State of residence — per-user; each household member sets their own.
+    # Validated as uppercase 2-char code by the UserUpdate schema.
+    if update_data.state_of_residence is not None:
+        from app.constants.state_tax_rates import STATE_TAX_RATES
+        code = update_data.state_of_residence
+        if code and code not in STATE_TAX_RATES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown US state code '{code}'. Use a 2-letter code like 'CA', 'TX', 'NY'.",
+            )
+        current_user.state_of_residence = code or None
+
+    if update_data.target_retirement_state is not None:
+        from app.constants.state_tax_rates import STATE_TAX_RATES as _STAX
+        code = update_data.target_retirement_state
+        if code and code not in _STAX:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown US state code '{code}' for target_retirement_state.",
+            )
+        current_user.target_retirement_state = code or None
 
     if update_data.default_currency is not None and isinstance(update_data.default_currency, str):
         currency_upper = update_data.default_currency.upper()[:3]
@@ -295,6 +323,8 @@ async def update_user_profile(
         default_currency=org.default_currency if org else None,
         dashboard_layout=current_user.dashboard_layout,
         onboarding_goal=current_user.onboarding_goal,
+        state_of_residence=getattr(current_user, "state_of_residence", None),
+        target_retirement_state=getattr(current_user, "target_retirement_state", None),
     )
 
 
@@ -937,3 +967,28 @@ async def get_variable_income_constants():
         "safe_harbor_rate_normal": float(VARIABLE_INCOME.SAFE_HARBOR_RATE_NORMAL),
         "safe_harbor_rate_high_income": float(VARIABLE_INCOME.SAFE_HARBOR_RATE_HIGH_INCOME),
     }
+
+
+@router.get("/financial-constants/states", tags=["Settings"])
+async def get_state_list():
+    """Return list of US states with their income tax rates.
+
+    Used by the frontend to populate the state-of-residence dropdown in
+    Preferences.  No auth required — public data.
+
+    For households with members in different states, each member sets their
+    own ``state_of_residence`` in their profile.  Tax tools use the requesting
+    member's state to produce accurate per-person estimates.
+    """
+    from app.constants.state_tax_rates import STATE_NAMES, STATE_TAX_RATES
+
+    states = []
+    for code in sorted(STATE_NAMES.keys()):
+        rate = STATE_TAX_RATES.get(code, 0.0)
+        states.append({
+            "code": code,
+            "name": STATE_NAMES[code],
+            "income_tax_rate": rate,
+            "no_income_tax": rate == 0.0,
+        })
+    return {"states": states}

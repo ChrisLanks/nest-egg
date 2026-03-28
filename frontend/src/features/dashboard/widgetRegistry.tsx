@@ -375,6 +375,8 @@ export const ADVANCED_LAYOUT: LayoutItem[] = [
   { id: "getting-started", span: 2 },
   { id: "summary-stats", span: 2 },
   { id: "net-worth-chart", span: 2 },
+  { id: "financial-health", span: 1 },
+  { id: "retirement-readiness", span: 1 },
   { id: "spending-insights", span: 2 },
   { id: "cash-flow-trend", span: 2 },
   { id: "cash-flow-forecast", span: 2 },

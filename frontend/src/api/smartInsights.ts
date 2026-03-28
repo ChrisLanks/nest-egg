@@ -26,6 +26,8 @@ export interface InsightItem {
   icon: string;
   priority_score: number;
   amount: number | null;
+  /** Human-readable label describing what `amount` represents, e.g. "Annual fee drag". null when no amount. */
+  amount_label: string | null;
   /** ISO year string (e.g. "2022") for insights that use periodic reference data. null for all others. */
   data_vintage: string | null;
   /** True when the underlying reference dataset is more than 3 years old. null for non-benchmark insights. */

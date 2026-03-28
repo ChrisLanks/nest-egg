@@ -76,6 +76,10 @@ class InsightItem(BaseModel):
     icon: str
     priority_score: float
     amount: Optional[float] = None
+    # Human-readable label describing what `amount` represents, e.g.
+    # "Annual fee drag", "Opportunity", "Shortfall", "Savings".
+    # Shown in the UI next to the dollar figure so users know what it means.
+    amount_label: Optional[str] = None
     # data_vintage / data_is_stale are only set for insights that use
     # periodically-updated reference data (e.g. net_worth_benchmark).
     # null on all other insight types.

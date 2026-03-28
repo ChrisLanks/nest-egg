@@ -41,6 +41,18 @@ class UserUpdate(BaseModel):
     default_currency: Optional[str] = Field(None, max_length=3)
     dashboard_layout: Optional[List[Any]] = None
     onboarding_goal: Optional[str] = Field(None, max_length=50)
+    # 2-character US state code (e.g. "CA", "TX").  Used for state income tax
+    # estimates across tax projection, FIRE metrics, and related tools.
+    # Each household member may have a different state — tools that need a
+    # single value use the requesting member's state.
+    state_of_residence: Optional[str] = Field(None, min_length=2, max_length=2)
+    # State the user plans to retire in (may differ from current state).
+    target_retirement_state: Optional[str] = Field(None, min_length=2, max_length=2)
+
+    @field_validator("state_of_residence", "target_retirement_state", mode="before")
+    @classmethod
+    def uppercase_state(cls, v: Optional[str]) -> Optional[str]:
+        return v.upper() if isinstance(v, str) else v
 
     @model_validator(mode="after")
     def validate_birthday(self) -> "UserUpdate":

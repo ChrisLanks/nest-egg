@@ -12,10 +12,12 @@ import {
   AlertIcon,
   Badge,
   Box,
+  Button,
   Card,
   CardBody,
   CardHeader,
   Center,
+  Collapse,
   Container,
   Divider,
   FormControl,
@@ -42,11 +44,13 @@ import {
   Tr,
   VStack,
 } from "@chakra-ui/react";
-import { useQuery } from "@tanstack/react-query";
-import { FiInfo } from "react-icons/fi";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState } from "react";
+import { FiChevronDown, FiChevronUp, FiInfo } from "react-icons/fi";
 import {
   financialPlanningApi,
   type TaxProjectionParams,
+  type WithholdingCheckRequest,
 } from "../api/financialPlanning";
 import { useUserView } from "../contexts/UserViewContext";
 import { useLocalStorage } from "../hooks/useLocalStorage";
@@ -83,6 +87,10 @@ function InfoTip({ label }: { label: string }) {
 
 export const TaxProjectionPage = () => {
   const { selectedUserId } = useUserView();
+  const [showW4, setShowW4] = useState(false);
+  const [w4Salary, setW4Salary] = useState("");
+  const [w4YtdWithheld, setW4YtdWithheld] = useState("");
+  const [w4OtherIncome, setW4OtherIncome] = useState("");
 
   const [filingStatus, setFilingStatus] = useLocalStorage<"single" | "married">(
     "tax-filing-status",
@@ -129,6 +137,12 @@ export const TaxProjectionPage = () => {
     queryKey: ["tax-projection", selectedUserId, params],
     queryFn: () => financialPlanningApi.getTaxProjection(params),
     placeholderData: (prev) => prev,
+  });
+
+  const monthsRemaining = Math.max(0, 12 - new Date().getMonth());
+  const w4Mutation = useMutation({
+    mutationFn: (req: WithholdingCheckRequest) =>
+      financialPlanningApi.checkWithholding(req),
   });
 
   return (
@@ -628,6 +642,147 @@ export const TaxProjectionPage = () => {
             </Card>
           </>
         )}
+        {/* W-4 Withholding Check */}
+        <Card variant="outline" w="full">
+          <CardHeader
+            pb={0}
+            cursor="pointer"
+            onClick={() => setShowW4((v) => !v)}
+          >
+            <HStack justify="space-between">
+              <Heading size="sm">
+                W-4 Withholding Check
+                <InfoTip label="For W-2 employees: enter your salary and year-to-date federal tax withheld to see if you're on track. If you're under-withheld, we'll show the extra amount to add on your W-4 Line 4(c)." />
+              </Heading>
+              <Icon as={showW4 ? FiChevronUp : FiChevronDown} />
+            </HStack>
+          </CardHeader>
+          <Collapse in={showW4}>
+            <CardBody>
+              <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} mb={4}>
+                <FormControl>
+                  <FormLabel fontSize="xs">Annual Salary</FormLabel>
+                  <InputGroup size="sm">
+                    <InputLeftAddon>$</InputLeftAddon>
+                    <Input
+                      type="number"
+                      placeholder="75000"
+                      value={w4Salary}
+                      onChange={(e) => setW4Salary(e.target.value)}
+                    />
+                  </InputGroup>
+                </FormControl>
+                <FormControl>
+                  <FormLabel fontSize="xs">
+                    YTD Federal Tax Withheld
+                    <InfoTip label="From your most recent pay stub — usually labeled 'Federal Income Tax' in the withholding section." />
+                  </FormLabel>
+                  <InputGroup size="sm">
+                    <InputLeftAddon>$</InputLeftAddon>
+                    <Input
+                      type="number"
+                      placeholder="0"
+                      value={w4YtdWithheld}
+                      onChange={(e) => setW4YtdWithheld(e.target.value)}
+                    />
+                  </InputGroup>
+                </FormControl>
+                <FormControl>
+                  <FormLabel fontSize="xs">
+                    Other Income (investments, side work)
+                    <InfoTip label="Income from sources that aren't subject to employer withholding. This may increase your tax owed." />
+                  </FormLabel>
+                  <InputGroup size="sm">
+                    <InputLeftAddon>$</InputLeftAddon>
+                    <Input
+                      type="number"
+                      placeholder="0"
+                      value={w4OtherIncome}
+                      onChange={(e) => setW4OtherIncome(e.target.value)}
+                    />
+                  </InputGroup>
+                </FormControl>
+              </SimpleGrid>
+              <Button
+                size="sm"
+                colorScheme="brand"
+                isLoading={w4Mutation.isPending}
+                isDisabled={!w4Salary}
+                onClick={() => {
+                  w4Mutation.mutate({
+                    filing_status: filingStatus,
+                    annual_salary: parseFloat(w4Salary),
+                    ytd_withheld: parseFloat(w4YtdWithheld || "0"),
+                    months_remaining: monthsRemaining,
+                    other_income: parseFloat(w4OtherIncome || "0"),
+                  });
+                }}
+              >
+                Check Withholding
+              </Button>
+
+              {w4Mutation.data && (
+                <Box mt={4}>
+                  <Alert
+                    status={w4Mutation.data.underpayment_risk ? "warning" : "success"}
+                    borderRadius="md"
+                    mb={3}
+                  >
+                    <AlertIcon />
+                    <Box>
+                      {w4Mutation.data.underpayment_risk ? (
+                        <Text fontWeight="semibold">
+                          Under-withholding risk — consider increasing W-4 withholding
+                        </Text>
+                      ) : (
+                        <Text fontWeight="semibold">
+                          On track — projected withholding covers your tax liability
+                        </Text>
+                      )}
+                      {w4Mutation.data.w4_extra_amount > 0 && (
+                        <Text fontSize="sm" mt={1}>
+                          Add <strong>{fmt(w4Mutation.data.w4_extra_amount)}/paycheck</strong> on{" "}
+                          W-4 Line 4(c) to avoid an underpayment penalty.
+                        </Text>
+                      )}
+                    </Box>
+                  </Alert>
+                  <SimpleGrid columns={{ base: 2, md: 4 }} spacing={3} fontSize="sm">
+                    <Box>
+                      <Text color="gray.500" fontSize="xs">Projected Tax</Text>
+                      <Text fontWeight="semibold">{fmt(w4Mutation.data.projected_tax)}</Text>
+                    </Box>
+                    <Box>
+                      <Text color="gray.500" fontSize="xs">YTD Withheld</Text>
+                      <Text fontWeight="semibold">{fmt(w4Mutation.data.ytd_withheld)}</Text>
+                    </Box>
+                    <Box>
+                      <Text color="gray.500" fontSize="xs">Projected Year-End Withholding</Text>
+                      <Text fontWeight="semibold">{fmt(w4Mutation.data.projected_year_end_withholding)}</Text>
+                    </Box>
+                    <Box>
+                      <Text color="gray.500" fontSize="xs">Safe Harbor Amount</Text>
+                      <Text fontWeight="semibold">{fmt(w4Mutation.data.safe_harbour_amount)}</Text>
+                    </Box>
+                  </SimpleGrid>
+                  {w4Mutation.data.notes.length > 0 && (
+                    <VStack align="start" mt={3} spacing={1}>
+                      {w4Mutation.data.notes.map((note, i) => (
+                        <Text key={i} fontSize="xs" color="gray.600">• {note}</Text>
+                      ))}
+                    </VStack>
+                  )}
+                </Box>
+              )}
+              {w4Mutation.isError && (
+                <Alert status="error" mt={3} borderRadius="md">
+                  <AlertIcon />
+                  Failed to check withholding. Please try again.
+                </Alert>
+              )}
+            </CardBody>
+          </Collapse>
+        </Card>
       </VStack>
     </Container>
   );

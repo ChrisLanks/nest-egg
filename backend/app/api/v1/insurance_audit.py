@@ -2,16 +2,20 @@
 
 from typing import List, Optional
 
+import datetime as _dt
+
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from sqlalchemy import select, and_
+from sqlalchemy import func, select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import Account, AccountType
 from app.models.net_worth_snapshot import NetWorthSnapshot
+from app.models.transaction import Transaction
 from app.models.user import User
+from app.constants.financial import HEALTH
 
 router = APIRouter()
 
@@ -25,7 +29,10 @@ class InsuranceCoverageItem(BaseModel):
     display_name: str
     description: str
     recommended_coverage: str  # human-readable, e.g. "10-12x gross income"
+    recommended_coverage_amount: Optional[float] = None  # dollar amount if calculable
     existing_accounts: List[dict]  # LIFE_INSURANCE_CASH_VALUE accounts if any
+    existing_coverage_amount: Optional[float] = None  # total coverage from tracked policies
+    coverage_gap: Optional[float] = None  # recommended_coverage_amount - existing_coverage_amount
     has_coverage: bool
     priority: str  # "critical", "important", "optional"
     tips: List[str]
@@ -36,6 +43,7 @@ class InsuranceAuditResponse(BaseModel):
     critical_gaps: int
     coverage_score: int  # 0-100
     net_worth: float
+    annual_income: float  # estimated gross income (used for life/disability recommendations)
 
 
 # ---------------------------------------------------------------------------
@@ -178,9 +186,12 @@ async def get_insurance_audit(
             "id": str(acct.id),
             "name": acct.name,
             "balance": float(acct.current_balance or 0),
+            # coverage_amount is the policy face value (death benefit), not the cash value balance
+            "coverage_amount": float(getattr(acct, "coverage_amount", None) or acct.current_balance or 0),
         }
         for acct in life_accounts
     ]
+    total_life_coverage = sum(d["coverage_amount"] for d in life_account_dicts)
 
     # Latest household net-worth snapshot (user_id IS NULL = household rollup)
     snapshot_result = await db.execute(
@@ -197,17 +208,34 @@ async def get_insurance_audit(
     snapshot = snapshot_result.scalar_one_or_none()
     net_worth = float(snapshot.total_net_worth) if snapshot else 0.0
 
+    # Estimate gross annual income from YTD transaction income (last 12 months)
+    _12m_ago = _dt.date.today() - _dt.timedelta(days=365)
+    income_result = await db.execute(
+        select(func.coalesce(func.sum(Transaction.amount), 0)).join(
+            Account, Transaction.account_id == Account.id
+        ).where(
+            and_(
+                Account.organization_id == current_user.organization_id,
+                Account.is_active == True,  # noqa: E712
+                Transaction.date >= _12m_ago,
+                Transaction.amount > 0,
+                Transaction.is_transfer.is_(False),
+            )
+        )
+    )
+    annual_income = float(income_result.scalar() or 0)
+
+    # Compute recommended dollar amounts
+    life_recommended_amount = round(annual_income * HEALTH.LIFE_INSURANCE_INCOME_MULTIPLE) if annual_income > 0 else None
+    disability_recommended_amount = round(annual_income * 0.65) if annual_income > 0 else None  # 65% income replacement
+
     # Determine user age for LTC priority (best effort — may be None)
     user_age: Optional[int] = None
-    if hasattr(current_user, "date_of_birth") and current_user.date_of_birth:
-        from datetime import date
-
-        today = date.today()
-        dob = current_user.date_of_birth
+    if current_user.birthdate:
+        today = _dt.date.today()
+        dob = current_user.birthdate
         user_age = (
-            today.year
-            - dob.year
-            - ((today.month, today.day) < (dob.month, dob.day))
+            today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
         )
 
     # Build coverage items
@@ -222,13 +250,37 @@ async def get_insurance_audit(
         if itype == "ltc" and user_age is not None and user_age >= 50:
             priority = "important"
 
-        # Only life insurance maps to tracked accounts
+        # Compute per-type recommended amounts and existing coverage
+        rec_amount: Optional[float] = None
+        existing_coverage: Optional[float] = None
+        gap: Optional[float] = None
+
         if itype == "term_life":
             existing = life_account_dicts
             has_coverage = len(existing) > 0
+            existing_coverage = total_life_coverage
+            rec_amount = life_recommended_amount
+            if rec_amount is not None:
+                gap = max(0.0, rec_amount - (existing_coverage or 0))
+        elif itype == "disability":
+            existing = []
+            has_coverage = False  # disability policies not yet tracked as accounts
+            existing_coverage = None
+            rec_amount = disability_recommended_amount
+            gap = rec_amount  # unknown existing, show full need
+        elif itype == "umbrella":
+            existing = []
+            has_coverage = net_worth > HEALTH.UMBRELLA_RECOMMEND_NET_WORTH and False  # not tracked as account
+            has_coverage = False
+            rec_amount = 1_000_000.0  # standard $1M umbrella recommendation
+            existing_coverage = None
+            gap = None
         else:
             existing = []
             has_coverage = False
+            rec_amount = None
+            existing_coverage = None
+            gap = None
 
         # Count critical gaps (critical items without coverage)
         if priority == "critical" and not has_coverage:
@@ -240,7 +292,10 @@ async def get_insurance_audit(
                 display_name=defn["display_name"],
                 description=defn["description"],
                 recommended_coverage=defn["recommended_coverage"],
+                recommended_coverage_amount=rec_amount,
                 existing_accounts=existing,
+                existing_coverage_amount=existing_coverage,
+                coverage_gap=gap,
                 has_coverage=has_coverage,
                 priority=priority,
                 tips=defn["tips"],
@@ -258,4 +313,5 @@ async def get_insurance_audit(
         critical_gaps=critical_gap_count,
         coverage_score=coverage_score,
         net_worth=net_worth,
+        annual_income=round(annual_income),
     )

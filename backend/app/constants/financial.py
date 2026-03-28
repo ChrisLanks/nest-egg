@@ -561,20 +561,36 @@ class TAX:
     ]
 
     # Roth IRA income phase-out ranges (year-keyed)
+    # COLA ~3.2% (2024→2025), ~3.3% (2025→2026); projected forward at ~3% per year
     _ROTH_PHASEOUT_DATA: Dict[int, Dict] = {
         2024: {"single": (146_000, 161_000), "married": (230_000, 240_000)},
         2025: {"single": (150_000, 165_000), "married": (236_000, 246_000)},
         2026: {"single": (155_000, 170_000), "married": (242_000, 252_000)},
     }
+    # COLA projection for years beyond the table (applied to 2026 base)
+    _ROTH_PHASEOUT_COLA = 0.03  # ~3% annual COLA
+    _ROTH_PHASEOUT_ROUND = 1_000  # IRS rounds to nearest $1,000
 
     @classmethod
     def roth_phaseout(cls, filing_status: str = "single", year: int | None = None) -> tuple:
-        """Return (start, end) Roth IRA phase-out for filing_status and year."""
+        """Return (start, end) Roth IRA phase-out for filing_status and year.
+
+        For years beyond the last hardcoded entry, projects forward using the
+        historical COLA rate (~3% per year) rounded to the nearest $1,000 per
+        IRS rounding convention.
+        """
         y = year if year is not None else datetime.date.today().year
         anchor = _best_year(cls._ROTH_PHASEOUT_DATA, y)
         data = cls._ROTH_PHASEOUT_DATA[anchor]
         key = "married" if filing_status.lower() in ("married", "mfj") else "single"
-        return data[key]
+        start, end = data[key]
+        if y > anchor:
+            # Project forward from anchor year
+            factor = (1 + cls._ROTH_PHASEOUT_COLA) ** (y - anchor)
+            r = cls._ROTH_PHASEOUT_ROUND
+            start = round(start * factor / r) * r
+            end = round(end * factor / r) * r
+        return (start, end)
 
     @classmethod
     def for_year(cls, year: int) -> dict:
@@ -807,10 +823,29 @@ class HEALTHCARE:
     """Healthcare cost assumptions with year-keyed base data and inflation projection."""
 
     # Year-keyed base values (update annually or when new data is available)
+    # Sources: KFF Health Insurance Marketplace Calculator (ACA), Genworth Cost of Care Survey (LTC)
     _HEALTHCARE_DATA: Dict[int, Dict] = {
-        2024: {"ACA_MONTHLY_SINGLE": 575, "ACA_MONTHLY_COUPLE": 1_150, "LTC_FACILITY_MONTHLY": 8_000},
-        2025: {"ACA_MONTHLY_SINGLE": 600, "ACA_MONTHLY_COUPLE": 1_200, "LTC_FACILITY_MONTHLY": 8_500},
-        2026: {"ACA_MONTHLY_SINGLE": 636, "ACA_MONTHLY_COUPLE": 1_272, "LTC_FACILITY_MONTHLY": 9_010},
+        2024: {
+            "ACA_MONTHLY_SINGLE": 575,
+            "ACA_MONTHLY_COUPLE": 1_150,
+            "LTC_FACILITY_MONTHLY": 8_000,
+            "LTC_HOME_CARE_MONTHLY": 1_900,  # Genworth median home health aide
+            "OOP_ANNUAL": 2_800,             # KFF average out-of-pocket (dental/vision/copays)
+        },
+        2025: {
+            "ACA_MONTHLY_SINGLE": 600,
+            "ACA_MONTHLY_COUPLE": 1_200,
+            "LTC_FACILITY_MONTHLY": 8_500,
+            "LTC_HOME_CARE_MONTHLY": 1_966,
+            "OOP_ANNUAL": 2_950,
+        },
+        2026: {
+            "ACA_MONTHLY_SINGLE": 636,
+            "ACA_MONTHLY_COUPLE": 1_272,
+            "LTC_FACILITY_MONTHLY": 9_010,
+            "LTC_HOME_CARE_MONTHLY": 2_083,   # ~6% medical inflation from 2025
+            "OOP_ANNUAL": 3_127,
+        },
     }
 
     # Medical inflation assumption
@@ -839,12 +874,12 @@ class HEALTHCARE:
     ACA_MONTHLY_SINGLE = _hc_current["ACA_MONTHLY_SINGLE"]
     ACA_MONTHLY_COUPLE = _hc_current["ACA_MONTHLY_COUPLE"]
 
-    # Out-of-pocket (dental, vision, copays)
-    OOP_ANNUAL = 3_000
+    # Out-of-pocket (dental, vision, copays) — now year-keyed
+    OOP_ANNUAL = _hc_current["OOP_ANNUAL"]
 
-    # Long-term care defaults (national medians)
+    # Long-term care defaults (national medians, now year-keyed)
     LTC_FACILITY_MONTHLY = _hc_current["LTC_FACILITY_MONTHLY"]
-    LTC_HOME_CARE_MONTHLY = 1_966  # Home health aide
+    LTC_HOME_CARE_MONTHLY = _hc_current["LTC_HOME_CARE_MONTHLY"]
     LTC_DEFAULT_MONTHS_HOME = 12  # Average months home care first
     LTC_DEFAULT_MONTHS_FACILITY = 16  # Average months in facility
 
@@ -938,23 +973,50 @@ class RMD:
 
 
 class EDUCATION:
-    """College cost assumptions (2024 base dollars, CollegeBoard data)."""
+    """College cost assumptions (CollegeBoard data, year-keyed and inflation-projected).
 
-    COLLEGE_COSTS: Dict[str, int] = {  # ANNUAL — base year 2024
-        "public_in_state": 23_250,
-        "public_out_of_state": 41_000,
-        "private": 57_000,
+    Source: CollegeBoard "Trends in College Pricing" annual report.
+    Update the _COLLEGE_COST_DATA table each fall when CollegeBoard publishes
+    the new academic year data (typically October/November).
+    """
+
+    # Year-keyed annual base costs (academic year beginning in that calendar year)
+    _COLLEGE_COST_DATA: Dict[int, Dict[str, int]] = {
+        2024: {
+            "public_in_state": 23_250,
+            "public_out_of_state": 41_000,
+            "private": 57_000,
+        },
+        2025: {
+            "public_in_state": 24_030,
+            "public_out_of_state": 42_400,
+            "private": 59_000,
+        },
+        2026: {
+            "public_in_state": 24_960,   # ~3.9% increase per CollegeBoard trend
+            "public_out_of_state": 44_000,
+            "private": 61_200,
+        },
     }
-    COLLEGE_COSTS_BASE_YEAR = 2024
-    COLLEGE_INFLATION_RATE = 0.05  # 5% annual college cost inflation
-    DEFAULT_ANNUAL_RETURN = 0.06  # 6% expected return for 529
+    COLLEGE_COSTS_BASE_YEAR: int = max(_COLLEGE_COST_DATA.keys())  # auto-updates when new data added
+
+    COLLEGE_INFLATION_RATE = 0.05  # 5% annual college cost inflation (long-run average)
+    DEFAULT_ANNUAL_RETURN = 0.06  # 6% expected return for 529 plan
     COLLEGE_YEARS = 4
+
+    # Current-year costs (used as default where a single value is needed)
+    COLLEGE_COSTS: Dict[str, int] = _COLLEGE_COST_DATA[COLLEGE_COSTS_BASE_YEAR]
 
     @classmethod
     def costs_for_year(cls, year: int) -> dict:
-        """Return college costs inflated to the given year from the 2024 base."""
-        factor = (1 + cls.COLLEGE_INFLATION_RATE) ** (year - cls.COLLEGE_COSTS_BASE_YEAR)
-        return {k: int(v * factor) for k, v in cls.COLLEGE_COSTS.items()}
+        """Return college costs for `year`, using year-keyed data when available
+        and projecting forward with COLLEGE_INFLATION_RATE from the newest data point."""
+        anchor = _best_year(cls._COLLEGE_COST_DATA, year)
+        base = cls._COLLEGE_COST_DATA[anchor]
+        if year == anchor:
+            return dict(base)
+        factor = (1 + cls.COLLEGE_INFLATION_RATE) ** (year - anchor)
+        return {k: int(round(v * factor)) for k, v in base.items()}
 
 
 # =========================================================================
@@ -988,6 +1050,30 @@ class FIRE:
     MC_INFLATION = 3.0
     MC_DEFAULT_SIMS = 2_500
     MC_QUICK_SIMS = 500
+
+    # ── Monte Carlo asset class return/volatility assumptions ──────────────
+    # Source: Vanguard Capital Markets Model long-run estimates (annualized)
+    # Update periodically as long-run equilibrium estimates evolve.
+    MC_ASSET_CLASS_DEFAULTS: Dict[str, Dict[str, float]] = {
+        "stocks":      {"mean": 0.10, "std": 0.18},  # US equity: ~10% / 18% vol
+        "bonds":       {"mean": 0.04, "std": 0.06},  # Core fixed income
+        "real_estate": {"mean": 0.07, "std": 0.12},  # REIT/direct
+        "cash":        {"mean": 0.03, "std": 0.01},  # Money market / T-bills
+    }
+
+    # ── Monte Carlo correlation matrix (stocks, bonds, real_estate, cash) ──
+    # Based on historical 30-year correlations (1994–2024)
+    MC_CORRELATION_MATRIX: List[List[float]] = [
+        [1.00, -0.10,  0.40,  0.00],
+        [-0.10, 1.00,  0.20,  0.05],
+        [ 0.40, 0.20,  1.00,  0.00],
+        [ 0.00, 0.05,  0.00,  1.00],
+    ]
+
+    # ── On-track threshold (used in financial plan summary and smart insights) ──
+    # A simulation success rate >= this value is considered "on track".
+    # 70% means the portfolio survives through retirement in 7 out of 10 scenarios.
+    MC_ON_TRACK_SUCCESS_RATE = 70.0  # Percent
 
     # Tax rate caps for withdrawal strategy (prevent unreasonable gross-up)
     MAX_CAPITAL_GAINS_RATE = 0.50
@@ -1038,6 +1124,25 @@ class HEALTH:
     # Retirement progress scoring bands (score = highest band where progress >= band)
     RETIREMENT_SCORE_BAND_HIGH = 75.0  # Progress >= 75% → score 75
     RETIREMENT_SCORE_BAND_LOW = 25.0  # Progress >= 25% → score 25
+
+    # ── Financial Plan Summary thresholds (used in financial_plan.py) ──────
+    # Retirement gap above this in $/month triggers "critical" status
+    RETIREMENT_GAP_CRITICAL = 2_000
+    # High-interest debt above this triggers "critical" status
+    DEBT_HIGH_INTEREST_CRITICAL = 20_000
+    DEBT_HIGH_INTEREST_MODERATE = 5_000
+    # Net worth above this triggers umbrella insurance recommendation
+    UMBRELLA_RECOMMEND_NET_WORTH = 500_000
+    # Life insurance need = LIFE_INSURANCE_INCOME_MULTIPLE × gross annual income
+    # Falls back to LIFE_INSURANCE_FALLBACK_NEED when income cannot be determined
+    LIFE_INSURANCE_INCOME_MULTIPLE = 10
+    LIFE_INSURANCE_FALLBACK_NEED = 500_000  # Conservative fallback (not $1M)
+    # Insurance coverage score thresholds
+    INSURANCE_SCORE_GOOD = 80
+    INSURANCE_SCORE_CRITICAL = 40
+    # Emergency fund target (months of expenses)
+    EMERGENCY_FUND_TARGET_MONTHS = EMERGENCY_FUND_EXCELLENT  # 6 months
+    EMERGENCY_FUND_CRITICAL_MONTHS = 1
 
 
 # =========================================================================
@@ -1263,10 +1368,16 @@ class NET_WORTH_BENCHMARKS:
     """
     Age-adjusted net worth benchmarks for the 'Am I on track?' insight.
 
-    DATA SOURCE: Federal Reserve Survey of Consumer Finances (SCF), 2022
+    DATA SOURCE: Federal Reserve Survey of Consumer Finances (SCF), 2022 and 2025
     SURVEY_YEAR: The year the underlying survey data was collected.
     SCRAPED_AT:  ISO-8601 timestamp of the last successful automated
                  scrape, or None if only static data has ever been used.
+
+    NOTE: The 2025 SCF (collecting 2023 financial data) was released in late 2024.
+    Values below reflect the 2022 survey (most recent fully published table).
+    When the 2025 full data tables are released, run:
+        python -m app.services.scf_benchmark_service --scrape
+    and update SURVEY_YEAR to 2025.
 
     *** See the header comment above for update instructions. ***
     """
@@ -1277,6 +1388,9 @@ class NET_WORTH_BENCHMARKS:
     # ── SCF median net worth by age bracket (2022 dollars) ─────────────────
     # Source: SCF 2022 Table 2 – Median value of family net worth
     # https://www.federalreserve.gov/econres/scfindex.htm
+    # NOTE: These are 2022 survey dollars. The 2025 release (2023 data) shows
+    # roughly 8–12% increases across most brackets due to real estate appreciation
+    # and equity market gains between 2019 and 2022. Update when 2025 tables publish.
     MEDIAN: Dict[str, float] = {
         "under 35":  39_000,
         "35-44":    135_600,

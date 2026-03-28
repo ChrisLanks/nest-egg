@@ -175,6 +175,32 @@ export interface TaxProjectionParams {
   state?: string;
 }
 
+// ── Withholding Check ─────────────────────────────────────────────────────
+
+export interface WithholdingCheckRequest {
+  filing_status?: "single" | "married";
+  annual_salary: number;
+  ytd_withheld?: number;
+  months_remaining: number;
+  other_income?: number;
+  capital_gains_expected?: number;
+  ira_contributions?: number;
+  prior_year_tax?: number;
+  year?: number;
+}
+
+export interface WithholdingCheckResponse {
+  projected_tax: number;
+  safe_harbour_amount: number;
+  ytd_withheld: number;
+  projected_year_end_withholding: number;
+  underpayment_risk: boolean;
+  recommended_additional_withholding_per_paycheck: number;
+  w4_extra_amount: number;
+  notes: string[];
+  tax_year: number;
+}
+
 // ── API client ────────────────────────────────────────────────────────────
 
 export const financialPlanningApi = {
@@ -196,6 +222,13 @@ export const financialPlanningApi = {
     params?: TaxProjectionParams,
   ): Promise<TaxProjectionResponse> => {
     const res = await api.get("/financial-planning/tax-projection", { params });
+    return res.data;
+  },
+
+  checkWithholding: async (
+    body: WithholdingCheckRequest,
+  ): Promise<WithholdingCheckResponse> => {
+    const res = await api.post("/what-if/withholding-check", body);
     return res.data;
   },
 };
