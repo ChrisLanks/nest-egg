@@ -145,6 +145,86 @@ class TestFinancialPlanEstateSubjectUser:
 # 4. tax_buckets: verify_household_member called when user_id != current_user
 # ─────────────────────────────────────────────────────────────────────────────
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. Silent-404 fix: household member not found raises HTTPException 404
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestHouseholdMember404:
+    """When user_id is provided but not found in org, endpoint must raise 404."""
+
+    def _make_current_user(self):
+        u = MagicMock()
+        u.id = uuid4()
+        u.organization_id = uuid4()
+        u.birthdate = None
+        return u
+
+    def _make_db_returning_none(self):
+        """AsyncSession mock where scalar_one_or_none() returns None."""
+        db = AsyncMock()
+        result = MagicMock()
+        result.scalar_one_or_none.return_value = None
+        db.execute = AsyncMock(return_value=result)
+        return db
+
+    @pytest.mark.asyncio
+    async def test_backdoor_roth_404_for_unknown_member(self):
+        from fastapi import HTTPException
+        from app.api.v1.backdoor_roth import get_backdoor_roth_analysis
+
+        current_user = self._make_current_user()
+        db = self._make_db_returning_none()
+        unknown_id = str(uuid4())
+
+        with pytest.raises(HTTPException) as exc_info:
+            await get_backdoor_roth_analysis(
+                filing_status="single",
+                estimated_magi=None,
+                user_id=unknown_id,
+                current_user=current_user,
+                db=db,
+            )
+        assert exc_info.value.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_irmaa_404_for_unknown_member(self):
+        from fastapi import HTTPException
+        from app.api.v1.irmaa_projection import get_irmaa_projection
+
+        current_user = self._make_current_user()
+        db = self._make_db_returning_none()
+        unknown_id = str(uuid4())
+
+        with pytest.raises(HTTPException) as exc_info:
+            await get_irmaa_projection(
+                current_magi=100000.0,
+                filing_status="single",
+                income_growth_rate=0.03,
+                projection_years=15,
+                user_id=unknown_id,
+                current_user=current_user,
+                db=db,
+            )
+        assert exc_info.value.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_financial_plan_404_for_unknown_member(self):
+        from fastapi import HTTPException
+        from app.api.v1.financial_plan import get_financial_plan_summary
+
+        current_user = self._make_current_user()
+        db = self._make_db_returning_none()
+        unknown_id = str(uuid4())
+
+        with pytest.raises(HTTPException) as exc_info:
+            await get_financial_plan_summary(
+                user_id=unknown_id,
+                current_user=current_user,
+                db=db,
+            )
+        assert exc_info.value.status_code == 404
+
+
 class TestTaxBucketHouseholdVerification:
     """get_bucket_summary should call verify_household_member for cross-user access."""
 

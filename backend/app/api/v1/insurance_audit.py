@@ -4,7 +4,7 @@ from typing import List, Optional
 
 import datetime as _dt
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func, select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -163,8 +163,9 @@ async def get_insurance_audit(
                 )
             )
             member = member_result.scalar_one_or_none()
-            if member:
-                subject_user_id = member.id
+            if not member:
+                raise HTTPException(status_code=404, detail="Household member not found")
+            subject_user_id = member.id
         else:
             subject_user_id = current_user.id
 

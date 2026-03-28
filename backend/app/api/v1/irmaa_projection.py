@@ -3,7 +3,7 @@
 import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from sqlalchemy import select
@@ -86,8 +86,9 @@ async def get_irmaa_projection(
             )
         )
         member = member_result.scalar_one_or_none()
-        if member:
-            subject_user = member
+        if not member:
+            raise HTTPException(status_code=404, detail="Household member not found")
+        subject_user = member
 
     current_age: Optional[int] = None
     if subject_user.birthdate:

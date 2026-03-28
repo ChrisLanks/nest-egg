@@ -8,7 +8,7 @@ import logging
 from decimal import Decimal
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import and_, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -60,8 +60,9 @@ async def get_financial_plan_summary(
             )
         )
         member = member_result.scalar_one_or_none()
-        if member:
-            subject_user = member
+        if not member:
+            raise HTTPException(status_code=404, detail="Household member not found")
+        subject_user = member
 
     org_id = current_user.organization_id
 
