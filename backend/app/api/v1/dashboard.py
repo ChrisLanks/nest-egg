@@ -1130,17 +1130,23 @@ async def get_net_worth_history(
         (s.total_net_worth is None or s.total_net_worth == 0) for s in snapshots
     )
     if not snapshots or only_zero:
-        from app.services.net_worth_service import NetWorthService
         import logging as _logging
+        from app.core.database import AsyncSessionLocal
+        from app.services.net_worth_service import NetWorthService
         _logger = _logging.getLogger(__name__)
         try:
-            svc = NetWorthService()
-            # capture_snapshot commits internally; do not double-commit
-            snap = await svc.capture_snapshot(db, current_user.organization_id, user_id or None)
+            # Use a separate session so the bootstrap commit never touches the
+            # request-scoped session — mid-request commits corrupt the connection
+            # and cause ConnectionDoesNotExistError on subsequent operations.
+            async with AsyncSessionLocal() as bootstrap_db:
+                svc = NetWorthService()
+                snap = await svc.capture_snapshot(
+                    bootstrap_db, current_user.organization_id, user_id or None
+                )
             # Only use the bootstrapped snapshot if it has real data (non-zero net worth)
-            # — avoids persisting a $0 placeholder when the org has no accounts yet.
+            # — avoids showing a $0 placeholder when the org has no accounts yet.
             if snap and snap.total_net_worth and snap.total_net_worth != 0:
-                # Rebuild query fresh after commit — original query object is stale
+                # Re-query on the original request session now that the snapshot is committed
                 fresh_query = select(NetWorthSnapshot).where(
                     NetWorthSnapshot.organization_id == current_user.organization_id,
                     NetWorthSnapshot.snapshot_date >= start_date,
