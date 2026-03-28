@@ -679,6 +679,8 @@ class SmartInsightsService:
         fidelity_tgt = fidelity_target(age, annual_income)
 
         # ── Determine how the user stacks up ─────────────────────────────
+        if not median_nw:
+            return None
         pct_of_median = net_worth / median_nw  # e.g. 0.8 = 80 % of median
 
         if pct_of_median >= 2.0:

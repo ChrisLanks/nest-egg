@@ -182,7 +182,7 @@ async def get_contribution_headroom(
 
             account_rows.append(AccountHeadroom(
                 account_id=str(acct.id),
-                account_name=acct.account_name or str(acct.account_type),
+                account_name=acct.name or str(acct.account_type),
                 account_type=str(acct.account_type),
                 limit=base_limit,
                 catch_up_limit=full_limit,

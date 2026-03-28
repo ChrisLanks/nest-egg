@@ -133,7 +133,7 @@ async def get_irmaa_projection(
         total_annual = total_monthly * 12
 
         # Only count years user is on Medicare
-        if age is None or age >= MEDICARE.ELIGIBILITY_AGE:
+        if age is not None and age >= MEDICARE.ELIGIBILITY_AGE:
             lifetime_total += total_annual
 
         projection.append(IrmaaYearPoint(

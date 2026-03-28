@@ -463,7 +463,7 @@ async def get_beneficiary_audit(
 
         account_results.append(AuditAccountResult(
             account_id=acct_id,
-            account_name=acct.account_name or str(acct.account_type),
+            account_name=acct.name or str(acct.account_type),
             account_type=str(acct.account_type),
             current_balance=float(acct.current_balance or 0),
             issues=issues,
