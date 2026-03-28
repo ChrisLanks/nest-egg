@@ -165,8 +165,8 @@ async def get_user_profile(
         default_currency=org.default_currency if org else None,
         dashboard_layout=current_user.dashboard_layout,
         onboarding_goal=current_user.onboarding_goal,
-        state_of_residence=getattr(current_user, "state_of_residence", None),
-        target_retirement_state=getattr(current_user, "target_retirement_state", None),
+        state_of_residence=v if isinstance(v := getattr(current_user, "state_of_residence", None), str) else None,
+        target_retirement_state=v if isinstance(v := getattr(current_user, "target_retirement_state", None), str) else None,
     )
 
 
@@ -203,7 +203,7 @@ async def update_user_profile(
 
     # State of residence — per-user; each household member sets their own.
     # Validated as uppercase 2-char code by the UserUpdate schema.
-    if update_data.state_of_residence is not None:
+    if update_data.state_of_residence is not None and isinstance(update_data.state_of_residence, str):
         from app.constants.state_tax_rates import STATE_TAX_RATES
         code = update_data.state_of_residence
         if code and code not in STATE_TAX_RATES:
@@ -213,7 +213,7 @@ async def update_user_profile(
             )
         current_user.state_of_residence = code or None
 
-    if update_data.target_retirement_state is not None:
+    if update_data.target_retirement_state is not None and isinstance(update_data.target_retirement_state, str):
         from app.constants.state_tax_rates import STATE_TAX_RATES as _STAX
         code = update_data.target_retirement_state
         if code and code not in _STAX:
@@ -323,8 +323,8 @@ async def update_user_profile(
         default_currency=org.default_currency if org else None,
         dashboard_layout=current_user.dashboard_layout,
         onboarding_goal=current_user.onboarding_goal,
-        state_of_residence=getattr(current_user, "state_of_residence", None),
-        target_retirement_state=getattr(current_user, "target_retirement_state", None),
+        state_of_residence=v if isinstance(v := getattr(current_user, "state_of_residence", None), str) else None,
+        target_retirement_state=v if isinstance(v := getattr(current_user, "target_retirement_state", None), str) else None,
     )
 
 

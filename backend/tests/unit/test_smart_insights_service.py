@@ -72,6 +72,7 @@ class TestInsightClass:
             "icon",
             "priority_score",
             "amount",
+            "amount_label",
             "data_vintage",
             "data_is_stale",
         }

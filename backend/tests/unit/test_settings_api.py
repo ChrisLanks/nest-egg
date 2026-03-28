@@ -294,6 +294,8 @@ def _make_user_with_birthdate(birthdate=None, *, is_org_admin: bool = False) -> 
     user.notification_preferences = None
     user.onboarding_goal = None
     user.login_count = 0
+    user.state_of_residence = None
+    user.target_retirement_state = None
     return user
 
 
