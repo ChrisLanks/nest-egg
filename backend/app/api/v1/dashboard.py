@@ -1124,6 +1124,19 @@ async def get_net_worth_history(
     result = await db.execute(query)
     snapshots = result.scalars().all()
 
+    # Lazy bootstrap: if no snapshots exist yet, capture today's snapshot so the
+    # chart isn't empty for new users waiting for the nightly Celery task.
+    if not snapshots:
+        from app.services.net_worth_service import NetWorthService
+        try:
+            svc = NetWorthService()
+            await svc.capture_snapshot(db, current_user.organization_id, user_id or None)
+            await db.commit()
+            result2 = await db.execute(query)
+            snapshots = result2.scalars().all()
+        except Exception:
+            pass  # Non-fatal: return empty list if bootstrap fails
+
     def _float(v) -> float:
         return float(v) if v is not None else 0.0
 

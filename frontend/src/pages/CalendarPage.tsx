@@ -240,8 +240,6 @@ export const CalendarPage: React.FC = () => {
       for (const ev of month.events) {
         const date = ev.pay_date ?? ev.ex_date;
         if (!date) continue;
-        // Only include events that fall in the currently displayed month
-        if (!date.startsWith(calMonthStr)) continue;
         dividendEvents.push({
           date,
           type: "dividend",
@@ -253,7 +251,7 @@ export const CalendarPage: React.FC = () => {
     }
 
     return [...base, ...dividendEvents];
-  }, [financialCalendar, showBills, showSubscriptions, showIncome, showDividends, dividendCalendar, calMonthStr]);
+  }, [financialCalendar, showBills, showSubscriptions, showIncome, showDividends, dividendCalendar]);
 
   // Group financial events by date
   const financialByDate = useMemo(() => {
@@ -482,9 +480,12 @@ export const CalendarPage: React.FC = () => {
             {/* Weekly view */}
             {viewMode === "weekly" && (() => {
               const weekDays = Array.from({ length: 7 }, (_, i) => new Date(weekStart.getTime() + i * 86400000));
+              const weekEnd = new Date(weekStart.getTime() + 7 * 86400000);
               const weekEvents = filteredEvents.filter((ev) => {
-                const d = new Date(ev.date);
-                return d >= weekStart && d < new Date(weekStart.getTime() + 7 * 86400000);
+                // Parse YYYY-MM-DD as local midnight to avoid UTC offset shifting the date
+                const [y, m, d] = ev.date.split("-").map(Number);
+                const evDate = new Date(y, m - 1, d);
+                return evDate >= weekStart && evDate < weekEnd;
               });
               const totalInflow = weekEvents.filter((e) => e.type === "income").reduce((s, e) => s + Math.abs(e.amount), 0);
               const totalOutflow = weekEvents.filter((e) => e.type !== "income").reduce((s, e) => s + Math.abs(e.amount), 0);
