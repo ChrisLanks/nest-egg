@@ -27,6 +27,7 @@ from app.api.v1 import (
     calculator_prefill,
     categories,
     contributions,
+    credit_scores,
     csv_import,
     dashboard,
     debt_payoff,
@@ -919,5 +920,11 @@ app.include_router(
     withholding_check.router,
     prefix="/api/v1/what-if",
     tags=["Withholding Check"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    credit_scores.router,
+    prefix="/api/v1",
+    tags=["Credit Scores"],
     dependencies=_guest_dep,
 )

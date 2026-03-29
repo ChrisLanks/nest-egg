@@ -875,6 +875,12 @@ export const Layout = () => {
         "Visual breakdown of income vs. spending — see where your money comes from and goes",
     },
     {
+      label: "Cash Flow Forecast",
+      path: "/cash-flow-forecast",
+      tooltip:
+        "30/60/90-day projected balance with upcoming transactions and low-balance alerts",
+    },
+    {
       label: "Net Worth Timeline",
       path: "/net-worth-timeline",
       tooltip:

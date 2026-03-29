@@ -24,6 +24,9 @@ const FinancialRatiosTab = lazy(() =>
 const LiquidityDashboardTab = lazy(() =>
   import("./LiquidityDashboardTab").then((m) => ({ default: m.LiquidityDashboardTab })),
 );
+const CreditScoreTab = lazy(() =>
+  import("./CreditScoreTab").then((m) => ({ default: m.CreditScoreTab })),
+);
 
 const TabLoader = () => (
   <Center py={12}>
@@ -48,13 +51,14 @@ export const FinancialHealthPage = () => {
       <Box px={6} mb={2}>
         <Heading size="lg">Financial Health</Heading>
         <Text color="text.secondary" mt={1} fontSize="sm">
-          Financial ratios, debt-to-income analysis, and emergency fund coverage.
+          Financial ratios, debt-to-income analysis, emergency fund coverage, and credit score tracking.
         </Text>
       </Box>
       <Tabs colorScheme="brand" variant="enclosed" px={6} index={tabIndex} onChange={handleTabChange}>
         <TabList>
           <Tab fontSize="sm">Financial Ratios</Tab>
           <Tab fontSize="sm">Liquidity &amp; Emergency Fund</Tab>
+          <Tab fontSize="sm">Credit Score</Tab>
         </TabList>
         <TabPanels>
           <TabPanel px={0}>
@@ -65,6 +69,11 @@ export const FinancialHealthPage = () => {
           <TabPanel px={0}>
             <Suspense fallback={<TabLoader />}>
               <LiquidityDashboardTab />
+            </Suspense>
+          </TabPanel>
+          <TabPanel px={0}>
+            <Suspense fallback={<TabLoader />}>
+              <CreditScoreTab />
             </Suspense>
           </TabPanel>
         </TabPanels>

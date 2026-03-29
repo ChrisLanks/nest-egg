@@ -13,7 +13,9 @@ import {
   AlertIcon,
   Badge,
   Box,
+  Button,
   HStack,
+  Select,
   SimpleGrid,
   Stat,
   StatLabel,
@@ -29,6 +31,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import api from "../services/api";
 import { useCurrency } from "../contexts/CurrencyContext";
 
@@ -169,6 +172,9 @@ const LotTable = ({ lots }: LotTableProps) => {
 
 export const CostBasisAgingTab = () => {
   const { formatCurrency } = useCurrency();
+  const currentYear = new Date().getFullYear();
+  const [exportYear, setExportYear] = useState(currentYear - 1);
+  const [isExporting, setIsExporting] = useState(false);
 
   const { data, isLoading, error } = useQuery<CostBasisAgingResponse>({
     queryKey: ["cost-basis-aging"],
@@ -179,8 +185,51 @@ export const CostBasisAgingTab = () => {
   const shortTermLots = data?.lots.filter((l) => l.bucket === "short_term") ?? [];
   const longTermLots = data?.lots.filter((l) => l.bucket === "long_term") ?? [];
 
+  const handleExport8949 = async () => {
+    setIsExporting(true);
+    try {
+      const response = await api.get(`/tax-lots/export/8949?year=${exportYear}`, {
+        responseType: "blob",
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `form_8949_${exportYear}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <VStack spacing={6} align="stretch">
+      {/* Form 8949 Export */}
+      <HStack justify="flex-end" spacing={2}>
+        <Text fontSize="sm" color="text.secondary">Export realized gains:</Text>
+        <Select
+          size="sm"
+          w="120px"
+          value={exportYear}
+          onChange={(e) => setExportYear(Number(e.target.value))}
+        >
+          {Array.from({ length: 6 }, (_, i) => currentYear - 1 - i).map((yr) => (
+            <option key={yr} value={yr}>{yr}</option>
+          ))}
+        </Select>
+        <Button
+          size="sm"
+          variant="outline"
+          colorScheme="brand"
+          isLoading={isExporting}
+          onClick={handleExport8949}
+        >
+          Form 8949 CSV
+        </Button>
+      </HStack>
+
       {/* Holding period explanation */}
       <Alert status="info">
         <AlertIcon />

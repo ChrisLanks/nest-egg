@@ -1,18 +1,22 @@
 """Tax lot API endpoints for per-lot cost basis tracking."""
 
+import csv
+import io
 import logging
 from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
-from sqlalchemy import select
+from fastapi.responses import StreamingResponse
+from sqlalchemy import and_, extract, select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import Account
 from app.models.holding import Holding
-from app.models.tax_lot import CostBasisMethod
+from app.models.tax_lot import CostBasisMethod, TaxLot
 from app.models.user import User
 from app.schemas.tax_lot import (
     CostBasisMethodUpdate,
@@ -271,3 +275,92 @@ async def update_cost_basis_method(
         "account_id": str(account_id),
         "cost_basis_method": body.cost_basis_method,
     }
+
+
+@router.get("/tax-lots/export/8949")
+async def export_form_8949(
+    year: int = Query(..., description="Tax year to export (e.g. 2025)"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Export closed tax lots in IRS Form 8949 format as a CSV.
+
+    Returns two sections: short-term lots (Box A/B) and long-term lots (Box D/E/F).
+    Columns match the IRS Form 8949 layout:
+      Description | Date Acquired | Date Sold | Proceeds | Cost Basis | Adjustment Code | Adjustment Amount | Gain or Loss
+    """
+    # Fetch all closed lots for this org/year with their associated holding
+    result = await db.execute(
+        select(TaxLot)
+        .options(selectinload(TaxLot.holding))
+        .where(
+            and_(
+                TaxLot.organization_id == current_user.organization_id,
+                TaxLot.is_closed == True,  # noqa: E712
+                extract("year", TaxLot.closed_at) == year,
+            )
+        )
+        .order_by(TaxLot.holding_period, TaxLot.closed_at)
+    )
+    lots = result.scalars().all()
+
+    # Build CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Header comment
+    writer.writerow([f"IRS Form 8949 — Tax Year {year}", "", "", "", "", "", "", ""])
+    writer.writerow([
+        "Description of Property",
+        "Date Acquired",
+        "Date Sold",
+        "Proceeds",
+        "Cost or Other Basis",
+        "Adjustment Code(s)",
+        "Amount of Adjustment",
+        "Gain or (Loss)",
+    ])
+
+    short_term = [l for l in lots if l.holding_period == "SHORT_TERM"]
+    long_term = [l for l in lots if l.holding_period == "LONG_TERM"]
+    other = [l for l in lots if l.holding_period not in ("SHORT_TERM", "LONG_TERM")]
+
+    def _write_section(header: str, section_lots: list) -> None:
+        if not section_lots:
+            return
+        writer.writerow([header, "", "", "", "", "", "", ""])
+        for lot in section_lots:
+            ticker = lot.holding.ticker if lot.holding and lot.holding.ticker else "UNKNOWN"
+            qty = float(lot.quantity)
+            description = f"{qty:g} shares of {ticker}"
+            date_acquired = lot.acquisition_date.strftime("%m/%d/%Y") if lot.acquisition_date else ""
+            date_sold = lot.closed_at.date().strftime("%m/%d/%Y") if lot.closed_at else ""
+            proceeds = float(lot.sale_proceeds) if lot.sale_proceeds is not None else 0.0
+            cost_basis = float(lot.total_cost_basis) if lot.total_cost_basis is not None else 0.0
+            gain_loss = float(lot.realized_gain_loss) if lot.realized_gain_loss is not None else proceeds - cost_basis
+            writer.writerow([
+                description,
+                date_acquired,
+                date_sold,
+                f"{proceeds:.2f}",
+                f"{cost_basis:.2f}",
+                "",  # No adjustments tracked
+                "0.00",
+                f"{gain_loss:.2f}",
+            ])
+
+    _write_section("--- SHORT-TERM (held 1 year or less) ---", short_term)
+    _write_section("--- LONG-TERM (held more than 1 year) ---", long_term)
+    if other:
+        _write_section("--- OTHER (holding period unknown) ---", other)
+
+    if not lots:
+        writer.writerow(["No closed lots found for this tax year", "", "", "", "", "", "", ""])
+
+    csv_content = output.getvalue()
+    return StreamingResponse(
+        iter([csv_content]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="form_8949_{year}.csv"'},
+    )

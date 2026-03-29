@@ -62,6 +62,11 @@ const RecurringTransactionsPage = lazy(
 const BillsPage = lazy(() => import("./pages/BillsPage"));
 const RecurringBillsPage = lazy(() => import("./pages/RecurringBillsPage"));
 const TaxDeductiblePage = lazy(() => import("./pages/TaxDeductiblePage"));
+const CashFlowForecastPage = lazy(() =>
+  import("./pages/CashFlowForecastPage").then((m) => ({
+    default: m.CashFlowForecastPage,
+  })),
+);
 const TrendsPage = lazy(() => import("./pages/TrendsPage"));
 const ReportsPage = lazy(() => import("./pages/ReportsPage"));
 const YearInReviewPage = lazy(() =>
@@ -204,6 +209,10 @@ function App() {
                       <Route
                         path="/tax-deductible"
                         element={<TaxDeductiblePage />}
+                      />
+                      <Route
+                        path="/cash-flow-forecast"
+                        element={<CashFlowForecastPage />}
                       />
                       <Route path="/trends" element={<TrendsPage />} />
                       <Route path="/reports" element={<ReportsPage />} />
