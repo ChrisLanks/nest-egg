@@ -341,7 +341,7 @@ async def update_guest(
 
     # Get email for response
     user_result = await db.execute(select(User.email).where(User.id == guest.user_id))
-    user_email = user_result.scalar_one()
+    user_email = user_result.scalar_one_or_none()
 
     return GuestResponse(
         id=guest.id,

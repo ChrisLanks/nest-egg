@@ -1873,7 +1873,9 @@ async def get_rmd_summary(
                 User.id == user_id, User.organization_id == current_user.organization_id
             )
         )
-        target_user = result.scalar_one()
+        target_user = result.scalar_one_or_none()
+        if not target_user:
+            raise HTTPException(status_code=404, detail="User not found")
 
         # Check if user has birthdate - if not, return null (RMD should not be displayed)
         if not target_user.birthdate:
