@@ -567,6 +567,8 @@ class MortgageRateResponse(BaseModel):
     source: str
     your_rate: Optional[float]
     rate_comparison: Optional[str]  # "above_market" | "below_market" | "at_market" | None
+    is_fallback: bool = False
+    data_note: str = ""
 
 
 @router.get("/mortgage-rates", response_model=MortgageRateResponse)
@@ -610,6 +612,8 @@ async def get_mortgage_rates(
         source=rates.source,
         your_rate=your_rate,
         rate_comparison=rate_comparison,
+        is_fallback=rates.is_fallback,
+        data_note=rates.data_note,
     )
 
 
@@ -1115,6 +1119,8 @@ class StudentLoanRatesResponse(BaseModel):
     grad_plus: float
     source: str
     derived: bool
+    is_fallback: bool = False  # True when derived from live Treasury but FRED unavailable
+    data_note: str = ""
 
 
 @router.get("/student-loan-rates", response_model=StudentLoanRatesResponse)
@@ -1148,4 +1154,6 @@ async def get_student_loan_rates(
         grad_plus=rates.grad_plus,
         source=rates.source,
         derived=rates.derived,
+        is_fallback=rates.is_fallback,
+        data_note=rates.data_note,
     )

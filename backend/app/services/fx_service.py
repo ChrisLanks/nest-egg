@@ -5,19 +5,24 @@ Fetches live exchange rates from Frankfurter (https://www.frankfurter.app),
 a free public API backed by the European Central Bank (ECB) daily rates.
 No API key required. Rates updated each business day ~4pm CET.
 
-Fallback: returns 1.0 (no conversion) if the API is unreachable.
+Fallback: returns approximate static mid-2025 rates when API is unreachable.
+The caller receives `is_fallback=True` so the UI can display a warning.
 
 Usage:
-    from app.services.fx_service import get_rate, get_all_rates, supported_currencies
+    from app.services.fx_service import get_rates_with_meta, get_rate, supported_currencies
 
-    rate = await get_rate("USD", "EUR")           # e.g. 0.9234
-    rates = await get_all_rates("USD")            # all pairs vs USD
-    amount_eur = amount_usd * rate
+    result = await get_rates_with_meta("USD")
+    # result.rates      — {currency: rate}
+    # result.is_fallback — True if live API was unreachable
+    # result.data_note  — human-readable warning text when is_fallback
+
+    rate = await get_rate("USD", "EUR")  # e.g. 0.9234 (simple, no meta)
 """
 
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass, field
 
 import httpx
 
@@ -58,19 +63,26 @@ _FALLBACK_RATES_FROM_USD: dict[str, float] = {
 }
 
 
-async def get_all_rates(base: str = "USD") -> dict[str, float]:
+@dataclass
+class FXRatesResult:
+    rates: dict[str, float]
+    is_fallback: bool = False
+    data_note: str = ""
+
+
+async def get_rates_with_meta(base: str = "USD") -> FXRatesResult:
     """
     Fetch all supported exchange rates with *base* as the base currency.
     Results are cached for 1 hour.
 
-    Returns a dict of {currency_code: rate} including the base currency (1.0).
-    On failure, returns approximate fallback rates.
+    Returns FXRatesResult with is_fallback=True and a data_note warning
+    when the live Frankfurter API is unreachable and static rates are used.
     """
     base = base.upper()
     cache_key = f"fx_rates:{base}"
     cached = await cache_get(cache_key)
     if cached is not None:
-        return cached
+        return FXRatesResult(rates=cached)
 
     symbols = ",".join(c for c in SUPPORTED_CURRENCIES if c != base)
     try:
@@ -84,16 +96,32 @@ async def get_all_rates(base: str = "USD") -> dict[str, float]:
         rates: dict[str, float] = {base: 1.0}
         rates.update({k: float(v) for k, v in data.get("rates", {}).items()})
         await cache_setex(cache_key, _CACHE_TTL, rates)
-        return rates
+        return FXRatesResult(rates=rates)
     except Exception as exc:
         logger.warning("Frankfurter FX fetch failed (base=%s): %s", base, exc)
         # Return fallback rates converted to requested base
         if base == "USD":
-            return dict(_FALLBACK_RATES_FROM_USD)
-        usd_to_base = _FALLBACK_RATES_FROM_USD.get(base)
-        if usd_to_base and usd_to_base != 0:
-            return {k: round(v / usd_to_base, 6) for k, v in _FALLBACK_RATES_FROM_USD.items()}
-        return {base: 1.0}
+            fallback = dict(_FALLBACK_RATES_FROM_USD)
+        else:
+            usd_to_base = _FALLBACK_RATES_FROM_USD.get(base)
+            if usd_to_base and usd_to_base != 0:
+                fallback = {k: round(v / usd_to_base, 6) for k, v in _FALLBACK_RATES_FROM_USD.items()}
+            else:
+                fallback = {base: 1.0}
+        return FXRatesResult(
+            rates=fallback,
+            is_fallback=True,
+            data_note="Live rates unavailable (Frankfurter/ECB unreachable) — showing approximate mid-2025 static rates.",
+        )
+
+
+async def get_all_rates(base: str = "USD") -> dict[str, float]:
+    """
+    Convenience wrapper — returns rates dict only (no fallback metadata).
+    Use get_rates_with_meta() when you need to surface a warning to the user.
+    """
+    result = await get_rates_with_meta(base)
+    return result.rates
 
 
 async def get_rate(from_currency: str, to_currency: str) -> float:

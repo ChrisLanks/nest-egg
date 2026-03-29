@@ -36,7 +36,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import api from "../services/api";
 import { useUserView } from "../contexts/UserViewContext";
-import { useCurrency } from "../hooks/useCurrency";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 interface ForecastDataPoint {
   date: string;

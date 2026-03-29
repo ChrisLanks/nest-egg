@@ -34,6 +34,8 @@ class MortgageRateSnapshot(BaseModel):
     rate_5_1_arm: Optional[float]  # 5/1 ARM rate
     as_of_date: Optional[str]  # "YYYY-MM-DD"
     source: str = "FRED / Freddie Mac"
+    is_fallback: bool = False  # True when FRED was unreachable and rates are None
+    data_note: str = ""
 
 
 async def _fetch_latest_fred_rate(url: str) -> Tuple[Optional[float], Optional[str]]:
@@ -60,16 +62,19 @@ async def _fetch_latest_fred_rate(url: str) -> Tuple[Optional[float], Optional[s
 async def get_current_mortgage_rates() -> MortgageRateSnapshot:
     """
     Return latest 30-yr, 15-yr fixed, and 5/1 ARM rates from FRED, fetched concurrently.
-    Returns None for each rate on failure so the caller handles gracefully.
+    Sets is_fallback=True and data_note when FRED is unreachable (all rates will be None).
     """
     (rate_30, date_30), (rate_15, _), (rate_arm, _) = await asyncio.gather(
         _fetch_latest_fred_rate(FRED_30YR_URL),
         _fetch_latest_fred_rate(FRED_15YR_URL),
         _fetch_latest_fred_rate(FRED_5ARM_URL),
     )
+    is_fallback = rate_30 is None and rate_15 is None
     return MortgageRateSnapshot(
         rate_30yr=rate_30,
         rate_15yr=rate_15,
         rate_5_1_arm=rate_arm,
         as_of_date=date_30,
+        is_fallback=is_fallback,
+        data_note="Live rates unavailable (FRED/Freddie Mac unreachable) — rates cannot be displayed." if is_fallback else "",
     )

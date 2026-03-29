@@ -104,6 +104,49 @@ class TestFxService:
         mock_client.assert_not_called()
         assert rates == cached
 
+    def test_fallback_sets_is_fallback_true(self):
+        """get_rates_with_meta returns is_fallback=True when API unreachable."""
+        import asyncio
+        from unittest.mock import AsyncMock, patch
+        from app.services.fx_service import get_rates_with_meta
+
+        with patch("app.services.fx_service.cache_get", new_callable=AsyncMock) as mock_get, \
+             patch("app.services.fx_service.cache_setex", new_callable=AsyncMock), \
+             patch("httpx.AsyncClient") as mock_client:
+            mock_get.return_value = None
+            mock_client.return_value.__aenter__.return_value.get.side_effect = Exception("network error")
+            result = asyncio.get_event_loop().run_until_complete(get_rates_with_meta("USD"))
+
+        assert result.is_fallback is True
+        assert result.data_note != ""
+
+    def test_live_rates_is_fallback_false(self):
+        """get_rates_with_meta returns is_fallback=False on successful fetch."""
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock, patch
+        from app.services.fx_service import get_rates_with_meta
+
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"rates": {"EUR": 0.92, "GBP": 0.79}}
+
+        with patch("app.services.fx_service.cache_get", new_callable=AsyncMock) as mock_get, \
+             patch("app.services.fx_service.cache_setex", new_callable=AsyncMock), \
+             patch("httpx.AsyncClient") as mock_client:
+            mock_get.return_value = None
+            mock_client.return_value.__aenter__.return_value.get = AsyncMock(return_value=mock_resp)
+            mock_resp.raise_for_status = MagicMock()
+            result = asyncio.get_event_loop().run_until_complete(get_rates_with_meta("USD"))
+
+        assert result.is_fallback is False
+        assert result.data_note == ""
+
+    def test_fx_api_response_includes_fallback_fields(self):
+        from app.api.v1.fx_rates import FXRateResponse
+        resp = FXRateResponse(base="USD", rates={"EUR": 0.92}, supported_currencies=["USD", "EUR"])
+        assert hasattr(resp, "is_fallback")
+        assert hasattr(resp, "data_note")
+        assert resp.is_fallback is False
+
 
 import pytest
 
@@ -168,6 +211,36 @@ class TestMortgageRateService:
             rate_comparison=None,
         )
         assert resp.rate_5_1_arm == 0.058
+
+    def test_fallback_when_all_rates_none(self):
+        """is_fallback=True when FRED returns None for all rates."""
+        import asyncio
+        from unittest.mock import patch
+        from app.services.mortgage_rate_service import get_current_mortgage_rates
+
+        async def mock_fetch(url):
+            return (None, None)
+
+        with patch("app.services.mortgage_rate_service._fetch_latest_fred_rate", side_effect=mock_fetch):
+            snap = asyncio.get_event_loop().run_until_complete(get_current_mortgage_rates())
+
+        assert snap.is_fallback is True
+        assert snap.data_note != ""
+
+    def test_no_fallback_when_rates_present(self):
+        """is_fallback=False when FRED returns valid rates."""
+        import asyncio
+        from unittest.mock import patch
+        from app.services.mortgage_rate_service import get_current_mortgage_rates
+
+        async def mock_fetch(url):
+            return (0.065, "2025-04-01")
+
+        with patch("app.services.mortgage_rate_service._fetch_latest_fred_rate", side_effect=mock_fetch):
+            snap = asyncio.get_event_loop().run_until_complete(get_current_mortgage_rates())
+
+        assert snap.is_fallback is False
+        assert snap.data_note == ""
 
 
 # ── Bond Ladder / CD Rate Service ────────────────────────────────────────────
@@ -322,3 +395,43 @@ class TestStudentLoanRateService:
         src = inspect.getsource(financial_planning)
         assert "/student-loan-rates" in src
         assert "StudentLoanRatesResponse" in src
+
+    def test_confirmed_year_not_fallback(self):
+        """Confirmed rates from studentaid.gov should have is_fallback=False."""
+        import asyncio
+        from unittest.mock import patch
+        from app.services.student_loan_rate_service import get_student_loan_rates
+
+        with patch("app.services.student_loan_rate_service._current_academic_year", return_value=2024):
+            rates = asyncio.get_event_loop().run_until_complete(get_student_loan_rates())
+
+        assert rates.is_fallback is False
+
+    def test_last_resort_fallback_sets_is_fallback(self):
+        """When AY is unconfirmed AND FRED unavailable, is_fallback=True."""
+        import asyncio
+        from unittest.mock import AsyncMock, patch
+        from app.services.student_loan_rate_service import get_student_loan_rates
+
+        with patch("app.services.student_loan_rate_service._current_academic_year", return_value=2030), \
+             patch("app.services.student_loan_rate_service._fetch_10yr_treasury_rate", new_callable=AsyncMock) as mock_fred:
+            mock_fred.return_value = None
+            rates = asyncio.get_event_loop().run_until_complete(get_student_loan_rates())
+
+        assert rates.is_fallback is True
+        assert rates.data_note != ""
+
+    def test_response_model_has_fallback_fields(self):
+        from app.api.v1.financial_planning import StudentLoanRatesResponse
+        resp = StudentLoanRatesResponse(
+            academic_year="2025-26",
+            undergrad_subsidized=6.53,
+            undergrad_unsubsidized=6.53,
+            grad_unsubsidized=8.08,
+            parent_plus=9.08,
+            grad_plus=9.08,
+            source="studentaid.gov",
+            derived=False,
+        )
+        assert hasattr(resp, "is_fallback")
+        assert hasattr(resp, "data_note")

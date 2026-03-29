@@ -84,6 +84,8 @@ class StudentLoanRates(BaseModel):
     grad_plus: float  # %
     source: str = "studentaid.gov / statutory formula"
     derived: bool = False  # True if computed from T-note formula vs confirmed
+    is_fallback: bool = False  # True when using prior-year rates because both FRED and current AY are unavailable
+    data_note: str = ""
 
 
 def _current_academic_year() -> int:
@@ -166,7 +168,7 @@ async def get_student_loan_rates() -> StudentLoanRates:
             derived=True,
         )
 
-    # Final fallback: most recent confirmed year
+    # Final fallback: most recent confirmed year (FRED also unreachable)
     most_recent_ay = max(_CONFIRMED_RATES.keys())
     rates = _CONFIRMED_RATES[most_recent_ay]
     ay_label = f"{most_recent_ay}-{str(most_recent_ay + 1)[-2:]}"
@@ -179,4 +181,6 @@ async def get_student_loan_rates() -> StudentLoanRates:
         grad_plus=rates["grad_plus"],
         source="studentaid.gov (fallback — current AY not yet confirmed)",
         derived=False,
+        is_fallback=True,
+        data_note=f"Current academic year rates not yet published and FRED was unreachable — showing AY {ay_label} rates from studentaid.gov.",
     )
