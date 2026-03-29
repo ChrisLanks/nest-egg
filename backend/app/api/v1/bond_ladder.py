@@ -8,6 +8,8 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.treasury_rates import _fetch_fred_rate, TREASURY_SERIES
+from app.core.cache import get as cache_get
 from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
@@ -42,9 +44,6 @@ async def plan_bond_ladder(
     start_year = request.start_year or datetime.date.today().year
 
     # Fetch current treasury rates
-    from app.api.v1.treasury_rates import _fetch_fred_rate, TREASURY_SERIES
-    from app.core.cache import get as cache_get
-
     cached = await cache_get("market_data:treasury_rates")
     if cached:
         treasury_rates = cached.get("rates", {})
@@ -68,8 +67,6 @@ async def get_ladder_rates(
     current_user: User = Depends(get_current_user),
 ):
     """Return current Treasury rates with estimated CD rates."""
-    from app.core.cache import get as cache_get
-
     cached = await cache_get("market_data:treasury_rates")
     if cached:
         treasury_rates = cached.get("rates", {})

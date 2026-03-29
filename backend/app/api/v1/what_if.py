@@ -6,6 +6,7 @@ Three stateless calculators:
   C3 — Job/Salary Change
 """
 
+import datetime
 import math
 from decimal import Decimal
 from typing import Optional
@@ -236,7 +237,6 @@ async def salary_change_comparison(
     current_user: User = Depends(get_current_user),
 ):
     """Compare total compensation and net impact of a salary change."""
-    import datetime
     new_state = request.new_state or request.current_state
     current_year = datetime.date.today().year
     filing_status = request.filing_status

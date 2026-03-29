@@ -18,6 +18,7 @@ an extra Pydantic pass.
 
 from __future__ import annotations
 
+import inspect
 import logging
 from datetime import date, timedelta
 from decimal import Decimal
@@ -31,8 +32,9 @@ from app.constants.financial import MEDICARE, RETIREMENT, TAX
 from app.models.account import Account, AccountType
 from app.models.holding import Holding
 from app.models.transaction import Transaction
-from app.utils.rmd_calculator import calculate_age
 from app.services.dashboard_service import DashboardService
+from app.services.scf_benchmark_service import age_bucket, fidelity_target, get_benchmarks
+from app.utils.rmd_calculator import calculate_age
 
 logger = logging.getLogger(__name__)
 
@@ -205,8 +207,6 @@ class SmartInsightsService:
         for coro in checks:
             try:
                 # Some checks are sync and return directly; others are async
-                import inspect
-
                 if inspect.isawaitable(coro):
                     result = await coro
                 else:
@@ -663,8 +663,6 @@ class SmartInsightsService:
             return None
 
         # ── Benchmark data (dynamic → cached → static fallback) ──────────
-        from app.services.scf_benchmark_service import age_bucket, fidelity_target, get_benchmarks
-
         benchmarks = get_benchmarks()
         bucket = age_bucket(age)
         median_nw = benchmarks["median"].get(bucket)

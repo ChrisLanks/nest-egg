@@ -25,6 +25,7 @@ Sources:
 
 from __future__ import annotations
 
+import datetime
 import logging
 from typing import Optional
 
@@ -90,7 +91,6 @@ class StudentLoanRates(BaseModel):
 
 def _current_academic_year() -> int:
     """Return the start year of the current academic year (July-June cycle)."""
-    import datetime
     today = datetime.date.today()
     return today.year if today.month >= 7 else today.year - 1
 
@@ -137,7 +137,6 @@ async def get_student_loan_rates() -> StudentLoanRates:
     using the statutory formula when the current academic year is not yet
     confirmed.
     """
-    import datetime
     ay_start = _current_academic_year()
     ay_label = f"{ay_start}-{str(ay_start + 1)[-2:]}"
 

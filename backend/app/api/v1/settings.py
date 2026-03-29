@@ -28,6 +28,8 @@ from app.models.rule import Rule
 from app.models.transaction import Transaction, TransactionLabel
 from app.models.user import Organization, RefreshToken, User
 from app.schemas.user import OrganizationUpdate, UserUpdate
+from app.constants.financial import VARIABLE_INCOME
+from app.constants.state_tax_rates import STATE_NAMES, STATE_TAX_RATES
 from app.services.email_service import create_verification_token, email_service
 from app.services.fx_service import SUPPORTED_CURRENCIES
 from app.services.input_sanitization_service import input_sanitization_service
@@ -204,7 +206,6 @@ async def update_user_profile(
     # State of residence — per-user; each household member sets their own.
     # Validated as uppercase 2-char code by the UserUpdate schema.
     if update_data.state_of_residence is not None and isinstance(update_data.state_of_residence, str):
-        from app.constants.state_tax_rates import STATE_TAX_RATES
         code = update_data.state_of_residence
         if code and code not in STATE_TAX_RATES:
             raise HTTPException(
@@ -214,9 +215,8 @@ async def update_user_profile(
         current_user.state_of_residence = code or None
 
     if update_data.target_retirement_state is not None and isinstance(update_data.target_retirement_state, str):
-        from app.constants.state_tax_rates import STATE_TAX_RATES as _STAX
         code = update_data.target_retirement_state
-        if code and code not in _STAX:
+        if code and code not in STATE_TAX_RATES:
             raise HTTPException(
                 status_code=400,
                 detail=f"Unknown US state code '{code}' for target_retirement_state.",
@@ -954,8 +954,6 @@ async def get_variable_income_constants():
     backend services rather than duplicating magic numbers in TypeScript.
     No auth required — these are public IRS / statutory rates.
     """
-    from app.constants.financial import VARIABLE_INCOME
-
     return {
         "se_tax_rate": float(VARIABLE_INCOME.SE_TAX_RATE),
         "se_tax_rate_effective": float(VARIABLE_INCOME.SE_TAX_RATE_EFFECTIVE),
@@ -980,8 +978,6 @@ async def get_state_list():
     own ``state_of_residence`` in their profile.  Tax tools use the requesting
     member's state to produce accurate per-person estimates.
     """
-    from app.constants.state_tax_rates import STATE_NAMES, STATE_TAX_RATES
-
     states = []
     for code in sorted(STATE_NAMES.keys()):
         rate = STATE_TAX_RATES.get(code, 0.0)

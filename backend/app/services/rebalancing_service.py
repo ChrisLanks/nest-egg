@@ -187,14 +187,8 @@ class RebalancingService:
         - "warning"  : warning_threshold <= |drift| < critical_threshold
         - "critical" : |drift| >= critical_threshold
         """
-        try:
-            from app.constants.financial import PORTFOLIO
-
-            warning_threshold = float(getattr(PORTFOLIO, "DRIFT_THRESHOLD_WARNING_PCT", 5.0))
-            critical_threshold = float(getattr(PORTFOLIO, "DRIFT_THRESHOLD_CRITICAL_PCT", 10.0))
-        except (ImportError, AttributeError):
-            warning_threshold = 5.0
-            critical_threshold = 10.0
+        warning_threshold = float(getattr(PORTFOLIO, "DRIFT_THRESHOLD_WARNING_PCT", 5.0))
+        critical_threshold = float(getattr(PORTFOLIO, "DRIFT_THRESHOLD_CRITICAL_PCT", 10.0))
 
         results = []
         all_classes = set(current_allocations) | set(target_allocations)

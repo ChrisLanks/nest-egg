@@ -12,6 +12,7 @@ Falls back to Treasury spread estimates when FRED is unreachable.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional, Tuple
@@ -61,7 +62,6 @@ async def get_live_cd_rates() -> dict[str, Optional[float]]:
     Returns dict with keys "6_month" and "1_year" (decimal rates, e.g. 0.045).
     Values are None when FRED is unreachable.
     """
-    import asyncio
     rate_6mo, rate_1yr = await asyncio.gather(
         _fetch_fred_rate(FRED_CD_6MO_URL),
         _fetch_fred_rate(FRED_CD_1YR_URL),

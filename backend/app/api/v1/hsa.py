@@ -70,8 +70,7 @@ async def get_contribution_headroom(
     current_user: User = Depends(get_current_user),
 ):
     """Returns remaining HSA contribution room for the year."""
-    import datetime
-    tax_year = year or datetime.date.today().year
+    tax_year = year or date.today().year
     return HsaOptimizationService.calculate_contribution_headroom(
         ytd_contributions=Decimal(str(ytd_contributions)),
         is_family_plan=is_family,

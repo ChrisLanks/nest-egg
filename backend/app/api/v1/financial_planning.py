@@ -27,8 +27,18 @@ from app.dependencies import get_current_user, verify_household_member
 from app.models.account import Account, AccountType
 from app.models.user import User
 from app.services.dashboard_service import DashboardService
+from app.services.debt_cost_service import DebtCostService
+from app.services.dependent_care_optimizer_service import optimize_dependent_care
+from app.services.household_net_worth_service import get_household_net_worth_breakdown
+from app.services.inflation_tracking_service import analyze_inflation_linked_accounts
+from app.services.inheritance_projection_service import project_inheritance
 from app.services.mortgage_analyzer_service import MortgageAnalyzerService
+from app.services.mortgage_rate_service import get_current_mortgage_rates
+from app.services.retirement.guardrails_service import run_guardrails_simulation
+from app.services.savings_rate_service import SavingsRateService
 from app.services.ss_claiming_strategy_service import SSClaimingStrategyService
+from app.services.student_loan_rate_service import get_student_loan_rates as _get_student_loan_rates
+from app.services.survivor_scenario_service import compute_survivor_scenario
 from app.services.tax_projection_service import TaxProjectionService
 
 logger = logging.getLogger(__name__)
@@ -512,7 +522,6 @@ async def get_savings_rate(
     """Monthly savings rate trend for the last N calendar months."""
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
-    from app.services.savings_rate_service import SavingsRateService
 
     summary = await SavingsRateService.get_savings_trend(
         db=db,
@@ -546,7 +555,6 @@ async def get_debt_cost(
     """True monthly and annual interest cost breakdown across all debt accounts."""
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
-    from app.services.debt_cost_service import DebtCostService
 
     summary = await DebtCostService.get_debt_cost(
         db=db,
@@ -586,7 +594,6 @@ async def get_mortgage_rates(
     """
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
-    from app.services.mortgage_rate_service import get_current_mortgage_rates
 
     rates = await get_current_mortgage_rates()
 
@@ -678,8 +685,6 @@ async def get_guardrails_stress_test(
     (NYU Stern Damodaran dataset, as of 2024).  Long-run return assumptions
     are from financial.py FIRE constants.
     """
-    from app.services.retirement.guardrails_service import run_guardrails_simulation
-
     result = run_guardrails_simulation(
         initial_portfolio=initial_portfolio,
         annual_spending=annual_spending,
@@ -754,8 +759,6 @@ async def get_dependent_care_optimization(
     **Data note**: Limits from IRS Publication 503 / IRC §129 (static; rarely
     changes year-to-year). UI displays the tax year and a link to irs.gov/p503.
     """
-    from app.services.dependent_care_optimizer_service import optimize_dependent_care
-
     result = optimize_dependent_care(
         annual_childcare_expenses=annual_childcare_expenses,
         num_dependents=num_dependents,
@@ -821,8 +824,6 @@ async def get_survivor_scenario(
     **Data note**: Survivor benefit reduction factors are statutory (BBA 2015 /
     SSA POMS RS 00207.010) and do not change annually.
     """
-    from app.services.survivor_scenario_service import compute_survivor_scenario
-
     result = compute_survivor_scenario(
         death_age=death_age,
         deceased_ss_monthly=deceased_ss_monthly,
@@ -906,8 +907,6 @@ async def get_inheritance_projection(
     **Data note**: Estate tax exemption from IRS Rev. Proc. (updated annually).
     TCJA enhanced exemption sunsets after 2025 — UI surfaces a warning.
     """
-    from app.services.inheritance_projection_service import project_inheritance
-
     result = project_inheritance(
         initial_portfolio=initial_portfolio,
         annual_income=annual_income,
@@ -965,8 +964,6 @@ async def get_household_net_worth_breakdown(
     plus a "Joint / Unattributed" bucket for accounts with no owner.
     Useful for couples wanting to see "his / hers / joint" net worth.
     """
-    from app.services.household_net_worth_service import get_household_net_worth_breakdown
-
     result = await get_household_net_worth_breakdown(
         db=db,
         organization_id=current_user.organization_id,
@@ -1044,12 +1041,7 @@ async def get_inflation_tracking(
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
 
-    from sqlalchemy import and_, select
-
-    from app.models.account import Account, AccountType as AT
-    from app.services.inflation_tracking_service import analyze_inflation_linked_accounts
-
-    inflation_types = {AT.TIPS, AT.I_BOND}
+    inflation_types = {AccountType.TIPS, AccountType.I_BOND}
     conditions = [
         Account.organization_id == current_user.organization_id,
         Account.is_active.is_(True),
@@ -1142,9 +1134,7 @@ async def get_student_loan_rates(
     **Data sources**: studentaid.gov for confirmed rates; FRED DGS10 (10-yr
     Treasury CMT) for derivation. Statutory formulas per 20 U.S.C. § 1087E(b).
     """
-    from app.services.student_loan_rate_service import get_student_loan_rates as _get_rates
-
-    rates = await _get_rates()
+    rates = await _get_student_loan_rates()
     return StudentLoanRatesResponse(
         academic_year=rates.academic_year,
         undergrad_subsidized=rates.undergrad_subsidized,

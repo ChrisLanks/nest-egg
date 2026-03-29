@@ -5,7 +5,7 @@ Uses constants from app.constants.financial.HSA.
 """
 from decimal import Decimal
 
-from app.constants.financial import HSA
+from app.constants.financial import HSA, RETIREMENT
 
 
 class HsaOptimizationService:
@@ -17,8 +17,6 @@ class HsaOptimizationService:
         year: int,
     ) -> dict:
         """Returns remaining contribution room for the year."""
-        # Import annual limits from RETIREMENT class (already has HSA limits)
-        from app.constants.financial import RETIREMENT
         base_limit_attr = "LIMIT_HSA_FAMILY" if is_family_plan else "LIMIT_HSA_INDIVIDUAL"
         base_limit = Decimal(str(getattr(RETIREMENT, base_limit_attr, 4300 if not is_family_plan else 8550)))
         catch_up = Decimal(str(getattr(RETIREMENT, "LIMIT_HSA_CATCH_UP", 1000))) if age >= 55 else Decimal("0")

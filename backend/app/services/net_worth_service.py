@@ -15,6 +15,7 @@ from app.core.cache import setex as cache_setex
 from app.models.account import Account, AccountType
 from app.models.net_worth_snapshot import NetWorthSnapshot
 from app.services.dashboard_service import DashboardService
+from app.services.fx_service import get_rate
 from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
@@ -455,7 +456,6 @@ class NetWorthService:
             currency = getattr(account, "currency", "USD") or "USD"
             if currency.upper() != "USD":
                 multi_currency = True
-                from app.services.fx_service import get_rate
                 rate = await get_rate(currency.upper(), "USD")
                 balance_local = float(account.current_balance or 0)
                 balance_usd = balance_local * rate
