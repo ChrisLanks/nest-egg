@@ -562,6 +562,7 @@ async def get_debt_cost(
 class MortgageRateResponse(BaseModel):
     rate_30yr: Optional[float]
     rate_15yr: Optional[float]
+    rate_5_1_arm: Optional[float]  # 5/1 ARM rate from FRED MORTGAGE5US
     as_of_date: Optional[str]
     source: str
     your_rate: Optional[float]
@@ -604,6 +605,7 @@ async def get_mortgage_rates(
     return MortgageRateResponse(
         rate_30yr=rates.rate_30yr,
         rate_15yr=rates.rate_15yr,
+        rate_5_1_arm=rates.rate_5_1_arm,
         as_of_date=rates.as_of_date,
         source=rates.source,
         your_rate=your_rate,
@@ -1098,4 +1100,52 @@ async def get_inflation_tracking(
         ibond_rate_as_of=result.ibond_rate_as_of,
         generic_real_return=result.generic_real_return,
         data_note=result.data_note,
+    )
+
+
+# ── Student Loan Rates ───────────────────────────────────────────────────────
+
+
+class StudentLoanRatesResponse(BaseModel):
+    academic_year: str
+    undergrad_subsidized: float
+    undergrad_unsubsidized: float
+    grad_unsubsidized: float
+    parent_plus: float
+    grad_plus: float
+    source: str
+    derived: bool
+
+
+@router.get("/student-loan-rates", response_model=StudentLoanRatesResponse)
+async def get_student_loan_rates(
+    current_user: User = Depends(get_current_user),
+) -> StudentLoanRatesResponse:
+    """
+    Current federal student loan interest rates.
+
+    Rates are set by Congress each July 1st, tied to the 10-year Treasury
+    note from the May auction plus statutory add-ons. Returns confirmed rates
+    from studentaid.gov for the current academic year, or derives them from
+    live 10-year Treasury data when the current year's rates are not yet
+    confirmed.
+
+    Useful for evaluating whether to refinance, pay off vs invest, or
+    modeling education loan costs in financial plans.
+
+    **Data sources**: studentaid.gov for confirmed rates; FRED DGS10 (10-yr
+    Treasury CMT) for derivation. Statutory formulas per 20 U.S.C. § 1087E(b).
+    """
+    from app.services.student_loan_rate_service import get_student_loan_rates as _get_rates
+
+    rates = await _get_rates()
+    return StudentLoanRatesResponse(
+        academic_year=rates.academic_year,
+        undergrad_subsidized=rates.undergrad_subsidized,
+        undergrad_unsubsidized=rates.undergrad_unsubsidized,
+        grad_unsubsidized=rates.grad_unsubsidized,
+        parent_plus=rates.parent_plus,
+        grad_plus=rates.grad_plus,
+        source=rates.source,
+        derived=rates.derived,
     )

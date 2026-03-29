@@ -2,13 +2,30 @@
 
 Builds a ladder of fixed-income instruments maturing at regular intervals
 to provide predictable income.
+
+Live CD rates are fetched from FRED (St. Louis Federal Reserve) when available:
+  CD6NRNJ  — 6-month CD rate (national average, non-jumbo)
+  CD1YEAR  — 1-year CD rate (national average, non-jumbo)
+
+Falls back to Treasury spread estimates when FRED is unreachable.
 """
 
+from __future__ import annotations
+
+import logging
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Optional
+from typing import Optional, Tuple
 
+import httpx
 
-# Default CD rate estimates (spread above Treasury)
+logger = logging.getLogger(__name__)
+
+FRED_CSV_BASE = "https://fred.stlouisfed.org/graph/fredgraph.csv"
+FRED_CD_6MO_URL = f"{FRED_CSV_BASE}?id=CD6NRNJ"
+FRED_CD_1YR_URL = f"{FRED_CSV_BASE}?id=CD1YEAR"
+_FRED_TIMEOUT = 8.0
+
+# Default CD rate estimates (spread above Treasury) — used as fallback
 _CD_SPREAD = {
     1: Decimal("0.0010"),   # 10 bps above 1-yr Treasury
     2: Decimal("0.0015"),
@@ -17,6 +34,40 @@ _CD_SPREAD = {
     7: Decimal("0.0030"),
     10: Decimal("0.0035"),
 }
+
+async def _fetch_fred_rate(url: str) -> Optional[float]:
+    """Fetch the most recent non-null rate from a FRED public CSV series."""
+    try:
+        async with httpx.AsyncClient(timeout=_FRED_TIMEOUT) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+        lines = resp.text.strip().splitlines()
+        for line in reversed(lines[1:]):
+            parts = line.split(",")
+            if len(parts) == 2 and parts[1].strip() not in (".", ""):
+                try:
+                    return round(float(parts[1].strip()) / 100, 6)
+                except ValueError:
+                    continue
+    except Exception as exc:
+        logger.warning("FRED CD rate fetch failed (%s): %s", url, exc)
+    return None
+
+
+async def get_live_cd_rates() -> dict[str, Optional[float]]:
+    """
+    Fetch live CD rates from FRED.
+
+    Returns dict with keys "6_month" and "1_year" (decimal rates, e.g. 0.045).
+    Values are None when FRED is unreachable.
+    """
+    import asyncio
+    rate_6mo, rate_1yr = await asyncio.gather(
+        _fetch_fred_rate(FRED_CD_6MO_URL),
+        _fetch_fred_rate(FRED_CD_1YR_URL),
+    )
+    return {"6_month": rate_6mo, "1_year": rate_1yr}
+
 
 # Map rung year to closest treasury maturity key
 _TREASURY_MATURITY_MAP = {
@@ -147,12 +198,26 @@ def build_ladder(
     }
 
 
-def estimate_cd_rates(treasury_rates: dict) -> dict:
-    """Estimate CD rates based on treasury rates + typical spread."""
+def estimate_cd_rates(treasury_rates: dict, live_cd_rates: Optional[dict] = None) -> dict:
+    """
+    Estimate CD rates based on treasury rates + typical spread.
+
+    If live_cd_rates is provided (from get_live_cd_rates()), those are used
+    directly for the maturities they cover (6-month, 1-year) and spread
+    estimates fill in the rest.
+    """
     cd_rates = {}
     for years, spread in _CD_SPREAD.items():
         maturity_key = _TREASURY_MATURITY_MAP.get(years, "10_year")
         base = treasury_rates.get(maturity_key)
         if base is not None:
             cd_rates[f"{years}_year"] = float(Decimal(str(base)) + spread)
+
+    # Override with live FRED rates where available
+    if live_cd_rates:
+        if live_cd_rates.get("6_month") is not None:
+            cd_rates["6_month"] = live_cd_rates["6_month"]
+        if live_cd_rates.get("1_year") is not None:
+            cd_rates["1_year"] = live_cd_rates["1_year"]
+
     return cd_rates

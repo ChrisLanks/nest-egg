@@ -1,10 +1,11 @@
 """
-Mortgage Rate Watch — fetches current 30-yr and 15-yr fixed mortgage rates
-from the FRED public CSV API (St. Louis Federal Reserve, no API key needed).
+Mortgage Rate Watch — fetches current 30-yr, 15-yr fixed, and 5/1 ARM mortgage
+rates from the FRED public CSV API (St. Louis Federal Reserve, no API key needed).
 
 Series:
   MORTGAGE30US — 30-year fixed rate mortgage average (weekly, Freddie Mac)
   MORTGAGE15US — 15-year fixed rate mortgage average (weekly, Freddie Mac)
+  MORTGAGE5US  — 5/1 ARM rate average (weekly, Freddie Mac)
 
 Falls back gracefully when FRED is unreachable.
 """
@@ -23,12 +24,14 @@ logger = logging.getLogger(__name__)
 FRED_CSV_BASE = "https://fred.stlouisfed.org/graph/fredgraph.csv"
 FRED_30YR_URL = f"{FRED_CSV_BASE}?id=MORTGAGE30US"
 FRED_15YR_URL = f"{FRED_CSV_BASE}?id=MORTGAGE15US"
+FRED_5ARM_URL = f"{FRED_CSV_BASE}?id=MORTGAGE5US"
 _TIMEOUT = 8.0
 
 
 class MortgageRateSnapshot(BaseModel):
     rate_30yr: Optional[float]  # decimal, e.g. 0.0675 for 6.75%
     rate_15yr: Optional[float]
+    rate_5_1_arm: Optional[float]  # 5/1 ARM rate
     as_of_date: Optional[str]  # "YYYY-MM-DD"
     source: str = "FRED / Freddie Mac"
 
@@ -56,15 +59,17 @@ async def _fetch_latest_fred_rate(url: str) -> Tuple[Optional[float], Optional[s
 
 async def get_current_mortgage_rates() -> MortgageRateSnapshot:
     """
-    Return latest 30-yr and 15-yr fixed rates from FRED, fetched concurrently.
+    Return latest 30-yr, 15-yr fixed, and 5/1 ARM rates from FRED, fetched concurrently.
     Returns None for each rate on failure so the caller handles gracefully.
     """
-    (rate_30, date_30), (rate_15, _) = await asyncio.gather(
+    (rate_30, date_30), (rate_15, _), (rate_arm, _) = await asyncio.gather(
         _fetch_latest_fred_rate(FRED_30YR_URL),
         _fetch_latest_fred_rate(FRED_15YR_URL),
+        _fetch_latest_fred_rate(FRED_5ARM_URL),
     )
     return MortgageRateSnapshot(
         rate_30yr=rate_30,
         rate_15yr=rate_15,
+        rate_5_1_arm=rate_arm,
         as_of_date=date_30,
     )
