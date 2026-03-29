@@ -45,6 +45,7 @@ from app.services.smart_insights_service import (
     TRADITIONAL_RETIREMENT_TYPES,
     SmartInsightsService,
 )
+from app.utils.rmd_calculator import calculate_age
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -298,7 +299,7 @@ async def get_roth_conversion(
     birthdate: Optional[date] = getattr(current_user, "birthdate", None)
     current_age = 45  # sensible default
     if birthdate:
-        current_age = (date.today() - birthdate).days // 365
+        current_age = calculate_age(birthdate)
 
     inp = RothConversionInput(
         traditional_balance=balances["traditional"],

@@ -31,6 +31,7 @@ from app.constants.financial import MEDICARE, RETIREMENT, TAX
 from app.models.account import Account, AccountType
 from app.models.holding import Holding
 from app.models.transaction import Transaction
+from app.utils.rmd_calculator import calculate_age
 from app.services.dashboard_service import DashboardService
 
 logger = logging.getLogger(__name__)
@@ -528,7 +529,7 @@ class SmartInsightsService:
         """Warn when estimated income is within $10 k of an IRMAA tier threshold."""
         if user_birthdate is None:
             return None
-        age = (date.today() - user_birthdate).days // 365
+        age = calculate_age(user_birthdate)
         if age < self._IRMAA_AGE_THRESHOLD:
             return None
 
@@ -575,7 +576,7 @@ class SmartInsightsService:
             return None
 
         if user_birthdate is not None:
-            age = (date.today() - user_birthdate).days // 365
+            age = calculate_age(user_birthdate)
             if age >= 60:
                 return None  # Roth conversion math changes significantly at 60+
 
@@ -651,7 +652,7 @@ class SmartInsightsService:
         if user_birthdate is None:
             return None
 
-        age = (date.today() - user_birthdate).days // 365
+        age = calculate_age(user_birthdate)
         if age < 18:
             return None
 

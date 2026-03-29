@@ -389,8 +389,8 @@ async def add_goal_to_retirement_plan(
 
     current_age = calculate_age(current_user.birthdate)
     if goal.target_date:
-        years_until = (goal.target_date - goal.start_date).days / 365.25
-        target_age = int(current_age + years_until)
+        # Use calculate_age to get exact age at target_date (accounts for leap years + birthday timing)
+        target_age = calculate_age(current_user.birthdate, as_of_date=goal.target_date)
     else:
         target_age = current_age + 5  # Default: 5 years from now
 
