@@ -2,7 +2,7 @@
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -166,8 +166,9 @@ async def get_pension_model(
                 )
             )
             member = member_result.scalar_one_or_none()
-            if member:
-                conditions.append(Account.user_id == member.id)
+            if not member:
+                raise HTTPException(status_code=404, detail="Household member not found")
+            conditions.append(Account.user_id == member.id)
         else:
             conditions.append(Account.user_id == current_user.id)
 

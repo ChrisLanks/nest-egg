@@ -133,7 +133,7 @@ async def get_backdoor_roth_analysis(
         ratio = (pre_tax / bal) if bal > 0 else 0.0
         ira_details.append(IraAccountDetail(
             account_id=str(a.id),
-            name=a.name or a.account_type,
+            name=a.name or a.account_type.value,
             balance=bal,
             form_8606_basis=basis,
             pre_tax_portion=pre_tax,
@@ -163,7 +163,7 @@ async def get_backdoor_roth_analysis(
             total_mega += after_tax
         k401_details.append(K401AccountDetail(
             account_id=str(a.id),
-            name=a.name or a.account_type,
+            name=a.name or a.account_type.value,
             after_tax_balance=after_tax,
             mega_backdoor_eligible=eligible,
         ))

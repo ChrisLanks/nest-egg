@@ -271,8 +271,7 @@ async def get_insurance_audit(
             gap = rec_amount  # unknown existing, show full need
         elif itype == "umbrella":
             existing = []
-            has_coverage = net_worth > HEALTH.UMBRELLA_RECOMMEND_NET_WORTH and False  # not tracked as account
-            has_coverage = False
+            has_coverage = False  # umbrella policies not tracked as accounts
             rec_amount = 1_000_000.0  # standard $1M umbrella recommendation
             existing_coverage = None
             gap = None

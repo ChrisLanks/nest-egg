@@ -57,7 +57,7 @@ async def optimize_deductions(
     if salt_phaseout and request.agi > salt_phaseout:
         # Reduce cap by 30% for every $10K over the phase-out start
         reduction_pct = min(1.0, 0.30 * ((request.agi - salt_phaseout) / 10_000))
-        effective_salt_cap = int(salt_cap * (1 - reduction_pct))
+        effective_salt_cap = round(salt_cap * (1 - reduction_pct), 2)
 
     salt_capped = min(request.state_local_taxes, effective_salt_cap)
 
