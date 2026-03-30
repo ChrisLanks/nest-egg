@@ -1349,6 +1349,7 @@ class SAVINGS_GOALS:
 
     # Debt payoff reserve: fraction of total debt to set aside
     DEBT_PAYOFF_RESERVE_RATE = Decimal("0.10")  # 10% of total debt
+    DEBT_PAYOFF_RESERVE_MIN = Decimal("1000")  # Minimum reserve regardless of debt size
 
 
 # =========================================================================

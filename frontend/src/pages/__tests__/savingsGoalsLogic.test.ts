@@ -695,11 +695,12 @@ describe("On-Track Badge Display", () => {
 
   it("hides badge when no progress data", () => {
     const goal = makeGoal();
-    const progress: SavingsGoalProgress | null = null;
+    // Use a variable typed as the union so TypeScript can narrow past the null check
+    const maybeProgress: SavingsGoalProgress | null = null;
     const show =
       !goal.is_funded &&
-      progress !== null &&
-      progress.on_track !== null &&
+      maybeProgress !== null &&
+      (maybeProgress as SavingsGoalProgress).on_track !== null &&
       !goal.is_completed;
     expect(show).toBe(false);
   });
@@ -1086,5 +1087,230 @@ describe("Drag-and-drop goal reorder", () => {
 
     expect(correctKey).not.toEqual(wrongKey);
     expect(correctKey[1]).toBe(selectedUserId);
+  });
+});
+
+// ── Beginner UX: overdue label logic ────────────────────────────────────────
+//
+// GoalCard now shows "Overdue" instead of "Days Left" and highlights the
+// count when days_remaining < 0. These tests verify that label and color
+// logic works correctly for beginners who may not notice a negative number.
+
+const getDaysLabel = (daysRemaining: number): string =>
+  daysRemaining < 0 ? "Overdue" : "Days Left";
+
+const getDaysColor = (daysRemaining: number): string | undefined =>
+  daysRemaining < 0 ? "orange.500" : undefined;
+
+const getDaysDisplay = (daysRemaining: number): number =>
+  Math.abs(daysRemaining);
+
+describe("GoalCard — overdue days display", () => {
+  it("shows 'Days Left' when days_remaining is positive", () => {
+    expect(getDaysLabel(30)).toBe("Days Left");
+    expect(getDaysLabel(1)).toBe("Days Left");
+  });
+
+  it("shows 'Overdue' when days_remaining is negative", () => {
+    expect(getDaysLabel(-1)).toBe("Overdue");
+    expect(getDaysLabel(-30)).toBe("Overdue");
+  });
+
+  it("shows 'Days Left' when days_remaining is 0 (due today)", () => {
+    expect(getDaysLabel(0)).toBe("Days Left");
+  });
+
+  it("displays absolute value of days for overdue goals", () => {
+    expect(getDaysDisplay(-15)).toBe(15);
+    expect(getDaysDisplay(-1)).toBe(1);
+  });
+
+  it("displays unchanged value for on-time goals", () => {
+    expect(getDaysDisplay(45)).toBe(45);
+    expect(getDaysDisplay(0)).toBe(0);
+  });
+
+  it("applies orange color when overdue", () => {
+    expect(getDaysColor(-5)).toBe("orange.500");
+  });
+
+  it("applies no color when on time", () => {
+    expect(getDaysColor(5)).toBeUndefined();
+    expect(getDaysColor(0)).toBeUndefined();
+  });
+});
+
+// ── Beginner UX: on-track tooltip text ──────────────────────────────────────
+//
+// Tooltip text must be plain-language for beginners:
+// "on track" → positive message
+// "behind"   → actionable nudge with monthly required amount
+
+const getOnTrackTooltip = (
+  onTrack: boolean,
+  monthlyRequired: number | null,
+  formatCurrencyFn: (n: number) => string,
+): string => {
+  if (onTrack) {
+    return "You've saved enough so far to hit your target on time. Keep it up!";
+  }
+  if (monthlyRequired !== null) {
+    return `You're behind pace. To still reach your goal on time, aim to save ${formatCurrencyFn(monthlyRequired)} per month.`;
+  }
+  return "You're behind the expected pace for this goal's timeline.";
+};
+
+describe("GoalCard — on-track tooltip text", () => {
+  it("on-track tooltip is encouraging", () => {
+    const text = getOnTrackTooltip(true, null, formatCurrency);
+    expect(text.toLowerCase()).toContain("on time");
+    expect(text.toLowerCase()).toContain("keep it up");
+  });
+
+  it("behind-schedule tooltip includes monthly required amount when available", () => {
+    const text = getOnTrackTooltip(false, 500, formatCurrency);
+    expect(text).toContain("$500.00");
+    expect(text.toLowerCase()).toContain("per month");
+  });
+
+  it("behind-schedule tooltip falls back gracefully when no monthly_required", () => {
+    const text = getOnTrackTooltip(false, null, formatCurrency);
+    expect(text.toLowerCase()).toContain("behind");
+    expect(text).not.toContain("undefined");
+    expect(text).not.toContain("null");
+  });
+
+  it("behind-schedule tooltip includes action word", () => {
+    const text = getOnTrackTooltip(false, 250, formatCurrency);
+    expect(text.toLowerCase()).toContain("aim to save");
+  });
+});
+
+// ── Beginner UX: per-month tooltip text ─────────────────────────────────────
+
+const getPerMonthTooltip = (
+  monthlyRequired: number,
+  formatCurrencyFn: (n: number) => string,
+): string => {
+  if (monthlyRequired > 0) {
+    return `Save ${formatCurrencyFn(monthlyRequired)} each month to reach your goal by the target date.`;
+  }
+  return "You've already saved enough — no more monthly contributions needed!";
+};
+
+describe("GoalCard — per-month tooltip text", () => {
+  it("tells beginner how much to save per month", () => {
+    const text = getPerMonthTooltip(300, formatCurrency);
+    expect(text).toContain("$300.00");
+    expect(text.toLowerCase()).toContain("each month");
+  });
+
+  it("shows congratulatory message when goal is fully funded", () => {
+    const text = getPerMonthTooltip(0, formatCurrency);
+    expect(text.toLowerCase()).toContain("already saved enough");
+  });
+
+  it("does not show dollar amount when monthly required is 0", () => {
+    const text = getPerMonthTooltip(0, formatCurrency);
+    expect(text).not.toContain("$0.00");
+  });
+});
+
+// ── Beginner UX: allocation method button labels ──────────────────────────────
+//
+// Renamed from "Priority Waterfall" / "Proportional" to plain-language
+// "Top Priority First" / "Split Evenly" for beginner comprehension.
+
+const ALLOCATION_LABELS = {
+  waterfall: "Top Priority First",
+  proportional: "Split Evenly",
+} as const;
+
+const ALLOCATION_TOOLTIPS = {
+  waterfall:
+    "Your account balance fills Goal #1 completely before moving to Goal #2. Great when one goal matters most — like an emergency fund.",
+  proportional:
+    "Your balance is split across all goals at once, each getting a share based on its size. Good when all goals matter equally.",
+} as const;
+
+describe("SavingsGoalsPage — allocation method labels", () => {
+  it("waterfall method has plain-language label", () => {
+    expect(ALLOCATION_LABELS.waterfall).toBe("Top Priority First");
+  });
+
+  it("proportional method has plain-language label", () => {
+    expect(ALLOCATION_LABELS.proportional).toBe("Split Evenly");
+  });
+
+  it("waterfall tooltip mentions emergency fund as example", () => {
+    expect(ALLOCATION_TOOLTIPS.waterfall.toLowerCase()).toContain(
+      "emergency fund",
+    );
+  });
+
+  it("proportional tooltip explains equal-weight use case", () => {
+    expect(ALLOCATION_TOOLTIPS.proportional.toLowerCase()).toContain(
+      "all goals matter equally",
+    );
+  });
+
+  it("waterfall tooltip explains top-down fill behavior", () => {
+    expect(ALLOCATION_TOOLTIPS.waterfall.toLowerCase()).toContain("goal #1");
+  });
+});
+
+// ── Beginner UX: GoalForm helper text ────────────────────────────────────────
+//
+// Helper text must exist for each key field so beginners aren't left guessing.
+
+const FORM_HELPER_TEXT = {
+  targetAmount:
+    "How much do you want to save in total? For an emergency fund, aim for 3–6 months of living expenses.",
+  currentAmount:
+    "How much have you already set aside? Enter 0 if you're starting fresh.",
+  linkedAccount:
+    "Link a savings or checking account and Nest Egg can track your progress automatically.",
+  autoSync:
+    "When on, your goal's current amount updates automatically whenever you visit this page — no manual entry needed.",
+  startDate: "Usually today. Used to calculate whether you're on pace.",
+  targetDate:
+    "When do you want to reach this goal? Leave blank if there's no deadline — we'll still track your progress.",
+  description:
+    'Optional — add context like "Europe trip 2026" or "3-month runway for job search".',
+};
+
+describe("GoalForm — helper text content", () => {
+  it("target amount helper explains emergency fund rule-of-thumb", () => {
+    expect(FORM_HELPER_TEXT.targetAmount.toLowerCase()).toContain(
+      "emergency fund",
+    );
+    expect(FORM_HELPER_TEXT.targetAmount).toContain("3–6 months");
+  });
+
+  it("current amount helper tells beginner to enter 0 if starting fresh", () => {
+    expect(FORM_HELPER_TEXT.currentAmount.toLowerCase()).toContain(
+      "starting fresh",
+    );
+  });
+
+  it("linked account helper explains the benefit", () => {
+    expect(FORM_HELPER_TEXT.linkedAccount.toLowerCase()).toContain(
+      "track your progress",
+    );
+  });
+
+  it("auto-sync helper uses plain language (no 'auto-sync' jargon)", () => {
+    expect(FORM_HELPER_TEXT.autoSync.toLowerCase()).not.toContain("auto-sync");
+    expect(FORM_HELPER_TEXT.autoSync.toLowerCase()).toContain("automatically");
+  });
+
+  it("target date helper reassures user it's optional", () => {
+    expect(FORM_HELPER_TEXT.targetDate.toLowerCase()).toContain(
+      "leave blank",
+    );
+  });
+
+  it("description helper gives concrete examples", () => {
+    expect(FORM_HELPER_TEXT.description).toContain("Europe trip");
   });
 });

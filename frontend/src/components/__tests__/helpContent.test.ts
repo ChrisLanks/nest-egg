@@ -5,14 +5,16 @@
 import { describe, it, expect } from "vitest";
 import { helpContent } from "../../constants/helpContent";
 
-// Flatten all values from the nested helpContent object
+// Flatten all string values from the nested helpContent object (skips arrays)
 function getAllHints(
-  obj: Record<string, Record<string, string>>,
+  obj: Record<string, Record<string, unknown>>,
 ): { page: string; key: string; value: string }[] {
   const hints: { page: string; key: string; value: string }[] = [];
   for (const [page, section] of Object.entries(obj)) {
     for (const [key, value] of Object.entries(section)) {
-      hints.push({ page, key, value: value as string });
+      if (typeof value === "string") {
+        hints.push({ page, key, value });
+      }
     }
   }
   return hints;
@@ -20,7 +22,7 @@ function getAllHints(
 
 describe("helpContent", () => {
   const allHints = getAllHints(
-    helpContent as unknown as Record<string, Record<string, string>>,
+    helpContent as unknown as Record<string, Record<string, unknown>>,
   );
 
   it("has all expected page sections", () => {

@@ -864,6 +864,228 @@ class TestUpdateGoalErrorHandling:
 
             assert exc_info.value.status_code == 500
 
+
+# ---------------------------------------------------------------------------
+# Tests for create_goal_from_template endpoint
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestCreateGoalFromTemplate:
+    """Test create_goal_from_template endpoint."""
+
+    @pytest.fixture
+    def mock_db(self):
+        return AsyncMock()
+
+    @pytest.fixture
+    def mock_user(self):
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        return user
+
+    @pytest.fixture
+    def mock_goal(self):
+        goal = Mock(spec=SavingsGoal)
+        goal.id = uuid4()
+        goal.name = "Emergency Fund"
+        goal.target_amount = Decimal("18000.00")
+        return goal
+
+    @pytest.mark.asyncio
+    async def test_creates_emergency_fund_from_template(self, mock_db, mock_user, mock_goal):
+        """Should call create_emergency_fund_goal and return the created goal."""
+        from app.api.v1.savings_goals import GoalFromTemplateRequest, GoalTemplate, create_goal_from_template
+
+        with patch(
+            "app.api.v1.savings_goals.savings_goal_service.create_emergency_fund_goal",
+            return_value=mock_goal,
+        ) as mock_create:
+            body = GoalFromTemplateRequest(template=GoalTemplate.emergency_fund)
+            result = await create_goal_from_template(
+                body=body, current_user=mock_user, db=mock_db
+            )
+
+        assert result.name == "Emergency Fund"
+        mock_create.assert_called_once_with(db=mock_db, user=mock_user)
+
+    @pytest.mark.asyncio
+    async def test_creates_vacation_fund_from_template(self, mock_db, mock_user):
+        """Should call create_vacation_fund_goal for vacation_fund template."""
+        from app.api.v1.savings_goals import GoalFromTemplateRequest, GoalTemplate, create_goal_from_template
+
+        vacation_goal = Mock(spec=SavingsGoal)
+        vacation_goal.id = uuid4()
+        vacation_goal.name = "Vacation Fund"
+
+        with patch(
+            "app.api.v1.savings_goals.savings_goal_service.create_vacation_fund_goal",
+            return_value=vacation_goal,
+        ) as mock_create:
+            body = GoalFromTemplateRequest(template=GoalTemplate.vacation_fund)
+            result = await create_goal_from_template(
+                body=body, current_user=mock_user, db=mock_db
+            )
+
+        assert result.name == "Vacation Fund"
+        mock_create.assert_called_once_with(db=mock_db, user=mock_user)
+
+    @pytest.mark.asyncio
+    async def test_creates_home_down_payment_from_template(self, mock_db, mock_user):
+        """Should call create_home_down_payment_goal for home_down_payment template."""
+        from app.api.v1.savings_goals import GoalFromTemplateRequest, GoalTemplate, create_goal_from_template
+
+        home_goal = Mock(spec=SavingsGoal)
+        home_goal.id = uuid4()
+        home_goal.name = "Home Down Payment"
+
+        with patch(
+            "app.api.v1.savings_goals.savings_goal_service.create_home_down_payment_goal",
+            return_value=home_goal,
+        ) as mock_create:
+            body = GoalFromTemplateRequest(template=GoalTemplate.home_down_payment)
+            result = await create_goal_from_template(
+                body=body, current_user=mock_user, db=mock_db
+            )
+
+        assert result.name == "Home Down Payment"
+        mock_create.assert_called_once_with(db=mock_db, user=mock_user)
+
+    @pytest.mark.asyncio
+    async def test_creates_debt_payoff_reserve_from_template(self, mock_db, mock_user):
+        """Should call create_debt_payoff_reserve_goal for debt_payoff_reserve template."""
+        from app.api.v1.savings_goals import GoalFromTemplateRequest, GoalTemplate, create_goal_from_template
+
+        debt_goal = Mock(spec=SavingsGoal)
+        debt_goal.id = uuid4()
+        debt_goal.name = "Debt Payoff Reserve"
+
+        with patch(
+            "app.api.v1.savings_goals.savings_goal_service.create_debt_payoff_reserve_goal",
+            return_value=debt_goal,
+        ) as mock_create:
+            body = GoalFromTemplateRequest(template=GoalTemplate.debt_payoff_reserve)
+            result = await create_goal_from_template(
+                body=body, current_user=mock_user, db=mock_db
+            )
+
+        assert result.name == "Debt Payoff Reserve"
+        mock_create.assert_called_once_with(db=mock_db, user=mock_user)
+
+
+# ---------------------------------------------------------------------------
+# Tests for record_contribution endpoint
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestRecordContribution:
+    """Test record_contribution endpoint."""
+
+    @pytest.fixture
+    def mock_db(self):
+        return AsyncMock()
+
+    @pytest.fixture
+    def mock_user(self):
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        return user
+
+    @pytest.mark.asyncio
+    async def test_records_contribution_successfully(self, mock_db, mock_user):
+        """Should increment current_amount and update member_contributions."""
+        from app.api.v1.savings_goals import ContributionRequest, record_contribution
+
+        goal_id = uuid4()
+        goal = Mock(spec=SavingsGoal)
+        goal.id = goal_id
+        goal.name = "Family Vacation"
+        goal.is_completed = False
+        goal.member_contributions = {}
+        goal.current_amount = Decimal("500.00")
+        goal.target_amount = Decimal("5000.00")
+
+        with patch(
+            "app.api.v1.savings_goals.savings_goal_service.get_goal",
+            return_value=goal,
+        ):
+            body = ContributionRequest(amount=Decimal("200.00"))
+            result = await record_contribution(
+                goal_id=goal_id, body=body, current_user=mock_user, db=mock_db
+            )
+
+        assert result["contribution_amount"] == 200.0
+        assert result["current_amount"] == 700.0  # 500 + 200
+        assert result["goal_name"] == "Family Vacation"
+        mock_db.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_raises_404_when_goal_not_found(self, mock_db, mock_user):
+        """Should raise 404 when goal not found or not accessible."""
+        from app.api.v1.savings_goals import ContributionRequest, record_contribution
+
+        with patch(
+            "app.api.v1.savings_goals.savings_goal_service.get_goal",
+            return_value=None,
+        ):
+            body = ContributionRequest(amount=Decimal("100.00"))
+            with pytest.raises(HTTPException) as exc_info:
+                await record_contribution(
+                    goal_id=uuid4(), body=body, current_user=mock_user, db=mock_db
+                )
+
+        assert exc_info.value.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_raises_400_when_goal_already_completed(self, mock_db, mock_user):
+        """Should reject contributions to a completed goal with 400."""
+        from app.api.v1.savings_goals import ContributionRequest, record_contribution
+
+        goal = Mock(spec=SavingsGoal)
+        goal.is_completed = True
+
+        with patch(
+            "app.api.v1.savings_goals.savings_goal_service.get_goal",
+            return_value=goal,
+        ):
+            body = ContributionRequest(amount=Decimal("100.00"))
+            with pytest.raises(HTTPException) as exc_info:
+                await record_contribution(
+                    goal_id=uuid4(), body=body, current_user=mock_user, db=mock_db
+                )
+
+        assert exc_info.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_accumulates_multiple_contributions_from_same_user(self, mock_db, mock_user):
+        """Second contribution from same user should add to their running total."""
+        from app.api.v1.savings_goals import ContributionRequest, record_contribution
+
+        goal_id = uuid4()
+        goal = Mock(spec=SavingsGoal)
+        goal.id = goal_id
+        goal.name = "Trip Fund"
+        goal.is_completed = False
+        # Previous contribution from this user already recorded
+        goal.member_contributions = {str(mock_user.id): "300.00"}
+        goal.current_amount = Decimal("800.00")
+        goal.target_amount = Decimal("2000.00")
+
+        with patch(
+            "app.api.v1.savings_goals.savings_goal_service.get_goal",
+            return_value=goal,
+        ):
+            body = ContributionRequest(amount=Decimal("100.00"))
+            result = await record_contribution(
+                goal_id=goal_id, body=body, current_user=mock_user, db=mock_db
+            )
+
+        # Running total for this user should be 300 + 100 = 400
+        assert result["user_total_contributions"] == 400.0
+
     @pytest.mark.asyncio
     async def test_404_still_raised_when_service_returns_none(self, mock_db, mock_user):
         """Should still raise 404 when service returns None (goal not found)."""

@@ -341,37 +341,74 @@ export default function GoalCard({
               </VStack>
 
               {progress.days_remaining !== null && (
-                <VStack align="start" spacing={0}>
-                  <Text fontSize="xs" color="text.secondary">
-                    Days Left
-                  </Text>
-                  <Text fontSize="sm" fontWeight="medium">
-                    {progress.days_remaining}
-                  </Text>
-                </VStack>
+                <Tooltip
+                  label={
+                    progress.days_remaining > 0
+                      ? `${progress.days_remaining} days until your target date.`
+                      : 'This goal is past its target date.'
+                  }
+                  placement="top"
+                  hasArrow
+                >
+                  <VStack align="start" spacing={0} cursor="help">
+                    <Text fontSize="xs" color="text.secondary">
+                      {progress.days_remaining < 0 ? 'Overdue' : 'Days Left'}
+                    </Text>
+                    <Text
+                      fontSize="sm"
+                      fontWeight="medium"
+                      color={progress.days_remaining < 0 ? 'orange.500' : undefined}
+                    >
+                      {Math.abs(progress.days_remaining)}
+                    </Text>
+                  </VStack>
+                </Tooltip>
               )}
 
               {progress.monthly_required !== null && (
-                <VStack align="start" spacing={0}>
-                  <Text fontSize="xs" color="text.secondary">
-                    Per Month
-                  </Text>
-                  <Text fontSize="sm" fontWeight="medium">
-                    {formatCurrency(progress.monthly_required)}
-                  </Text>
-                </VStack>
+                <Tooltip
+                  label={
+                    progress.monthly_required > 0
+                      ? `Save ${formatCurrency(progress.monthly_required)} each month to reach your goal by the target date.`
+                      : 'You\'ve already saved enough — no more monthly contributions needed!'
+                  }
+                  placement="top"
+                  hasArrow
+                >
+                  <VStack align="start" spacing={0} cursor="help">
+                    <Text fontSize="xs" color="text.secondary">
+                      Per Month
+                    </Text>
+                    <Text fontSize="sm" fontWeight="medium">
+                      {formatCurrency(progress.monthly_required)}
+                    </Text>
+                  </VStack>
+                </Tooltip>
               )}
             </HStack>
           )}
 
-          {/* Status badges */}
+          {/* Status badges — plain-language explanation for beginners */}
           {!goal.is_funded && progress && progress.on_track !== null && !goal.is_completed && (
-            <Badge
-              colorScheme={progress.on_track ? 'green' : 'orange'}
-              alignSelf="flex-start"
+            <Tooltip
+              label={
+                progress.on_track
+                  ? 'You\'ve saved enough so far to hit your target on time. Keep it up!'
+                  : progress.monthly_required !== null
+                  ? `You\'re behind pace. To still reach your goal on time, aim to save ${formatCurrency(progress.monthly_required)} per month.`
+                  : 'You\'re behind the expected pace for this goal\'s timeline.'
+              }
+              placement="top"
+              hasArrow
             >
-              {progress.on_track ? 'On Track' : 'Behind Schedule'}
-            </Badge>
+              <Badge
+                colorScheme={progress.on_track ? 'green' : 'orange'}
+                alignSelf="flex-start"
+                cursor="help"
+              >
+                {progress.on_track ? 'On Track' : 'Behind Schedule'}
+              </Badge>
+            </Tooltip>
           )}
 
           {/* Target date */}

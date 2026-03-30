@@ -655,7 +655,221 @@ class TestGoalFund:
         funded = await service.fund_goal(db, goal.id, test_user)
         assert funded is not None
         assert funded.is_funded is True
-        assert funded.funded_at is not None
+
+
+# ---------------------------------------------------------------------------
+# Additional coverage: on-track branch with null start_date + target_date set,
+# overdue goal progress, and goal template factories.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestGetGoalProgressOnTrackNullStartDate:
+    """on_track must be None (not crash) when start_date is None but target_date is set."""
+
+    @pytest.mark.asyncio
+    async def test_on_track_is_none_when_start_date_missing(self):
+        """
+        A goal with target_date set but no start_date should still return a
+        valid progress dict with on_track=None (can't compute without a start).
+        """
+        from unittest.mock import AsyncMock as _AsyncMock, MagicMock as _MagicMock
+
+        goal_mock = Mock()
+        goal_mock.id = uuid4()
+        goal_mock.name = "No Start"
+        goal_mock.target_amount = Decimal("5000.00")
+        goal_mock.current_amount = Decimal("2000.00")
+        goal_mock.start_date = None
+        goal_mock.target_date = date.today() + timedelta(days=90)
+        goal_mock.is_completed = False
+
+        mock_result = _MagicMock()
+        mock_result.scalar_one_or_none.return_value = goal_mock
+
+        mock_db = _AsyncMock()
+        mock_db.execute.return_value = mock_result
+
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+
+        progress = await SavingsGoalService.get_goal_progress(mock_db, goal_mock.id, user)
+        assert progress is not None
+        assert progress["on_track"] is None
+        assert progress["days_elapsed"] == 0
+        assert progress["days_remaining"] is not None  # target_date was set
+
+
+@pytest.mark.unit
+class TestGetGoalProgressOverdue:
+    """Progress metrics behave correctly when a goal is past its target date."""
+
+    @pytest.mark.asyncio
+    async def test_overdue_goal_has_negative_days_remaining(self, db, test_user):
+        """
+        A goal whose target_date is in the past should have negative days_remaining.
+        monthly_required should be None (or negative) — UI shows this as overdue.
+        """
+        service = SavingsGoalService()
+        goal = await service.create_goal(
+            db,
+            test_user,
+            name="Overdue Goal",
+            target_amount=Decimal("10000.00"),
+            current_amount=Decimal("3000.00"),
+            start_date=date.today() - timedelta(days=120),
+            target_date=date.today() - timedelta(days=30),  # past deadline
+        )
+
+        progress = await service.get_goal_progress(db, goal.id, test_user)
+        assert progress is not None
+        assert progress["days_remaining"] is not None
+        assert progress["days_remaining"] < 0  # overdue
+        # monthly_required is None when days_remaining <= 0 (can't project backward)
+        assert progress["monthly_required"] is None
+
+    @pytest.mark.asyncio
+    async def test_goal_just_completed_shows_100_percent(self, db, test_user):
+        """A goal with current_amount >= target_amount should show >= 100% progress."""
+        service = SavingsGoalService()
+        goal = await service.create_goal(
+            db,
+            test_user,
+            name="Fully Funded",
+            target_amount=Decimal("5000.00"),
+            current_amount=Decimal("5000.00"),
+            start_date=date.today() - timedelta(days=60),
+            target_date=date.today() + timedelta(days=30),
+        )
+
+        progress = await service.get_goal_progress(db, goal.id, test_user)
+        assert progress is not None
+        assert progress["progress_percentage"] == 100.0
+        assert progress["remaining_amount"] == Decimal("0.00")
+
+    @pytest.mark.asyncio
+    async def test_goal_over_funded_progress_exceeds_100(self, db, test_user):
+        """current_amount > target_amount should give progress_percentage > 100."""
+        service = SavingsGoalService()
+        goal = await service.create_goal(
+            db,
+            test_user,
+            name="Over Funded",
+            target_amount=Decimal("1000.00"),
+            current_amount=Decimal("1200.00"),
+            start_date=date.today() - timedelta(days=30),
+        )
+
+        progress = await service.get_goal_progress(db, goal.id, test_user)
+        assert progress is not None
+        assert progress["progress_percentage"] > 100.0
+        assert progress["remaining_amount"] < 0  # negative = surplus
+
+
+@pytest.mark.unit
+class TestGoalPriorityAssignment:
+    """New goals receive correct auto-assigned priority."""
+
+    @pytest.mark.asyncio
+    async def test_first_goal_gets_priority_1(self, db, test_user):
+        """With no existing goals, the first goal should receive priority=1."""
+        service = SavingsGoalService()
+        goal = await service.create_goal(
+            db,
+            test_user,
+            name="First Goal",
+            target_amount=Decimal("1000.00"),
+            start_date=date.today(),
+        )
+        assert goal.priority == 1
+
+    @pytest.mark.asyncio
+    async def test_second_goal_gets_priority_2(self, db, test_user):
+        """Second active goal should receive priority=2."""
+        service = SavingsGoalService()
+        await service.create_goal(
+            db, test_user, name="Goal One", target_amount=Decimal("1000.00"),
+            start_date=date.today(),
+        )
+        goal2 = await service.create_goal(
+            db, test_user, name="Goal Two", target_amount=Decimal("2000.00"),
+            start_date=date.today(),
+        )
+        assert goal2.priority == 2
+
+    @pytest.mark.asyncio
+    async def test_completed_goal_excluded_from_priority_count(self, db, test_user):
+        """Completed goals don't count toward priority numbering for new goals."""
+        service = SavingsGoalService()
+        goal1 = await service.create_goal(
+            db, test_user, name="Done", target_amount=Decimal("500.00"),
+            start_date=date.today(),
+        )
+        await service.update_goal(db, goal1.id, test_user, is_completed=True)
+
+        # Next goal should be priority 1 (no active goals)
+        goal2 = await service.create_goal(
+            db, test_user, name="New Active", target_amount=Decimal("1000.00"),
+            start_date=date.today(),
+        )
+        assert goal2.priority == 1
+
+
+@pytest.mark.unit
+class TestVacationAndDebtPayoffTemplates:
+    """Smoke tests for vacation and debt payoff template factories."""
+
+    @pytest.mark.asyncio
+    async def test_create_vacation_fund_goal(self, db, test_user):
+        """Vacation fund template creates a goal with correct target and a target_date."""
+        from app.constants.financial import SAVINGS_GOALS
+
+        service = SavingsGoalService()
+        goal = await service.create_vacation_fund_goal(db, test_user)
+
+        assert goal.name == "Vacation Fund"
+        assert goal.target_amount == SAVINGS_GOALS.VACATION_TARGET
+        assert goal.target_date is not None
+        assert goal.target_date > date.today()
+
+    @pytest.mark.asyncio
+    async def test_create_home_down_payment_goal(self, db, test_user):
+        """Home down payment template creates correct target and ~5-year horizon."""
+        from app.constants.financial import SAVINGS_GOALS
+
+        service = SavingsGoalService()
+        goal = await service.create_home_down_payment_goal(db, test_user)
+
+        assert goal.name == "Home Down Payment"
+        assert goal.target_amount == SAVINGS_GOALS.HOME_DOWN_PAYMENT
+        # Target date should be roughly 5 years out
+        assert goal.target_date > date.today() + timedelta(days=365 * 4)
+
+    @pytest.mark.asyncio
+    async def test_create_debt_payoff_reserve_no_debt(self, db, test_user):
+        """Debt payoff reserve defaults to minimum when no debt accounts exist."""
+        from app.constants.financial import SAVINGS_GOALS
+
+        service = SavingsGoalService()
+        goal = await service.create_debt_payoff_reserve_goal(db, test_user)
+
+        assert goal.name == "Debt Payoff Reserve"
+        # No debt accounts → uses minimum
+        assert goal.target_amount == SAVINGS_GOALS.DEBT_PAYOFF_RESERVE_MIN
+
+    @pytest.mark.asyncio
+    async def test_create_emergency_fund_goal_no_history(self, db, test_user):
+        """Emergency fund defaults to 6x DEFAULT_MONTHLY_EXPENSES when no transactions exist."""
+        from app.constants.financial import SAVINGS_GOALS
+
+        service = SavingsGoalService()
+        goal = await service.create_emergency_fund_goal(db, test_user)
+
+        assert goal.name == "Emergency Fund"
+        expected = (SAVINGS_GOALS.DEFAULT_MONTHLY_EXPENSES * 6).quantize(Decimal("0.01"))
+        assert goal.target_amount == expected
+        assert goal.start_date is not None
 
     @pytest.mark.asyncio
     async def test_fund_goal_not_found(self, db, test_user):

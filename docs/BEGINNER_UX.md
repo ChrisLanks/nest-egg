@@ -164,3 +164,106 @@ Advanced items also checked against `showAdvancedNav` toggle.
 - `navPreferences.test.ts` — 61 tests covering isItemOn, isNavVisible, toggleAdvanced, reset, NAV_SECTIONS structure
 - `navConsolidation.test.ts` — 28 tests covering hub paths, conditionalDefaults, filterVisible
 - `navVisibility.test.ts` — 62 tests covering buildConditionalDefaults, account gating, override priority
+
+---
+
+## Savings Goals — Beginner UX Design
+
+The Savings Goals page (`/goals`) is often the first planning feature a new user tries.
+Every element is designed to work equally well for a first-timer and a power user.
+
+---
+
+### Plain-language form fields
+
+Every field in the goal creation/edit form has a `FormHelperText` with a plain-language explanation:
+
+| Field | Helper text |
+|---|---|
+| Target Amount | "How much do you want to save in total? For an emergency fund, aim for 3–6 months of living expenses." |
+| Current Amount | "How much have you already set aside? Enter 0 if you're starting fresh." |
+| Linked Account | "Link a savings or checking account and Nest Egg can track your progress automatically." |
+| Auto-sync | "When on, your goal's current amount updates automatically whenever you visit this page — no manual entry needed." |
+| Start Date | "Usually today. Used to calculate whether you're on pace." |
+| Target Date | "When do you want to reach this goal? Leave blank if there's no deadline — we'll still track your progress." |
+| Description | "Optional — add context like 'Europe trip 2026' or '3-month runway for job search'." |
+
+---
+
+### Progress card tooltips
+
+Goal cards expose rich data that can confuse beginners without context:
+
+| Metric | Tooltip |
+|---|---|
+| **On Track** badge | "You've saved enough so far to hit your target on time. Keep it up!" |
+| **Behind Schedule** badge | "You're behind pace. To still reach your goal on time, aim to save $X per month." |
+| **Per Month** stat | "Save $X each month to reach your goal by the target date." |
+| **Days Left** stat | "N days until your target date." |
+| **Overdue** stat | "This goal is past its target date." |
+
+The "Days Left" label automatically becomes **"Overdue"** (orange) when the target date has passed,
+so beginners don't need to understand a negative number.
+
+---
+
+### Allocation method plain labels
+
+When multiple goals share a linked account, Nest Egg allocates the balance between them.
+The technical names ("waterfall", "proportional") are replaced with plain-language button labels:
+
+| Internal name | Button label | Tooltip |
+|---|---|---|
+| `waterfall` | **Top Priority First** | "Your account balance fills Goal #1 completely before moving to Goal #2. Great when one goal matters most — like an emergency fund." |
+| `proportional` | **Split Evenly** | "Your balance is split across all goals at once, each getting a share based on its size. Good when all goals matter equally." |
+
+---
+
+### View mode labels
+
+| Old label | New label | Tooltip |
+|---|---|---|
+| Priority Order | **My Priority** | "See all goals in the order you want to fund them. Drag to reorder." |
+| By Account | **By Account** | "Group goals by the account they're saving toward." |
+
+---
+
+### Empty state personalization
+
+The empty state description adapts based on the user's onboarding goal:
+
+| Onboarding goal | Message |
+|---|---|
+| `retirement` | "You said you want to plan for retirement — start by building an emergency fund so unexpected costs don't derail your progress." |
+| `investments` | "Goals work alongside your investments. Set a savings target to fund your next contribution or build a cash buffer." |
+| `spending` | "You said you want to track spending — pair that with a savings goal so you know what you're saving toward each month." |
+| (default) | "Set savings goals to track progress toward vacations, emergency funds, down payments, and more." |
+
+---
+
+### Quick-start templates
+
+Four one-click templates remove the blank-slate problem for beginners:
+
+| Template | What it creates |
+|---|---|
+| Emergency Fund | 6 × avg monthly expenses target; auto-links to highest-balance checking/savings account |
+| Vacation Fund | $4,000 target, 12-month deadline |
+| Home Down Payment | $60,000 target, 5-year deadline |
+| Debt Payoff Reserve | 10% of total debt (min $1,000) |
+
+Each template card has an × button that dismisses it permanently (via `localStorage`).
+Templates also auto-hide once the corresponding goal type exists.
+
+---
+
+### Test coverage
+
+`savingsGoalsLogic.test.ts` covers all beginner UX helpers as pure-function tests:
+
+- Overdue label logic (`getDaysLabel`, `getDaysColor`, `getDaysDisplay`)
+- On-track tooltip text (positive / behind-with-monthly / behind-without-monthly)
+- Per-month tooltip text (positive required / zero required)
+- Allocation method labels and tooltip content
+- GoalForm helper text content for all 6 fields
+- Template dismiss logic (accumulation, deduplication, visibility)

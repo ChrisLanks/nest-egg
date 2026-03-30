@@ -39,6 +39,7 @@ import {
   IconButton,
 } from "@chakra-ui/react";
 import { AddIcon } from "@chakra-ui/icons";
+import type { IconType } from "react-icons";
 import {
   FiLock,
   FiTarget,
@@ -46,7 +47,6 @@ import {
   FiHome,
   FiSun,
   FiCreditCard,
-  type IconType,
 } from "react-icons/fi";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
@@ -499,8 +499,8 @@ export default function SavingsGoalsPage() {
               <HelpHint hint={helpContent.savingsGoals.emergencyFund} />
             </Heading>
             <Text color="text.secondary">
-              Savings targets you're working toward — notifies you when you
-              reach them
+              Set a dollar target, pick a date, and Nest Egg shows you exactly
+              how much to save each month — and whether you're on pace.
             </Text>
           </VStack>
           <Tooltip
@@ -540,20 +540,32 @@ export default function SavingsGoalsPage() {
                 View:
               </Text>
               <ButtonGroup size="sm" isAttached variant="outline">
-                <Button
-                  colorScheme={viewMode === "priority" ? accent : "gray"}
-                  variant={viewMode === "priority" ? "solid" : "outline"}
-                  onClick={() => setViewMode("priority")}
+                <Tooltip
+                  label="See all goals in the order you want to fund them. Drag to reorder."
+                  placement="top"
+                  hasArrow
                 >
-                  Priority Order
-                </Button>
-                <Button
-                  colorScheme={viewMode === "account" ? accent : "gray"}
-                  variant={viewMode === "account" ? "solid" : "outline"}
-                  onClick={() => setViewMode("account")}
+                  <Button
+                    colorScheme={viewMode === "priority" ? accent : "gray"}
+                    variant={viewMode === "priority" ? "solid" : "outline"}
+                    onClick={() => setViewMode("priority")}
+                  >
+                    My Priority
+                  </Button>
+                </Tooltip>
+                <Tooltip
+                  label="Group goals by the account they're saving toward."
+                  placement="top"
+                  hasArrow
                 >
-                  By Account
-                </Button>
+                  <Button
+                    colorScheme={viewMode === "account" ? accent : "gray"}
+                    variant={viewMode === "account" ? "solid" : "outline"}
+                    onClick={() => setViewMode("account")}
+                  >
+                    By Account
+                  </Button>
+                </Tooltip>
               </ButtonGroup>
             </HStack>
 
@@ -564,41 +576,41 @@ export default function SavingsGoalsPage() {
                   Balance allocation:
                 </Text>
                 <ButtonGroup size="sm" isAttached variant="outline">
-                  <Button
-                    colorScheme={
-                      allocationMethod === "waterfall" ? accent : "gray"
-                    }
-                    variant={
-                      allocationMethod === "waterfall" ? "solid" : "outline"
-                    }
-                    onClick={() => handleMethodChange("waterfall")}
+                  <Tooltip
+                    label="Your account balance fills Goal #1 completely before moving to Goal #2. Great when one goal matters most — like an emergency fund."
+                    placement="top"
+                    hasArrow
                   >
-                    Priority Waterfall
-                  </Button>
-                  <Button
-                    colorScheme={
-                      allocationMethod === "proportional" ? accent : "gray"
-                    }
-                    variant={
-                      allocationMethod === "proportional" ? "solid" : "outline"
-                    }
-                    onClick={() => handleMethodChange("proportional")}
+                    <Button
+                      colorScheme={
+                        allocationMethod === "waterfall" ? accent : "gray"
+                      }
+                      variant={
+                        allocationMethod === "waterfall" ? "solid" : "outline"
+                      }
+                      onClick={() => handleMethodChange("waterfall")}
+                    >
+                      Top Priority First
+                    </Button>
+                  </Tooltip>
+                  <Tooltip
+                    label="Your balance is split across all goals at once, each getting a share based on its size. Good when all goals matter equally."
+                    placement="top"
+                    hasArrow
                   >
-                    Proportional
-                  </Button>
+                    <Button
+                      colorScheme={
+                        allocationMethod === "proportional" ? accent : "gray"
+                      }
+                      variant={
+                        allocationMethod === "proportional" ? "solid" : "outline"
+                      }
+                      onClick={() => handleMethodChange("proportional")}
+                    >
+                      Split Evenly
+                    </Button>
+                  </Tooltip>
                 </ButtonGroup>
-                <Tooltip
-                  label={
-                    allocationMethod === "waterfall"
-                      ? "Goal 1 claims its full target first, then Goal 2, and so on."
-                      : "Balance is split proportionally based on each goal's target amount."
-                  }
-                  placement="right"
-                >
-                  <Text fontSize="xs" color="text.muted" cursor="help">
-                    (?)
-                  </Text>
-                </Tooltip>
               </HStack>
             )}
           </HStack>

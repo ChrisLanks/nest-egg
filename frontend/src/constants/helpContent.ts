@@ -235,12 +235,8 @@ export const helpContent = {
       "Projects how much college will cost when your child enrolls, accounting for tuition inflation (historically 5-6% per year). A 4-year degree at a public university averages $100K+ today.",
     trumpAccount:
       "A Minor's IRA (Trump Account) is a custodial traditional IRA for minors, enabled by the OBBBA. The child must have earned income. Contributions may be tax-deductible, and growth is tax-deferred until withdrawal.",
-    tips: [
-      "Front-load contributions early — compound growth does the heavy lifting.",
-      "Use the 529 superfunding rule to contribute up to 5 years of gift-tax-exclusion amounts at once.",
-      "If your child gets a scholarship, you can withdraw that amount penalty-free (taxes still apply on gains).",
-      "Under SECURE 2.0, unused 529 funds can be rolled to a Roth IRA for the beneficiary (lifetime max $35K, subject to annual Roth contribution limits).",
-    ],
+    tips:
+      "Front-load contributions early (compound growth does the heavy lifting). Use the 529 superfunding rule: contribute up to 5 years of gift-tax-exclusion amounts at once. Scholarships allow penalty-free withdrawals. Under SECURE 2.0, unused 529 funds can roll to a Roth IRA (lifetime max $35K).",
   },
 
   // ── Estate Planning & Beneficiaries ──────────────────────────────────

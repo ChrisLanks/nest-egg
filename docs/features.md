@@ -915,6 +915,60 @@ An info banner at the top of the Cost Basis tab explains short-term vs long-term
 
 The Financial Ratios tab fetches a spending estimate from account data and pre-populates placeholder values in the income and spending inputs. A "Use this" button instantly applies the estimate.
 
+### Savings Goals (`/goals`)
+
+Full savings goal tracking for both beginners and advanced users.
+
+#### Core features
+
+- **Create goals** with a name, target amount, optional target date, and optional linked account
+- **Templates** — one-click setup for the four most common goals:
+  - **Emergency Fund** — target auto-calculated from 6 × average monthly expenses (last 6 months); falls back to `6 × $3,000` when no history exists; auto-links to highest-balance checking/savings account and enables auto-sync
+  - **Vacation Fund** — $4,000 target, 12-month horizon
+  - **Home Down Payment** — $60,000 target (20% of $300K), 5-year horizon
+  - **Debt Payoff Reserve** — 10% of total debt balance, minimum $1,000
+- **Dismiss templates** — each template card has an × button that hides it permanently (stored in `localStorage`)
+- **Progress tracking** — progress bar, % complete, days remaining, monthly savings required, and on-track/behind-schedule status
+- **On-track calculation** — compares actual progress to expected linear pace; considers "on track" if within 10% of expected
+- **Account linking** — link any account; auto-sync keeps `current_amount` updated from the account balance on page load
+- **Shared goals** — mark a goal as shared with all household members or specific individuals; contributions tracked per-member
+- **Priority ordering** — drag-and-drop reorder; waterfall and proportional allocation methods for goals sharing an account
+- **Fund/complete workflow** — mark goals as completed (manually) or funded (money spent); funded goals recalculate remaining goals' allocations
+
+#### Balance allocation methods (shown when auto-sync goals exist)
+
+| Label | Behavior | Best for |
+|---|---|---|
+| **Top Priority First** (waterfall) | Goal #1 claims its full target first, then Goal #2, etc. | When one goal matters most (e.g. emergency fund) |
+| **Split Evenly** (proportional) | Balance split proportionally by each goal's target amount | When all goals matter equally |
+
+#### Beginner UX
+
+- Plain-language form helper text on every field (target amount, current amount, linked account, auto-sync, start date, target date, description)
+- On-track badge tooltip explains what "on track" means and gives an actionable monthly savings nudge when behind
+- "Per Month" stat tooltip explains how much to save each month to hit the deadline
+- "Days Left" label switches to **"Overdue"** (orange) when the target date has passed
+- Allocation method buttons use plain labels ("Top Priority First" / "Split Evenly") with tooltips explaining each
+- Empty state description personalizes based on the user's onboarding goal (retirement, investments, spending, or general)
+
+#### API endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/v1/savings-goals/` | Create goal |
+| `GET` | `/api/v1/savings-goals/` | List goals (filter by `is_completed`, `user_id`) |
+| `POST` | `/api/v1/savings-goals/from-template` | Create from template |
+| `POST` | `/api/v1/savings-goals/auto-sync` | Sync all auto-sync goals |
+| `PUT` | `/api/v1/savings-goals/reorder` | Reorder by priority |
+| `GET` | `/api/v1/savings-goals/{id}` | Get single goal |
+| `PATCH` | `/api/v1/savings-goals/{id}` | Update goal |
+| `DELETE` | `/api/v1/savings-goals/{id}` | Delete goal |
+| `POST` | `/api/v1/savings-goals/{id}/sync` | Sync from linked account |
+| `POST` | `/api/v1/savings-goals/{id}/fund` | Mark as funded |
+| `GET` | `/api/v1/savings-goals/{id}/progress` | Get progress metrics |
+| `POST` | `/api/v1/savings-goals/{id}/contributions` | Record member contribution |
+| `POST` | `/api/v1/savings-goals/{id}/add-to-retirement-plan` | Convert to retirement life event |
+
 ### Goals Widget on Dashboard
 
 A Life Goals widget near the top of the Overview page shows active goal count, overall progress bar, and a "View Goals →" link. When no goals exist, shows a subtle "Set your first goal →" prompt.

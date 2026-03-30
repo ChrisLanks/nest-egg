@@ -170,6 +170,9 @@ export default function GoalForm({ isOpen, onClose, goal }: GoalFormProps) {
                   placeholder="Optional notes about this goal"
                   rows={2}
                 />
+                <FormHelperText>
+                  Optional — add context like "Europe trip 2026" or "3-month runway for job search".
+                </FormHelperText>
               </FormControl>
 
               {/* Target Amount */}
@@ -185,6 +188,9 @@ export default function GoalForm({ isOpen, onClose, goal }: GoalFormProps) {
                     </NumberInput>
                   )}
                 />
+                <FormHelperText>
+                  How much do you want to save in total? For an emergency fund, aim for 3–6 months of living expenses.
+                </FormHelperText>
               </FormControl>
 
               {/* Current Amount */}
@@ -200,18 +206,24 @@ export default function GoalForm({ isOpen, onClose, goal }: GoalFormProps) {
                     </NumberInput>
                   )}
                 />
+                <FormHelperText>
+                  How much have you already set aside? Enter 0 if you're starting fresh.
+                </FormHelperText>
               </FormControl>
 
               {/* Linked Account */}
               <FormControl>
                 <FormLabel>Linked Account (Optional)</FormLabel>
-                <Select {...register('account_id')} placeholder="None - manual tracking">
+                <Select {...register('account_id')} placeholder="None — I'll update manually">
                   {accounts.map((account) => (
                     <option key={account.id} value={account.id}>
                       {account.name}
                     </option>
                   ))}
                 </Select>
+                <FormHelperText>
+                  Link a savings or checking account and Nest Egg can track your progress automatically.
+                </FormHelperText>
               </FormControl>
 
               {/* Auto-sync toggle — only shown when an account is linked */}
@@ -228,7 +240,7 @@ export default function GoalForm({ isOpen, onClose, goal }: GoalFormProps) {
                     />
                   </HStack>
                   <FormHelperText>
-                    When enabled, this goal's current amount is updated automatically from the linked account on page load.
+                    When on, your goal's current amount updates automatically whenever you visit this page — no manual entry needed.
                   </FormHelperText>
                 </FormControl>
               )}
@@ -306,12 +318,18 @@ export default function GoalForm({ isOpen, onClose, goal }: GoalFormProps) {
                   type="date"
                   {...register('start_date', { required: true })}
                 />
+                <FormHelperText>
+                  Usually today. Used to calculate whether you're on pace.
+                </FormHelperText>
               </FormControl>
 
               {/* Target Date */}
               <FormControl>
                 <FormLabel>Target Date (Optional)</FormLabel>
                 <Input type="date" {...register('target_date')} />
+                <FormHelperText>
+                  When do you want to reach this goal? Leave blank if there's no deadline — we'll still track your progress.
+                </FormHelperText>
               </FormControl>
             </VStack>
           </ModalBody>
