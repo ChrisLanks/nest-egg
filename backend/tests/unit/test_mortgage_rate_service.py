@@ -101,13 +101,14 @@ class TestFredCsvParsing:
 
 class TestMortgageRateSnapshot:
     def test_rate_stored_as_decimal(self):
-        snap = MortgageRateSnapshot(rate_30yr=0.0675, rate_15yr=0.0625, as_of_date="2024-01-11")
+        snap = MortgageRateSnapshot(rate_30yr=0.0675, rate_15yr=0.0625, rate_5_1_arm=0.0650, as_of_date="2024-01-11")
         assert snap.rate_30yr == pytest.approx(0.0675)
         assert snap.source == "FRED / Freddie Mac"
 
     def test_nullable_rates(self):
-        snap = MortgageRateSnapshot(rate_30yr=None, rate_15yr=None, as_of_date=None)
+        snap = MortgageRateSnapshot(rate_30yr=None, rate_15yr=None, rate_5_1_arm=None, as_of_date=None)
         assert snap.rate_30yr is None
+        assert snap.rate_5_1_arm is None
         assert snap.as_of_date is None
 
 
