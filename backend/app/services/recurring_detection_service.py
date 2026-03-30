@@ -8,6 +8,7 @@ from uuid import UUID
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.account import Account
 from app.models.recurring_transaction import RecurringFrequency, RecurringTransaction
@@ -330,8 +331,14 @@ class RecurringDetectionService:
         account_ids: Optional[set] = None,
     ) -> List[RecurringTransaction]:
         """Get all recurring transaction patterns."""
-        query = select(RecurringTransaction).where(
-            RecurringTransaction.organization_id == user.organization_id
+        query = (
+            select(RecurringTransaction)
+            .where(RecurringTransaction.organization_id == user.organization_id)
+            .options(
+                selectinload(RecurringTransaction.category),
+                selectinload(RecurringTransaction.label),
+                selectinload(RecurringTransaction.account),
+            )
         )
 
         if is_active is not None:
