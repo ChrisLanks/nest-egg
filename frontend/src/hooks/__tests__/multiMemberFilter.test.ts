@@ -426,3 +426,87 @@ describe("multiMemberFilter — integration scenarios", () => {
     expect(final.size).toBe(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Sidebar account filter regression tests
+// Bug: sidebar showed accounts for all members even when a subset was selected
+// Fix: useNavDefaults now applies matchesMemberFilter client-side when
+//      isPartialMemberSelection=true (2+ members selected but not all)
+// ---------------------------------------------------------------------------
+
+describe("sidebar member filter — regression: partial selection excludes unselected members", () => {
+  // Simulate three-member household: A=Chris, B=TestUser, C=TestUser2
+  // User selects A and B → C's accounts must NOT appear in sidebar
+
+  interface SidebarAccount {
+    account_type: string;
+    user_id?: string;
+  }
+
+  const chrisChecking: SidebarAccount = { account_type: "checking", user_id: USER_A };
+  const testSavings: SidebarAccount = { account_type: "savings", user_id: USER_B };
+  const test2Brokerage: SidebarAccount = { account_type: "brokerage", user_id: USER_C };
+  const allAccounts = [chrisChecking, testSavings, test2Brokerage];
+
+  function sidebarFilter(
+    accounts: SidebarAccount[],
+    selectedIds: Set<string>,
+    isAllSelected: boolean,
+    isPartialMemberSelection: boolean,
+  ): SidebarAccount[] {
+    if (!isPartialMemberSelection) return accounts;
+    return accounts.filter((a) => computeMatchesFilter(a.user_id, selectedIds, isAllSelected));
+  }
+
+  it("all selected → all accounts shown", () => {
+    const ids = setOf(USER_A, USER_B, USER_C);
+    const isAll = computeIsAllSelected(ids, ALL_IDS);
+    const isPartial = computeIsPartialSelection(isAll, ids);
+    const result = sidebarFilter(allAccounts, ids, isAll, isPartial);
+    expect(result).toHaveLength(3);
+  });
+
+  it("Chris + TestUser selected → TestUser2 accounts excluded", () => {
+    const ids = setOf(USER_A, USER_B);
+    const isAll = computeIsAllSelected(ids, ALL_IDS);
+    const isPartial = computeIsPartialSelection(isAll, ids);
+    const result = sidebarFilter(allAccounts, ids, isAll, isPartial);
+    expect(result).toHaveLength(2);
+    expect(result.find((a) => a.user_id === USER_C)).toBeUndefined();
+  });
+
+  it("only Chris selected via single-member path → isPartialMemberSelection=true, only Chris shown", () => {
+    const ids = setOf(USER_A);
+    const isAll = computeIsAllSelected(ids, ALL_IDS);
+    const isPartial = computeIsPartialSelection(isAll, ids);
+    // Single-member selected in 3-member household → partial=true
+    expect(isPartial).toBe(true);
+    const result = sidebarFilter(allAccounts, ids, isAll, isPartial);
+    expect(result).toHaveLength(1);
+    expect(result[0].user_id).toBe(USER_A);
+  });
+
+  it("toggling off TestUser2 after all-selected correctly excludes their accounts", () => {
+    let ids = setOf(USER_A, USER_B, USER_C);
+    ids = computeToggleMember(ids, USER_C);
+    const isAll = computeIsAllSelected(ids, ALL_IDS);
+    const isPartial = computeIsPartialSelection(isAll, ids);
+    expect(isPartial).toBe(true);
+    const result = sidebarFilter(allAccounts, ids, isAll, isPartial);
+    expect(result.map((a) => a.user_id)).not.toContain(USER_C);
+    expect(result.map((a) => a.user_id)).toContain(USER_A);
+    expect(result.map((a) => a.user_id)).toContain(USER_B);
+  });
+
+  it("re-selecting all members restores all accounts in sidebar", () => {
+    // Start with A+B selected, then selectAll
+    let ids = setOf(USER_A, USER_B);
+    ids = computeSelectAll(ALL_IDS);
+    const isAll = computeIsAllSelected(ids, ALL_IDS);
+    const isPartial = computeIsPartialSelection(isAll, ids);
+    expect(isAll).toBe(true);
+    expect(isPartial).toBe(false);
+    const result = sidebarFilter(allAccounts, ids, isAll, isPartial);
+    expect(result).toHaveLength(3);
+  });
+});

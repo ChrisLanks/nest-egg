@@ -112,6 +112,48 @@ describe("UserViewContext — context guard", () => {
   });
 });
 
+describe("Sidebar member filter — Layout.tsx passes filter state to useNavDefaults", () => {
+  it("Layout.tsx extracts memberEffectiveUserId from useUserView", () => {
+    const layoutSource = readSource("src/components/Layout.tsx");
+    expect(layoutSource).toContain("memberEffectiveUserId");
+  });
+
+  it("Layout.tsx extracts isPartialMemberSelection from useUserView", () => {
+    const layoutSource = readSource("src/components/Layout.tsx");
+    expect(layoutSource).toContain("isPartialMemberSelection");
+  });
+
+  it("Layout.tsx extracts matchesMemberFilter from useUserView", () => {
+    const layoutSource = readSource("src/components/Layout.tsx");
+    expect(layoutSource).toContain("matchesMemberFilter");
+  });
+
+  it("Layout.tsx passes all three filter params into useNavDefaults call", () => {
+    const layoutSource = readSource("src/components/Layout.tsx");
+    // The call should include all four params (selectedUserId + 3 filter params)
+    expect(layoutSource).toContain("useNavDefaults(selectedUserId, memberEffectiveUserId, isPartialMemberSelection, matchesMemberFilter)");
+  });
+
+  it("useNavDefaults accepts memberEffectiveUserId, isPartialMemberSelection, matchesMemberFilter params", () => {
+    const hookSource = readSource("src/hooks/useNavDefaults.ts");
+    expect(hookSource).toContain("memberEffectiveUserId");
+    expect(hookSource).toContain("isPartialMemberSelection");
+    expect(hookSource).toContain("matchesMemberFilter");
+  });
+
+  it("useNavDefaults applies matchesMemberFilter client-side when isPartialMemberSelection is true", () => {
+    const hookSource = readSource("src/hooks/useNavDefaults.ts");
+    // Verify the filter is applied
+    expect(hookSource).toContain("isPartialMemberSelection && matchesMemberFilter");
+    expect(hookSource).toContain("matchesMemberFilter(a.user_id)");
+  });
+
+  it("useNavDefaults Account interface includes user_id field", () => {
+    const hookSource = readSource("src/hooks/useNavDefaults.ts");
+    expect(hookSource).toContain("user_id?: string");
+  });
+});
+
 describe("Unified view control — no per-page MemberMultiSelect", () => {
   const pageFiles = [
     "src/pages/BudgetsPage.tsx",
