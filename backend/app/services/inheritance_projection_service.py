@@ -102,7 +102,7 @@ def project_inheritance(
     other_assets: float = 0.0,         # real estate, business equity, etc.
     legacy_target: Optional[float] = None,  # for "legacy target" scenario
     expected_return: Optional[float] = None,
-    inflation: float = 0.03,
+    inflation: float = FIRE.DEFAULT_INFLATION,
 ) -> InheritanceProjectionResult:
     """Project portfolio residual under four spend-down strategies.
 

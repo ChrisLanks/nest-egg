@@ -38,6 +38,16 @@ The Fed releases new SCF data every 3 years (2022, 2025, 2028 …).
 The UI automatically shows a "Data as of YYYY — update in progress" notice
 when SURVEY_YEAR is more than 3 years old.
 ===========================================================================
+ADJACENT CONSTANTS FILE
+===========================================================================
+app/constants/state_tax_rates.py lives alongside this file and contains
+state income tax rates (STATE_TAX_RATES dict, keyed by two-letter state
+code).  It is kept separate because state rates change on a different
+cadence than federal limits — some states update mid-year.  When state
+rates change, edit that file only; nothing here needs updating.
+
+    from app.constants.state_tax_rates import STATE_TAX_RATES
+===========================================================================
 """
 
 import datetime
@@ -714,6 +724,11 @@ class SS:
     # Wage growth assumption for AIME estimation
     WAGE_GROWTH = 0.025  # 2.5% per year
 
+    # Annual benefit COLA — SSA announces each October; 2.5% confirmed for 2025 and 2026.
+    # Distinct from WAGE_GROWTH (AIME estimation) and TAXABLE_MAX_COLA (wage base projection).
+    # Source: ssa.gov/cost-of-living
+    COLA = 0.025  # 2.5% — 2025/2026 confirmed rate
+
     # Full Retirement Age table: birth_year → (years, months)
     FRA_TABLE: Dict[int, Tuple[int, int]] = {
         1937: (65, 0),
@@ -1078,6 +1093,17 @@ class FIRE:
     # Tax rate caps for withdrawal strategy (prevent unreasonable gross-up)
     MAX_CAPITAL_GAINS_RATE = 0.50
     MAX_INCOME_TAX_RATE = 0.70
+
+    # COLA rates used in multi-year projection services
+    # Federal income tax brackets are adjusted annually for CPI per IRS Rev. Proc.
+    DEFAULT_BRACKET_COLA = 0.025  # ~2.5% — approximates recent IRS bracket adjustments
+    # IRMAA thresholds are indexed to CPI-U; historically closer to 3%.
+    IRMAA_COLA = 0.03  # 3% CPI-linked IRMAA threshold projection rate
+
+    # Conservative pre-retirement growth rate for RMD/tax-bucket projections.
+    # Lower than DEFAULT_EXPECTED_RETURN (7%) to account for a more bond-heavy
+    # near-retirement allocation.
+    DEFAULT_GROWTH_RATE = 0.06  # 6% nominal pre-retirement
 
 
 # =========================================================================
@@ -1897,6 +1923,9 @@ class TAX_BUCKETS:
     """Tax bucket analysis and RMD tax bomb constants."""
 
     PRE_TAX_WARNING_THRESHOLD_PCT = Decimal("0.85")
+    # Default pre-retirement growth rate for tax-bucket projections (Decimal form).
+    # Use FIRE.DEFAULT_GROWTH_RATE (float) for non-Decimal math.
+    DEFAULT_GROWTH_RATE = Decimal("0.06")  # 6% nominal
     RMD_BOMB_MULTIPLE_OF_SPENDING = Decimal("2.0")
     OPTIMAL_CONVERSION_BRACKET = Decimal("0.22")
     PROJECTION_DEFAULT_YEARS = 10

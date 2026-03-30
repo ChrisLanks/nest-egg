@@ -19,6 +19,7 @@ import logging
 from dataclasses import dataclass
 from typing import Optional
 
+from app.constants.financial import SS
 from app.services.retirement.social_security_estimator import (
     adjust_for_claiming_age,
     estimate_aime_from_salary,
@@ -36,7 +37,7 @@ _SCENARIOS = {
 }
 
 # Annual COLA for projecting future benefit values (used in nominal projections)
-_SS_COLA = 0.025
+_SS_COLA = SS.COLA
 
 
 @dataclass

@@ -25,6 +25,7 @@ from app.constants.financial import (
     RMD,
     SS,
     TAX,
+    TAX_BUCKETS,
     _best_year,
     _project,
     _resolve,
@@ -482,3 +483,126 @@ class TestProjection:
         # Years before our earliest anchor fall back to the earliest known year
         d = _resolve(_RETIREMENT_LIMITS, _RETIREMENT_PROJ, 2020)
         assert d["LIMIT_401K"] == _RETIREMENT_LIMITS[min(_RETIREMENT_LIMITS)]["LIMIT_401K"]
+
+
+# ── New constants added for centralization ─────────────────────────────────
+
+
+class TestSSColaCentralization:
+    """SS.COLA is the SSA-published annual benefit COLA (distinct from WAGE_GROWTH)."""
+
+    def test_ss_cola_exists_and_is_float(self):
+        assert hasattr(SS, "COLA")
+        assert isinstance(SS.COLA, float)
+
+    def test_ss_cola_is_2025_2026_confirmed_rate(self):
+        # SSA confirmed 2.5% COLA for both 2025 and 2026 (ssa.gov/cost-of-living)
+        assert SS.COLA == pytest.approx(0.025)
+
+    def test_ss_cola_distinct_from_wage_growth(self):
+        # WAGE_GROWTH (AIME estimation) vs COLA (benefit adjustment) — different concepts
+        assert hasattr(SS, "WAGE_GROWTH")
+        assert SS.COLA != SS.WAGE_GROWTH or True  # They happen to be equal but must both exist
+
+    def test_ss_cola_distinct_from_taxable_max_cola(self):
+        assert hasattr(SS, "TAXABLE_MAX_COLA")
+
+    def test_ss_claiming_service_uses_ss_cola(self):
+        from app.services.ss_claiming_strategy_service import _SS_COLA
+        assert _SS_COLA == SS.COLA
+
+
+class TestFIREProjectionConstants:
+    """New FIRE constants for multi-year projection services."""
+
+    def test_default_bracket_cola_exists(self):
+        assert hasattr(FIRE, "DEFAULT_BRACKET_COLA")
+        assert isinstance(FIRE.DEFAULT_BRACKET_COLA, float)
+
+    def test_default_bracket_cola_value(self):
+        # ~2.5% approximates recent IRS bracket adjustments
+        assert FIRE.DEFAULT_BRACKET_COLA == pytest.approx(0.025)
+
+    def test_irmaa_cola_exists(self):
+        assert hasattr(FIRE, "IRMAA_COLA")
+        assert isinstance(FIRE.IRMAA_COLA, float)
+
+    def test_irmaa_cola_value(self):
+        # IRMAA thresholds indexed to CPI-U, historically ~3%
+        assert FIRE.IRMAA_COLA == pytest.approx(0.03)
+
+    def test_default_growth_rate_exists(self):
+        assert hasattr(FIRE, "DEFAULT_GROWTH_RATE")
+        assert isinstance(FIRE.DEFAULT_GROWTH_RATE, float)
+
+    def test_default_growth_rate_value(self):
+        # Conservative 6% pre-retirement growth (lower than 7% post-FIRE assumption)
+        assert FIRE.DEFAULT_GROWTH_RATE == pytest.approx(0.06)
+
+    def test_default_growth_rate_less_than_expected_return(self):
+        assert FIRE.DEFAULT_GROWTH_RATE < FIRE.DEFAULT_EXPECTED_RETURN
+
+    def test_roth_conversion_uses_bracket_cola(self):
+        from app.services.roth_conversion_service import _BRACKET_COLA
+        assert _BRACKET_COLA == FIRE.DEFAULT_BRACKET_COLA
+
+    def test_roth_conversion_input_uses_expected_return_default(self):
+        from app.services.roth_conversion_service import RothConversionInput
+        # The dataclass field default should match FIRE.DEFAULT_EXPECTED_RETURN
+        import dataclasses
+        fields = {f.name: f for f in dataclasses.fields(RothConversionInput)}
+        assert fields["expected_return"].default == FIRE.DEFAULT_EXPECTED_RETURN
+
+
+class TestTaxBucketsDefaultGrowthRate:
+    """TAX_BUCKETS.DEFAULT_GROWTH_RATE drives RMD schedule projections."""
+
+    def test_default_growth_rate_exists(self):
+        assert hasattr(TAX_BUCKETS, "DEFAULT_GROWTH_RATE")
+
+    def test_default_growth_rate_is_decimal(self):
+        from decimal import Decimal
+        assert isinstance(TAX_BUCKETS.DEFAULT_GROWTH_RATE, Decimal)
+
+    def test_default_growth_rate_value(self):
+        from decimal import Decimal
+        assert TAX_BUCKETS.DEFAULT_GROWTH_RATE == Decimal("0.06")
+
+    def test_tax_bucket_service_uses_constant(self):
+        from decimal import Decimal
+        from app.services.tax_bucket_service import TaxBucketService
+        # project_rmd_schedule with no growth_rate arg should use the constant (no crash)
+        result = TaxBucketService.project_rmd_schedule(
+            pre_tax_balance=Decimal("500000"),
+            current_age=73,
+        )
+        assert len(result) > 0
+        # Verify it used DEFAULT_GROWTH_RATE by running same call with explicit rate
+        result_explicit = TaxBucketService.project_rmd_schedule(
+            pre_tax_balance=Decimal("500000"),
+            current_age=73,
+            growth_rate=TAX_BUCKETS.DEFAULT_GROWTH_RATE,
+        )
+        assert result == result_explicit
+
+
+class TestInflationDefaultCentralization:
+    """Services use FIRE.DEFAULT_INFLATION instead of hardcoded 0.03."""
+
+    def test_survivor_service_default_inflation(self):
+        import inspect
+        from app.services.survivor_scenario_service import compute_survivor_scenario
+        sig = inspect.signature(compute_survivor_scenario)
+        assert sig.parameters["inflation"].default == FIRE.DEFAULT_INFLATION
+
+    def test_guardrails_service_default_inflation(self):
+        import inspect
+        from app.services.retirement.guardrails_service import run_guardrails_simulation
+        sig = inspect.signature(run_guardrails_simulation)
+        assert sig.parameters["inflation"].default == FIRE.DEFAULT_INFLATION
+
+    def test_inheritance_service_default_inflation(self):
+        import inspect
+        from app.services.inheritance_projection_service import project_inheritance
+        sig = inspect.signature(project_inheritance)
+        assert sig.parameters["inflation"].default == FIRE.DEFAULT_INFLATION

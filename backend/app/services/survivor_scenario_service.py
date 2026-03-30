@@ -110,7 +110,7 @@ def compute_survivor_scenario(
     # Simulation
     expected_return: Optional[float] = None,
     volatility: Optional[float] = None,
-    inflation: float = 0.03,
+    inflation: float = FIRE.DEFAULT_INFLATION,
     num_simulations: int = 500,
 ) -> SurvivorScenarioResult:
     """Model the surviving spouse/partner's finances after the other's death.

@@ -30,7 +30,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Optional
 
-from app.constants.financial import MEDICARE, RMD, TAX
+from app.constants.financial import FIRE, MEDICARE, RMD, TAX
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 # Do NOT hardcode bracket values here — update financial.py each November instead.
 
 # Annual inflation adjustment applied to bracket ceilings for multi-year projection
-_BRACKET_COLA = 0.025
+_BRACKET_COLA = FIRE.DEFAULT_BRACKET_COLA
 
 
 def _get_brackets(filing_status: str, years_from_now: int) -> list[tuple[float, float]]:
@@ -106,7 +106,7 @@ def _irmaa_headroom(magi: float, years_from_now: int, filing_status: str = "sing
         brackets = MEDICARE.IRMAA_BRACKETS_MARRIED
     else:
         brackets = MEDICARE.IRMAA_BRACKETS_SINGLE
-    cola = 0.03
+    cola = FIRE.IRMAA_COLA
     for threshold, _, _ in brackets:
         if threshold == float("inf"):
             return float("inf")
@@ -147,7 +147,7 @@ class RothConversionInput:
     filing_status: str = "single"
     """'single' or 'married'."""
 
-    expected_return: float = 0.07
+    expected_return: float = FIRE.DEFAULT_EXPECTED_RETURN
     """Expected annual nominal return (7 % default)."""
 
     years_to_project: int = 20

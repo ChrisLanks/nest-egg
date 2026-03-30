@@ -11,7 +11,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.constants.financial import TAX_BUCKETS, RMD, TAX
+from app.constants.financial import RMD, TAX, TAX_BUCKETS
 from app.models.account import Account, TaxTreatment
 from app.utils.account_type_groups import TAX_TREATMENT_DEFAULTS
 
@@ -92,7 +92,7 @@ class TaxBucketService:
         Uses IRS Uniform Lifetime Table divisors (hardcoded key ages).
         """
         if growth_rate is None:
-            growth_rate = Decimal("0.06")
+            growth_rate = TAX_BUCKETS.DEFAULT_GROWTH_RATE
 
         # Use the canonical Uniform Lifetime Table from constants (no duplicate)
         ULT = RMD.UNIFORM_LIFETIME_TABLE

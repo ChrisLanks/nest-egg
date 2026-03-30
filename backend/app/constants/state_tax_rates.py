@@ -1,10 +1,29 @@
 """
-State income tax rates for 2025/2026.
-Simplified flat-rate approximations for common states.
-No-income-tax states return 0.
-Sources: state revenue department websites.
-Updated for 2025 rate changes: AZ (2.5% flat), IA (3.8% flat),
-NC (4.25% from 4.5%), OH (reduced top rate).
+State income tax rates — 2025/2026 values.
+===========================================
+This file lives alongside app/constants/financial.py and is intentionally
+kept separate because state rates change on a different cadence than
+federal IRS limits (some states adjust mid-year or biennially).
+
+When to update this file:
+  - A state legislature passes a new flat rate or bracket change.
+  - A previously graduated-rate state moves to a flat tax.
+  - A new tax year is confirmed by the relevant state revenue department.
+
+Relationship to financial.py:
+  - federal/FICA/retirement limits   → financial.py
+  - state income tax effective rates → THIS FILE
+
+Rates are simplified flat-rate approximations of the effective rate at
+approximately $75,000 AGI, which covers the majority of users.  They are
+NOT full bracket models.  Sources: state revenue department websites and
+Tax Foundation state tax summaries.
+
+2025/2026 confirmed changes:
+  AZ: 2.5% flat (Prop 132, effective 2023; unchanged 2025/2026)
+  IA: 3.8% flat (SF 2442, effective 2025)
+  NC: 4.25% (reduced from 4.5%; further reduction to 3.99% pending 2026)
+  OH: 3.5% (reduced top bracket from 3.99%; 2024 legislation)
 """
 
 # State -> approximate effective rate as decimal (not bracket-based, simplified flat approx)

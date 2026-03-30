@@ -147,7 +147,7 @@ def run_guardrails_simulation(
     num_simulations: int = 1_000,
     expected_return: Optional[float] = None,
     volatility: Optional[float] = None,
-    inflation: float = 0.03,
+    inflation: float = FIRE.DEFAULT_INFLATION,
 ) -> GuardrailsResult:
     """Run Monte Carlo with optional guardrails and/or a forced crash in year 1.
 
