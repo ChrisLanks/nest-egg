@@ -129,13 +129,7 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "Planning Tools",
         path: "/investment-tools",
         advanced: true,
-        reason: "Advanced — FIRE, equity compensation, loan modeling, and what-if scenarios",
-      },
-      {
-        label: "Bond Ladder",
-        path: "/bond-ladder",
-        advanced: true,
-        reason: "Advanced — Treasury/CD/TIPS bond ladder builder for income generation",
+        reason: "Advanced — FIRE, equity compensation, loan modeling, bond ladder, and what-if scenarios",
       },
       {
         label: "PE Performance",
@@ -153,7 +147,6 @@ export const NAV_SECTIONS: NavSection[] = [
  */
 export function buildConditionalDefaults(
   accounts: Account[],
-  userAge: number | null,
 ): Record<string, boolean> {
   const hasDebt = accounts.some((a) => DEBT_TYPES.has(a.account_type));
   const hasRental = accounts.some((a) => a.is_rental_property);
@@ -245,7 +238,7 @@ export function useNavDefaults(
     ? currentYear - userProfile.birth_year
     : null;
 
-  const conditionalDefaults = buildConditionalDefaults(accounts, userAge);
+  const conditionalDefaults = buildConditionalDefaults(accounts);
 
   return {
     accounts,

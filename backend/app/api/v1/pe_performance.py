@@ -54,127 +54,6 @@ class PEMetricsResponse(BaseModel):
     transactions: List[PETransactionResponse]
 
 
-@router.get("/{account_id}", response_model=PEMetricsResponse)
-async def get_pe_performance(
-    account_id: UUID,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Get PE performance metrics for a specific account."""
-    # Verify account ownership and type
-    result = await db.execute(
-        select(Account).where(
-            and_(
-                Account.id == account_id,
-                Account.organization_id == current_user.organization_id,
-                Account.account_type.in_([AccountType.PRIVATE_EQUITY, AccountType.PRIVATE_DEBT]),
-            )
-        )
-    )
-    account = result.scalar_one_or_none()
-    if not account:
-        raise HTTPException(status_code=404, detail="PE/PD account not found")
-
-    # Get transactions
-    txn_result = await db.execute(
-        select(PETransaction)
-        .where(PETransaction.account_id == account_id)
-        .order_by(PETransaction.date.asc())
-    )
-    transactions = txn_result.scalars().all()
-
-    txn_dicts = [
-        {"type": t.transaction_type.value, "amount": t.amount, "date": t.date}
-        for t in transactions
-    ]
-
-    current_nav = account.current_balance or Decimal("0")
-    metrics = compute_pe_metrics(txn_dicts, current_nav)
-
-    txn_responses = [
-        PETransactionResponse(
-            id=str(t.id),
-            transaction_type=t.transaction_type.value,
-            amount=float(t.amount),
-            date=t.date,
-            nav_after=float(t.nav_after) if t.nav_after else None,
-            notes=t.notes,
-        )
-        for t in transactions
-    ]
-
-    return PEMetricsResponse(
-        account_id=str(account_id),
-        account_name=account.name,
-        irr=metrics["irr"],
-        irr_pct=metrics["irr_pct"],
-        tvpi=metrics["tvpi"],
-        dpi=metrics["dpi"],
-        moic=metrics["moic"],
-        total_called=metrics["total_called"],
-        total_distributions=metrics["total_distributions"],
-        current_nav=metrics["current_nav"],
-        net_profit=metrics["net_profit"],
-        transactions=txn_responses,
-    )
-
-
-@router.post("/{account_id}/transactions", status_code=201)
-async def add_pe_transaction(
-    account_id: UUID,
-    txn_data: PETransactionCreate,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Add a capital call, distribution, or NAV update to a PE account."""
-    # Verify account
-    result = await db.execute(
-        select(Account).where(
-            and_(
-                Account.id == account_id,
-                Account.organization_id == current_user.organization_id,
-                Account.account_type.in_([AccountType.PRIVATE_EQUITY, AccountType.PRIVATE_DEBT]),
-            )
-        )
-    )
-    account = result.scalar_one_or_none()
-    if not account:
-        raise HTTPException(status_code=404, detail="PE/PD account not found")
-
-    # Validate transaction type
-    try:
-        txn_type = PETransactionType(txn_data.transaction_type)
-    except ValueError:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Invalid transaction_type. Must be one of: {[t.value for t in PETransactionType]}"
-        )
-
-    txn = PETransaction(
-        account_id=account_id,
-        transaction_type=txn_type,
-        amount=Decimal(str(txn_data.amount)),
-        date=txn_data.date,
-        nav_after=Decimal(str(txn_data.nav_after)) if txn_data.nav_after else None,
-        notes=txn_data.notes,
-    )
-    db.add(txn)
-
-    # Update account NAV if provided
-    if txn_data.nav_after is not None:
-        account.current_balance = Decimal(str(txn_data.nav_after))
-
-    await db.commit()
-    await db.refresh(txn)
-
-    return {
-        "id": str(txn.id),
-        "transaction_type": txn.transaction_type.value,
-        "amount": float(txn.amount),
-        "date": txn.date.isoformat(),
-    }
-
-
 @router.get("/portfolio", summary="Aggregate PE metrics across all PE accounts")
 async def get_pe_portfolio(
     current_user: User = Depends(get_current_user),
@@ -230,4 +109,120 @@ async def get_pe_portfolio(
     return {
         "accounts": account_summaries,
         "portfolio_metrics": portfolio_metrics,
+    }
+
+
+@router.get("/{account_id}", response_model=PEMetricsResponse)
+async def get_pe_performance(
+    account_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get PE performance metrics for a specific account."""
+    result = await db.execute(
+        select(Account).where(
+            and_(
+                Account.id == account_id,
+                Account.organization_id == current_user.organization_id,
+                Account.account_type.in_([AccountType.PRIVATE_EQUITY, AccountType.PRIVATE_DEBT]),
+            )
+        )
+    )
+    account = result.scalar_one_or_none()
+    if not account:
+        raise HTTPException(status_code=404, detail="PE/PD account not found")
+
+    txn_result = await db.execute(
+        select(PETransaction)
+        .where(PETransaction.account_id == account_id)
+        .order_by(PETransaction.date.asc())
+    )
+    transactions = txn_result.scalars().all()
+
+    txn_dicts = [
+        {"type": t.transaction_type.value, "amount": t.amount, "date": t.date}
+        for t in transactions
+    ]
+
+    current_nav = account.current_balance or Decimal("0")
+    metrics = compute_pe_metrics(txn_dicts, current_nav)
+
+    txn_responses = [
+        PETransactionResponse(
+            id=str(t.id),
+            transaction_type=t.transaction_type.value,
+            amount=float(t.amount),
+            date=t.date,
+            nav_after=float(t.nav_after) if t.nav_after else None,
+            notes=t.notes,
+        )
+        for t in transactions
+    ]
+
+    return PEMetricsResponse(
+        account_id=str(account_id),
+        account_name=account.name,
+        irr=metrics["irr"],
+        irr_pct=metrics["irr_pct"],
+        tvpi=metrics["tvpi"],
+        dpi=metrics["dpi"],
+        moic=metrics["moic"],
+        total_called=metrics["total_called"],
+        total_distributions=metrics["total_distributions"],
+        current_nav=metrics["current_nav"],
+        net_profit=metrics["net_profit"],
+        transactions=txn_responses,
+    )
+
+
+@router.post("/{account_id}/transactions", status_code=201)
+async def add_pe_transaction(
+    account_id: UUID,
+    txn_data: PETransactionCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Add a capital call, distribution, or NAV update to a PE account."""
+    result = await db.execute(
+        select(Account).where(
+            and_(
+                Account.id == account_id,
+                Account.organization_id == current_user.organization_id,
+                Account.account_type.in_([AccountType.PRIVATE_EQUITY, AccountType.PRIVATE_DEBT]),
+            )
+        )
+    )
+    account = result.scalar_one_or_none()
+    if not account:
+        raise HTTPException(status_code=404, detail="PE/PD account not found")
+
+    try:
+        txn_type = PETransactionType(txn_data.transaction_type)
+    except ValueError:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid transaction_type. Must be one of: {[t.value for t in PETransactionType]}"
+        )
+
+    txn = PETransaction(
+        account_id=account_id,
+        transaction_type=txn_type,
+        amount=Decimal(str(txn_data.amount)),
+        date=txn_data.date,
+        nav_after=Decimal(str(txn_data.nav_after)) if txn_data.nav_after else None,
+        notes=txn_data.notes,
+    )
+    db.add(txn)
+
+    if txn_data.nav_after is not None:
+        account.current_balance = Decimal(str(txn_data.nav_after))
+
+    await db.commit()
+    await db.refresh(txn)
+
+    return {
+        "id": str(txn.id),
+        "transaction_type": txn.transaction_type.value,
+        "amount": float(txn.amount),
+        "date": txn.date.isoformat(),
     }

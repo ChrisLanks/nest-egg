@@ -41,6 +41,7 @@ const CostBasisAgingTab = lazy(() =>
   import("./CostBasisAgingTab").then((m) => ({ default: m.CostBasisAgingTab })),
 );
 const WhatIfPage = lazy(() => import("./WhatIfPage"));
+const BondLadderPage = lazy(() => import("./BondLadderPage"));
 
 const TabLoader = () => (
   <Center py={12}>
@@ -67,7 +68,7 @@ export const InvestmentToolsPage = () => {
         <Text color="text.secondary" mt={1} fontSize="sm">
           FIRE progress, equity compensation modeling, loan analysis, HSA
           strategy, tax-equivalent yield, asset location, employer match
-          optimization, cost basis aging, and what-if scenarios.
+          optimization, cost basis aging, bond ladder builder, and what-if scenarios.
         </Text>
       </Box>
       <Tabs colorScheme="brand" variant="enclosed" px={6} index={tabIndex} onChange={handleTabChange}>
@@ -80,6 +81,7 @@ export const InvestmentToolsPage = () => {
           <Tab fontSize="sm">Asset Location</Tab>
           <Tab fontSize="sm">Employer Match</Tab>
           <Tab fontSize="sm">Cost Basis</Tab>
+          <Tab fontSize="sm">Bond Ladder</Tab>
           <Tab fontSize="sm">What-If</Tab>
         </TabList>
         <TabPanels>
@@ -121,6 +123,11 @@ export const InvestmentToolsPage = () => {
           <TabPanel px={0}>
             <Suspense fallback={<TabLoader />}>
               <CostBasisAgingTab />
+            </Suspense>
+          </TabPanel>
+          <TabPanel px={0}>
+            <Suspense fallback={<TabLoader />}>
+              <BondLadderPage />
             </Suspense>
           </TabPanel>
           <TabPanel px={0}>

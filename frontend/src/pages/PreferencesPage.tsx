@@ -322,7 +322,6 @@ function NavigationVisibilitySection() {
   // Must match every item with advanced: true in NAV_SECTIONS (useNavDefaults.ts)
   const ADVANCED_PATHS = [
     "/investment-tools",
-    "/bond-ladder",
     "/pe-performance",
   ];
 

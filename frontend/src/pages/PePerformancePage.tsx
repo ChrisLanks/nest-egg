@@ -8,12 +8,6 @@ import {
   Heading,
   Spinner,
   Center,
-  Table,
-  Thead,
-  Tbody,
-  Tr,
-  Th,
-  Td,
   Stat,
   StatLabel,
   StatNumber,
@@ -28,34 +22,28 @@ import api from "../services/api";
 
 interface PeAccount {
   account_id: string;
-  account_name: string;
+  name: string;
   tvpi: number;
   dpi: number;
-  rvpi: number;
+  moic: number;
   irr: number | null;
+  irr_pct: number | null;
   total_called: number;
-  total_distributed: number;
-  nav: number;
-  transactions: {
-    date: string;
-    type: string;
-    amount: number;
-    notes: string | null;
-  }[];
+  total_distributions: number;
+  current_nav: number;
+  net_profit: number;
 }
 
 const fmt = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
-const pct = (n: number | null) =>
-  n !== null ? `${(n * 100).toFixed(1)}%` : "N/A";
 
 export default function PePerformancePage() {
   const { data, isLoading, error } = useQuery<PeAccount[]>({
     queryKey: ["pe-performance"],
     queryFn: async () => {
-      const res = await api.get("/pe-performance/summary");
-      return res.data.accounts ?? res.data;
+      const res = await api.get("/pe-performance/portfolio");
+      return res.data.accounts ?? [];
     },
   });
 
@@ -95,7 +83,7 @@ export default function PePerformancePage() {
       {accounts.map((acct) => (
         <Box key={acct.account_id} mb={8} p={4} borderWidth="1px" borderRadius="md">
           <Heading size="md" mb={4}>
-            {acct.account_name}
+            {acct.name}
           </Heading>
 
           <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4} mb={4}>
@@ -110,13 +98,13 @@ export default function PePerformancePage() {
               <StatHelpText>Distributed to Paid-In</StatHelpText>
             </Stat>
             <Stat>
-              <StatLabel>RVPI</StatLabel>
-              <StatNumber>{acct.rvpi.toFixed(2)}x</StatNumber>
-              <StatHelpText>Residual Value to Paid-In</StatHelpText>
+              <StatLabel>MOIC</StatLabel>
+              <StatNumber>{acct.moic.toFixed(2)}x</StatNumber>
+              <StatHelpText>Multiple on Invested Capital</StatHelpText>
             </Stat>
             <Stat>
               <StatLabel>IRR</StatLabel>
-              <StatNumber>{pct(acct.irr)}</StatNumber>
+              <StatNumber>{acct.irr_pct !== null ? `${acct.irr_pct.toFixed(1)}%` : "N/A"}</StatNumber>
               <StatHelpText>Internal Rate of Return</StatHelpText>
             </Stat>
           </SimpleGrid>
@@ -127,37 +115,14 @@ export default function PePerformancePage() {
               <StatNumber fontSize="md">{fmt(acct.total_called)}</StatNumber>
             </Stat>
             <Stat size="sm">
-              <StatLabel>Total Distributed</StatLabel>
-              <StatNumber fontSize="md">{fmt(acct.total_distributed)}</StatNumber>
+              <StatLabel>Total Distributions</StatLabel>
+              <StatNumber fontSize="md">{fmt(acct.total_distributions)}</StatNumber>
             </Stat>
             <Stat size="sm">
               <StatLabel>Current NAV</StatLabel>
-              <StatNumber fontSize="md">{fmt(acct.nav)}</StatNumber>
+              <StatNumber fontSize="md">{fmt(acct.current_nav)}</StatNumber>
             </Stat>
           </SimpleGrid>
-
-          {acct.transactions && acct.transactions.length > 0 && (
-            <Table size="sm" variant="simple">
-              <Thead>
-                <Tr>
-                  <Th>Date</Th>
-                  <Th>Type</Th>
-                  <Th isNumeric>Amount</Th>
-                  <Th>Notes</Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {acct.transactions.map((tx, i) => (
-                  <Tr key={i}>
-                    <Td>{tx.date}</Td>
-                    <Td>{tx.type}</Td>
-                    <Td isNumeric>{fmt(tx.amount)}</Td>
-                    <Td>{tx.notes || ""}</Td>
-                  </Tr>
-                ))}
-              </Tbody>
-            </Table>
-          )}
         </Box>
       ))}
     </Box>

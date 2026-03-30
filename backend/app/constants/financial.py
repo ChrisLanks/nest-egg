@@ -1931,3 +1931,32 @@ class TAX_BUCKETS:
     PROJECTION_DEFAULT_YEARS = 10
     INCOME_GROWTH_DEFAULT = Decimal("0.025")
     ROTH_LADDER_SEASONING_YEARS = 5
+
+
+# =========================================================================
+# BOND LADDER — FALLBACK TREASURY RATES
+# =========================================================================
+
+
+class BOND_LADDER:
+    """Bond ladder fallback constants used when live Treasury cache is unavailable.
+
+    Live rates are fetched from the Treasury/FRED cache at runtime.
+    These static values are used only as a last resort when the cache
+    is cold or the market data service is unreachable.
+
+    Update these when the yield curve shifts significantly — roughly
+    quarterly or after a major Fed rate decision.
+    """
+
+    # Approximate Treasury yields (as of 2025 H1) — update periodically
+    FALLBACK_TREASURY_RATES: Dict[str, float] = {
+        "1_month": 0.0435,
+        "3_month": 0.0430,
+        "6_month": 0.0425,
+        "1_year": 0.0420,
+        "2_year": 0.0410,
+        "5_year": 0.0400,
+        "10_year": 0.0395,
+        "30_year": 0.0410,
+    }

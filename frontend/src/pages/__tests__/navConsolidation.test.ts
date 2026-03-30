@@ -56,10 +56,11 @@ describe("nav consolidation — planning items", () => {
     expect(planningPaths).not.toContain("/hsa");
   });
 
-  it("only /investment-tools is marked advanced", () => {
-    const advancedItems = planningSection?.items.filter((i) => i.advanced) ?? [];
-    expect(advancedItems).toHaveLength(1);
-    expect(advancedItems[0].path).toBe("/investment-tools");
+  it("advanced planning items are /investment-tools and /pe-performance", () => {
+    const advancedPaths = (planningSection?.items.filter((i) => i.advanced) ?? [])
+      .map((i) => i.path)
+      .sort();
+    expect(advancedPaths).toEqual(["/investment-tools", "/pe-performance"]);
   });
 
   it("total planning items is 9 or fewer (was 15)", () => {
@@ -105,7 +106,7 @@ describe("nav consolidation — spending items", () => {
 // ── buildConditionalDefaults ──────────────────────────────────────────────────
 
 describe("buildConditionalDefaults — hub paths", () => {
-  const noAccounts = buildConditionalDefaults([], null);
+  const noAccounts = buildConditionalDefaults([]);
 
   it("tax-center always visible", () => {
     expect(noAccounts["/tax-center"]).toBe(true);
@@ -148,7 +149,7 @@ describe("buildConditionalDefaults — hub paths", () => {
     );
     expect(withMortgage["/mortgage"]).toBe(true);
 
-    const withoutMortgage = buildConditionalDefaults([], null);
+    const withoutMortgage = buildConditionalDefaults([]);
     expect(withoutMortgage["/mortgage"]).toBe(false);
   });
 
@@ -189,7 +190,7 @@ describe("filterVisible with consolidated nav", () => {
     });
   }
 
-  const defaults = buildConditionalDefaults([], null);
+  const defaults = buildConditionalDefaults([]);
 
   it("investment-tools hidden by default (advanced, no override)", () => {
     const visible = filterVisible(false, {}, defaults);

@@ -12,10 +12,10 @@ import {
   Input,
   Select,
   SimpleGrid,
-  Spinner,
   Stat,
   StatLabel,
   StatNumber,
+  StatHelpText,
   Table,
   Tbody,
   Td,
@@ -26,39 +26,70 @@ import {
   Alert,
   AlertIcon,
   Text,
+  Badge,
 } from "@chakra-ui/react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import api from "../services/api";
 
+interface RatesResponse {
+  treasury_rates: Record<string, number>;
+  estimated_cd_rates: Record<string, number>;
+  source: string;
+}
+
 interface LadderRung {
-  year: number;
-  amount: number;
-  yield_pct: number;
-  maturity_date: string;
+  rung: number;
+  years_to_maturity: number;
+  maturity_year: number;
+  investment_amount: number;
+  annual_rate: number;
+  annual_rate_pct: number;
+  maturity_value: number;
+  interest_earned: number;
+  instrument_type: string;
 }
 
 interface LadderResult {
   rungs: LadderRung[];
-  total_cost: number;
-  average_yield: number;
+  num_rungs: number;
   ladder_type: string;
+  total_invested: number;
+  per_rung_investment: number;
+  total_interest: number;
+  total_maturity_values: number;
+  annual_income_actual: number;
+  annual_income_needed: number;
+  income_gap: number;
+  meets_income_target: boolean;
+  reinvestment_note: string;
 }
 
 const fmt = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
 export default function BondLadderPage() {
+  const [totalInvestment, setTotalInvestment] = useState("500000");
+  const [numRungs, setNumRungs] = useState("10");
   const [incomeNeeded, setIncomeNeeded] = useState("50000");
-  const [startYear, setStartYear] = useState("2027");
-  const [endYear, setEndYear] = useState("2036");
+  const [startYear, setStartYear] = useState(String(new Date().getFullYear() + 1));
   const [ladderType, setLadderType] = useState("treasury");
+
+  const { data: ratesData } = useQuery<RatesResponse>({
+    queryKey: ["bond-ladder-rates"],
+    queryFn: async () => {
+      const res = await api.get("/bond-ladder/rates");
+      return res.data;
+    },
+    staleTime: 15 * 60 * 1000,
+  });
 
   const mutation = useMutation<LadderResult, Error>({
     mutationFn: async () => {
-      const res = await api.post("/bond-ladder/build", {
+      const res = await api.post("/bond-ladder/plan", {
+        total_investment: parseFloat(totalInvestment),
+        num_rungs: parseInt(numRungs),
         annual_income_needed: parseFloat(incomeNeeded),
         start_year: parseInt(startYear),
-        end_year: parseInt(endYear),
         ladder_type: ladderType,
       });
       return res.data;
@@ -67,34 +98,59 @@ export default function BondLadderPage() {
 
   return (
     <Box p={6}>
-      <Heading size="lg" mb={6}>
+      <Heading size="lg" mb={4}>
         Bond Ladder Builder
       </Heading>
 
+      <Alert status="info" mb={6} fontSize="sm">
+        <AlertIcon />
+        Rates sourced from {ratesData ? ratesData.source : "U.S. Treasury / FRED"}.
+        {ratesData && (
+          <Text as="span" ml={2}>
+            10-yr Treasury: {((ratesData.treasury_rates["10_year"] ?? 0) * 100).toFixed(2)}%
+            {ratesData.treasury_rates["1_year"] !== undefined && (
+              <>, 1-yr: {(ratesData.treasury_rates["1_year"] * 100).toFixed(2)}%</>
+            )}
+          </Text>
+        )}
+      </Alert>
+
       <VStack spacing={4} align="stretch" maxW="500px" mb={6}>
-        <FormControl>
-          <FormLabel>Annual Income Needed</FormLabel>
-          <Input
-            type="number"
-            value={incomeNeeded}
-            onChange={(e) => setIncomeNeeded(e.target.value)}
-          />
-        </FormControl>
         <SimpleGrid columns={2} spacing={4}>
+          <FormControl>
+            <FormLabel>Total Investment</FormLabel>
+            <Input
+              type="number"
+              value={totalInvestment}
+              onChange={(e) => setTotalInvestment(e.target.value)}
+            />
+          </FormControl>
+          <FormControl>
+            <FormLabel>Number of Rungs</FormLabel>
+            <Input
+              type="number"
+              min={1}
+              max={30}
+              value={numRungs}
+              onChange={(e) => setNumRungs(e.target.value)}
+            />
+          </FormControl>
+        </SimpleGrid>
+        <SimpleGrid columns={2} spacing={4}>
+          <FormControl>
+            <FormLabel>Annual Income Needed</FormLabel>
+            <Input
+              type="number"
+              value={incomeNeeded}
+              onChange={(e) => setIncomeNeeded(e.target.value)}
+            />
+          </FormControl>
           <FormControl>
             <FormLabel>Start Year</FormLabel>
             <Input
               type="number"
               value={startYear}
               onChange={(e) => setStartYear(e.target.value)}
-            />
-          </FormControl>
-          <FormControl>
-            <FormLabel>End Year</FormLabel>
-            <Input
-              type="number"
-              value={endYear}
-              onChange={(e) => setEndYear(e.target.value)}
             />
           </FormControl>
         </SimpleGrid>
@@ -124,45 +180,65 @@ export default function BondLadderPage() {
 
       {mutation.data && (
         <Box>
-          <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} mb={6}>
+          <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4} mb={4}>
             <Stat>
-              <StatLabel>Total Cost</StatLabel>
-              <StatNumber>{fmt(mutation.data.total_cost)}</StatNumber>
+              <StatLabel>Total Invested</StatLabel>
+              <StatNumber>{fmt(mutation.data.total_invested)}</StatNumber>
             </Stat>
             <Stat>
-              <StatLabel>Average Yield</StatLabel>
-              <StatNumber>{(mutation.data.average_yield * 100).toFixed(2)}%</StatNumber>
+              <StatLabel>Total Interest</StatLabel>
+              <StatNumber>{fmt(mutation.data.total_interest)}</StatNumber>
             </Stat>
             <Stat>
-              <StatLabel>Ladder Type</StatLabel>
+              <StatLabel>Annual Income</StatLabel>
+              <StatNumber>{fmt(mutation.data.annual_income_actual)}</StatNumber>
+              <StatHelpText>
+                {mutation.data.meets_income_target ? (
+                  <Badge colorScheme="green">Meets target</Badge>
+                ) : (
+                  <Badge colorScheme="orange">
+                    Gap: {fmt(Math.abs(mutation.data.income_gap))}
+                  </Badge>
+                )}
+              </StatHelpText>
+            </Stat>
+            <Stat>
+              <StatLabel>Type</StatLabel>
               <StatNumber>{mutation.data.ladder_type.toUpperCase()}</StatNumber>
+              <StatHelpText>{mutation.data.num_rungs} rungs</StatHelpText>
             </Stat>
           </SimpleGrid>
 
-          <Table size="sm" variant="simple">
+          <Table size="sm" variant="simple" mb={4}>
             <Thead>
               <Tr>
-                <Th>Year</Th>
-                <Th isNumeric>Amount</Th>
-                <Th isNumeric>Yield</Th>
-                <Th>Maturity</Th>
+                <Th>Rung</Th>
+                <Th>Maturity Year</Th>
+                <Th isNumeric>Invested</Th>
+                <Th isNumeric>Rate</Th>
+                <Th isNumeric>Maturity Value</Th>
+                <Th isNumeric>Interest</Th>
               </Tr>
             </Thead>
             <Tbody>
               {mutation.data.rungs.map((rung) => (
-                <Tr key={rung.year}>
-                  <Td>{rung.year}</Td>
-                  <Td isNumeric>{fmt(rung.amount)}</Td>
-                  <Td isNumeric>{(rung.yield_pct * 100).toFixed(2)}%</Td>
-                  <Td>{rung.maturity_date}</Td>
+                <Tr key={rung.rung}>
+                  <Td>{rung.rung}</Td>
+                  <Td>{rung.maturity_year}</Td>
+                  <Td isNumeric>{fmt(rung.investment_amount)}</Td>
+                  <Td isNumeric>{rung.annual_rate_pct.toFixed(2)}%</Td>
+                  <Td isNumeric>{fmt(rung.maturity_value)}</Td>
+                  <Td isNumeric>{fmt(rung.interest_earned)}</Td>
                 </Tr>
               ))}
             </Tbody>
           </Table>
+
+          <Text fontSize="sm" color="gray.500">{mutation.data.reinvestment_note}</Text>
         </Box>
       )}
 
-      {!mutation.data && !mutation.isPending && (
+      {!mutation.data && !mutation.isPending && !mutation.isError && (
         <Text color="gray.500">
           Configure your ladder parameters above and click "Build Ladder" to see results.
         </Text>

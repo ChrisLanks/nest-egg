@@ -84,28 +84,28 @@ const isNavVisible = (
 
 describe("buildConditionalDefaults: /debt-payoff", () => {
   it("hidden with no accounts", () => {
-    expect(buildConditionalDefaults([], null)["/debt-payoff"]).toBe(false);
+    expect(buildConditionalDefaults([])["/debt-payoff"]).toBe(false);
   });
   it("hidden with only checking/savings", () => {
     expect(
-      buildConditionalDefaults([checking(), savings()], null)["/debt-payoff"],
+      buildConditionalDefaults([checking(), savings()])["/debt-payoff"],
     ).toBe(false);
   });
   it("shown with credit_card", () => {
-    expect(buildConditionalDefaults([creditCard()], null)["/debt-payoff"]).toBe(
+    expect(buildConditionalDefaults([creditCard()])["/debt-payoff"]).toBe(
       true,
     );
   });
   it("shown with loan", () => {
-    expect(buildConditionalDefaults([loan()], null)["/debt-payoff"]).toBe(true);
+    expect(buildConditionalDefaults([loan()])["/debt-payoff"]).toBe(true);
   });
   it("shown with student_loan", () => {
     expect(
-      buildConditionalDefaults([studentLoan()], null)["/debt-payoff"],
+      buildConditionalDefaults([studentLoan()])["/debt-payoff"],
     ).toBe(true);
   });
   it("shown with mortgage (mortgage is also a debt type)", () => {
-    expect(buildConditionalDefaults([mortgage()], null)["/debt-payoff"]).toBe(
+    expect(buildConditionalDefaults([mortgage()])["/debt-payoff"]).toBe(
       true,
     );
   });
@@ -115,19 +115,19 @@ describe("buildConditionalDefaults: /debt-payoff", () => {
 
 describe("buildConditionalDefaults: /mortgage", () => {
   it("hidden with no accounts", () => {
-    expect(buildConditionalDefaults([], null)["/mortgage"]).toBe(false);
+    expect(buildConditionalDefaults([])["/mortgage"]).toBe(false);
   });
   it("hidden with loan account (not mortgage type)", () => {
-    expect(buildConditionalDefaults([loan()], null)["/mortgage"]).toBe(false);
+    expect(buildConditionalDefaults([loan()])["/mortgage"]).toBe(false);
   });
   it("shown when mortgage account exists", () => {
-    expect(buildConditionalDefaults([mortgage()], null)["/mortgage"]).toBe(
+    expect(buildConditionalDefaults([mortgage()])["/mortgage"]).toBe(
       true,
     );
   });
   it("shown alongside other account types", () => {
     expect(
-      buildConditionalDefaults([checking(), mortgage()], null)["/mortgage"],
+      buildConditionalDefaults([checking(), mortgage()])["/mortgage"],
     ).toBe(true);
   });
 });
@@ -136,20 +136,20 @@ describe("buildConditionalDefaults: /mortgage", () => {
 
 describe("buildConditionalDefaults: /rental-properties", () => {
   it("hidden with no accounts", () => {
-    expect(buildConditionalDefaults([], null)["/rental-properties"]).toBe(
+    expect(buildConditionalDefaults([])["/rental-properties"]).toBe(
       false,
     );
   });
   it("hidden with non-rental property account", () => {
     expect(
-      buildConditionalDefaults([nonRentalProperty()], null)[
+      buildConditionalDefaults([nonRentalProperty()])[
         "/rental-properties"
       ],
     ).toBe(false);
   });
   it("shown when is_rental_property = true", () => {
     expect(
-      buildConditionalDefaults([rental()], null)["/rental-properties"],
+      buildConditionalDefaults([rental()])["/rental-properties"],
     ).toBe(true);
   });
 });
@@ -160,13 +160,13 @@ describe("buildConditionalDefaults: /rental-properties", () => {
 
 describe("buildConditionalDefaults: /education", () => {
   it("hidden with no accounts", () => {
-    expect(buildConditionalDefaults([], null)["/education"]).toBe(false);
+    expect(buildConditionalDefaults([])["/education"]).toBe(false);
   });
   it("hidden with non-529 retirement account", () => {
-    expect(buildConditionalDefaults([ira()], null)["/education"]).toBe(false);
+    expect(buildConditionalDefaults([ira()])["/education"]).toBe(false);
   });
   it("shown with 529 account", () => {
-    expect(buildConditionalDefaults([plan529()], null)["/education"]).toBe(
+    expect(buildConditionalDefaults([plan529()])["/education"]).toBe(
       true,
     );
   });
@@ -177,7 +177,7 @@ describe("buildConditionalDefaults: /education", () => {
 
 describe("buildConditionalDefaults: /recurring-bills", () => {
   it("hidden with no accounts", () => {
-    const d = buildConditionalDefaults([], null);
+    const d = buildConditionalDefaults([]);
     expect(d["/recurring-bills"]).toBe(false);
   });
   it("hidden with manual (non-linked) account", () => {
@@ -194,15 +194,15 @@ describe("buildConditionalDefaults: /recurring-bills", () => {
     expect(d["/recurring-bills"]).toBe(false);
   });
   it("shown when plaid_item_id is set", () => {
-    const d = buildConditionalDefaults([linkedChecking()], null);
+    const d = buildConditionalDefaults([linkedChecking()]);
     expect(d["/recurring-bills"]).toBe(true);
   });
   it("shown when plaid_item_hash is set (Teller/MX)", () => {
-    const d = buildConditionalDefaults([linkedViaHash()], null);
+    const d = buildConditionalDefaults([linkedViaHash()]);
     expect(d["/recurring-bills"]).toBe(true);
   });
   it("old /recurring and /bills paths are NOT in the map", () => {
-    const d = buildConditionalDefaults([linkedChecking()], null);
+    const d = buildConditionalDefaults([linkedChecking()]);
     expect("/recurring" in d).toBe(false);
     expect("/bills" in d).toBe(false);
   });
@@ -212,10 +212,10 @@ describe("buildConditionalDefaults: /recurring-bills", () => {
 
 describe("buildConditionalDefaults: /rules", () => {
   it("hidden with no accounts", () => {
-    expect(buildConditionalDefaults([], null)["/rules"]).toBe(false);
+    expect(buildConditionalDefaults([])["/rules"]).toBe(false);
   });
   it("shown once any account exists (manual checking is enough)", () => {
-    expect(buildConditionalDefaults([checking()], null)["/rules"]).toBe(true);
+    expect(buildConditionalDefaults([checking()])["/rules"]).toBe(true);
   });
 });
 
@@ -225,19 +225,19 @@ describe("buildConditionalDefaults: /rules", () => {
 
 describe("buildConditionalDefaults: consolidated hub paths always visible", () => {
   it("/tax-center always true regardless of accounts", () => {
-    expect(buildConditionalDefaults([], null)["/tax-center"]).toBe(true);
-    expect(buildConditionalDefaults([checking()], null)["/tax-center"]).toBe(true);
+    expect(buildConditionalDefaults([])["/tax-center"]).toBe(true);
+    expect(buildConditionalDefaults([checking()])["/tax-center"]).toBe(true);
   });
   it("/life-planning always true regardless of accounts or age", () => {
-    expect(buildConditionalDefaults([], null)["/life-planning"]).toBe(true);
-    expect(buildConditionalDefaults([], 35)["/life-planning"]).toBe(true);
+    expect(buildConditionalDefaults([])["/life-planning"]).toBe(true);
+    expect(buildConditionalDefaults([])["/life-planning"]).toBe(true);
   });
   it("/investment-tools always true regardless of accounts", () => {
-    expect(buildConditionalDefaults([], null)["/investment-tools"]).toBe(true);
-    expect(buildConditionalDefaults([brokerage()], 25)["/investment-tools"]).toBe(true);
+    expect(buildConditionalDefaults([])["/investment-tools"]).toBe(true);
+    expect(buildConditionalDefaults([brokerage()])["/investment-tools"]).toBe(true);
   });
   it("old individual paths NOT in conditionalDefaults map (consolidated into hub pages)", () => {
-    const d = buildConditionalDefaults([brokerage()], 35);
+    const d = buildConditionalDefaults([brokerage()]);
     // /ss-claiming is inside /life-planning hub — no longer a top-level nav entry
     expect("/ss-claiming" in d).toBe(false);
     expect("/fire" in d).toBe(false);
@@ -250,16 +250,16 @@ describe("buildConditionalDefaults: consolidated hub paths always visible", () =
 
 describe("buildConditionalDefaults: paths not in map default to true via ?? true", () => {
   it("/overview not in map", () => {
-    expect(buildConditionalDefaults([], null)["/overview"]).toBeUndefined();
-    expect(buildConditionalDefaults([], null)["/overview"] ?? true).toBe(true);
+    expect(buildConditionalDefaults([])["/overview"]).toBeUndefined();
+    expect(buildConditionalDefaults([])["/overview"] ?? true).toBe(true);
   });
   it("/transactions not in map", () => {
-    expect(buildConditionalDefaults([], null)["/transactions"] ?? true).toBe(
+    expect(buildConditionalDefaults([])["/transactions"] ?? true).toBe(
       true,
     );
   });
   it("/retirement not in map", () => {
-    expect(buildConditionalDefaults([], null)["/retirement"] ?? true).toBe(
+    expect(buildConditionalDefaults([])["/retirement"] ?? true).toBe(
       true,
     );
   });
@@ -269,30 +269,30 @@ describe("buildConditionalDefaults: paths not in map default to true via ?? true
 
 describe("reset to defaults: post-reset visibility is account-aware", () => {
   it("mortgage visible after reset when mortgage account exists", () => {
-    const defaults = buildConditionalDefaults([mortgage()], null);
+    const defaults = buildConditionalDefaults([mortgage()]);
     expect(isNavVisible("/mortgage", {}, defaults)).toBe(true);
   });
   it("mortgage hidden after reset when no mortgage account", () => {
-    const defaults = buildConditionalDefaults([checking()], null);
+    const defaults = buildConditionalDefaults([checking()]);
     expect(isNavVisible("/mortgage", {}, defaults)).toBe(false);
   });
   it("recurring-bills visible after reset with linked bank account", () => {
-    const defaults = buildConditionalDefaults([linkedChecking()], null);
+    const defaults = buildConditionalDefaults([linkedChecking()]);
     expect(isNavVisible("/recurring-bills", {}, defaults)).toBe(true);
   });
   it("rental-properties hidden after reset without rental account", () => {
-    const defaults = buildConditionalDefaults([checking()], null);
+    const defaults = buildConditionalDefaults([checking()]);
     expect(isNavVisible("/rental-properties", {}, defaults)).toBe(false);
   });
   it("hub pages always visible after reset regardless of accounts", () => {
-    const defaults = buildConditionalDefaults([], null);
+    const defaults = buildConditionalDefaults([]);
     expect(isNavVisible("/tax-center", {}, defaults)).toBe(true);
     expect(isNavVisible("/life-planning", {}, defaults)).toBe(true);
     expect(isNavVisible("/investment-tools", {}, defaults)).toBe(true);
   });
   it("/ss-claiming not in map — merged into /life-planning hub which is always visible", () => {
     // /ss-claiming is no longer a top-level nav path; it's a tab inside /life-planning
-    const defaults = buildConditionalDefaults([], 35);
+    const defaults = buildConditionalDefaults([]);
     expect("/ss-claiming" in defaults).toBe(false);
     expect(isNavVisible("/life-planning", {}, defaults)).toBe(true);
   });
@@ -304,24 +304,24 @@ describe("isNavVisible: override priority", () => {
   beforeEach(() => localStorage.clear());
 
   it("override true shows item even when account-default is false", () => {
-    const defaults = buildConditionalDefaults([], null);
+    const defaults = buildConditionalDefaults([]);
     expect(isNavVisible("/mortgage", { "/mortgage": true }, defaults)).toBe(
       true,
     );
   });
   it("override false hides item even when account-default is true", () => {
-    const defaults = buildConditionalDefaults([mortgage()], null);
+    const defaults = buildConditionalDefaults([mortgage()]);
     expect(isNavVisible("/mortgage", { "/mortgage": false }, defaults)).toBe(
       false,
     );
   });
   it("shows all items while accounts loading (no override)", () => {
-    const defaults = buildConditionalDefaults([], null);
+    const defaults = buildConditionalDefaults([]);
     expect(isNavVisible("/mortgage", {}, defaults, true)).toBe(true);
     expect(isNavVisible("/fire", {}, defaults, true)).toBe(true);
   });
   it("override still wins while loading", () => {
-    const defaults = buildConditionalDefaults([], null);
+    const defaults = buildConditionalDefaults([]);
     expect(
       isNavVisible("/mortgage", { "/mortgage": false }, defaults, true),
     ).toBe(false);
@@ -329,7 +329,7 @@ describe("isNavVisible: override priority", () => {
   it("localStorage overrides parsed and applied correctly", () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ "/mortgage": false }));
     const overrides = loadOverrides();
-    const defaults = buildConditionalDefaults([mortgage()], null);
+    const defaults = buildConditionalDefaults([mortgage()]);
     expect(isNavVisible("/mortgage", overrides, defaults)).toBe(false);
   });
   it("corrupt localStorage returns empty overrides", () => {
@@ -475,7 +475,7 @@ describe("useNavDefaults: client-side member filter on accounts", () => {
     const selected = new Set([USER_CHRIS, USER_TEST]);
     const matcher = makeMatcher(selected, false);
     const filtered = applyMemberFilter(allAccounts, true, matcher);
-    const defaults = buildConditionalDefaults(filtered, null);
+    const defaults = buildConditionalDefaults(filtered);
     // No mortgage account in the filtered set → /mortgage should be hidden
     expect(defaults["/mortgage"]).toBe(false);
   });
@@ -483,7 +483,7 @@ describe("useNavDefaults: client-side member filter on accounts", () => {
   it("test-user2 mortgage included when all members selected → /mortgage shown", () => {
     const matcher = makeMatcher(new Set([USER_CHRIS, USER_TEST, USER_TEST2]), true);
     const filtered = applyMemberFilter(allAccounts, false, matcher);
-    const defaults = buildConditionalDefaults(filtered, null);
+    const defaults = buildConditionalDefaults(filtered);
     expect(defaults["/mortgage"]).toBe(true);
   });
 
@@ -509,7 +509,7 @@ describe("useNavDefaults: client-side member filter on accounts", () => {
     const selected = new Set([USER_CHRIS]);
     const matcher = makeMatcher(selected, false);
     const filtered = applyMemberFilter([chrisMortgage, test2CreditCard], true, matcher);
-    const defaults = buildConditionalDefaults(filtered, null);
+    const defaults = buildConditionalDefaults(filtered);
     // Chris has mortgage → debt-payoff shown (mortgage is a DEBT_TYPE)
     expect(defaults["/mortgage"]).toBe(true);
     expect(defaults["/debt-payoff"]).toBe(true);

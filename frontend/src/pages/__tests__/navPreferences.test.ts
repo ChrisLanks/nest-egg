@@ -32,7 +32,6 @@ const LEGACY_ADVANCED_KEY = "nest-egg-show-advanced-nav";
 // Must match ADVANCED_PATHS in PreferencesPage (all items with advanced: true in NAV_SECTIONS)
 const ADVANCED_NAV_PATHS = [
   "/investment-tools",
-  "/bond-ladder",
   "/pe-performance",
 ];
 
@@ -138,7 +137,7 @@ const isItemOn = (
 
 describe("isItemOn: account-aware defaults (conditionalDefaults)", () => {
   it("alwaysOn items are always on regardless of overrides", () => {
-    const defaults = buildConditionalDefaults(noAccounts, null);
+    const defaults = buildConditionalDefaults(noAccounts);
     expect(isItemOn({ path: "/overview", alwaysOn: true }, {}, defaults)).toBe(
       true,
     );
@@ -152,63 +151,63 @@ describe("isItemOn: account-aware defaults (conditionalDefaults)", () => {
   });
 
   it("non-conditional items default to on (not in conditionalDefaults map)", () => {
-    const defaults = buildConditionalDefaults(noAccounts, null);
+    const defaults = buildConditionalDefaults(noAccounts);
     expect(isItemOn({ path: "/transactions" }, {}, defaults)).toBe(true);
     expect(isItemOn({ path: "/retirement" }, {}, defaults)).toBe(true);
     expect(isItemOn({ path: "/goals" }, {}, defaults)).toBe(true);
   });
 
   it("mortgage shows as ON when user has mortgage account", () => {
-    const defaults = buildConditionalDefaults(withMortgage, null);
+    const defaults = buildConditionalDefaults(withMortgage);
     expect(isItemOn({ path: "/mortgage" }, {}, defaults)).toBe(true);
   });
 
   it("mortgage shows as OFF when user has no mortgage account", () => {
-    const defaults = buildConditionalDefaults(noAccounts, null);
+    const defaults = buildConditionalDefaults(noAccounts);
     expect(isItemOn({ path: "/mortgage" }, {}, defaults)).toBe(false);
   });
 
   it("debt-payoff shows as ON when user has credit card", () => {
-    const defaults = buildConditionalDefaults(withCreditCard, null);
+    const defaults = buildConditionalDefaults(withCreditCard);
     expect(isItemOn({ path: "/debt-payoff" }, {}, defaults)).toBe(true);
   });
 
   it("rental-properties shows as ON when rental account exists", () => {
-    const defaults = buildConditionalDefaults(withRental, null);
+    const defaults = buildConditionalDefaults(withRental);
     expect(isItemOn({ path: "/rental-properties" }, {}, defaults)).toBe(true);
   });
 
   it("rental-properties shows as OFF with no rental account", () => {
-    const defaults = buildConditionalDefaults(noAccounts, null);
+    const defaults = buildConditionalDefaults(noAccounts);
     expect(isItemOn({ path: "/rental-properties" }, {}, defaults)).toBe(false);
   });
 
   it("recurring-bills shows as ON with linked bank account", () => {
-    const defaults = buildConditionalDefaults(withLinkedBank, null);
+    const defaults = buildConditionalDefaults(withLinkedBank);
     expect(isItemOn({ path: "/recurring-bills" }, {}, defaults)).toBe(true);
   });
 
   it("recurring-bills shows as OFF with no linked account", () => {
-    const defaults = buildConditionalDefaults(noAccounts, null);
+    const defaults = buildConditionalDefaults(noAccounts);
     expect(isItemOn({ path: "/recurring-bills" }, {}, defaults)).toBe(false);
   });
 
   it("override true turns on a conditionally-off item", () => {
-    const defaults = buildConditionalDefaults(noAccounts, null);
+    const defaults = buildConditionalDefaults(noAccounts);
     expect(
       isItemOn({ path: "/mortgage" }, { "/mortgage": true }, defaults),
     ).toBe(true);
   });
 
   it("override false turns off a conditionally-on item", () => {
-    const defaults = buildConditionalDefaults(withMortgage, null);
+    const defaults = buildConditionalDefaults(withMortgage);
     expect(
       isItemOn({ path: "/mortgage" }, { "/mortgage": false }, defaults),
     ).toBe(false);
   });
 
   it("override false turns off a non-conditional item", () => {
-    const defaults = buildConditionalDefaults(noAccounts, null);
+    const defaults = buildConditionalDefaults(noAccounts);
     expect(
       isItemOn({ path: "/budgets" }, { "/budgets": false }, defaults),
     ).toBe(false);
@@ -219,13 +218,13 @@ describe("isItemOn: account-aware defaults (conditionalDefaults)", () => {
 
 describe("isNavVisible: unified override model", () => {
   it("override=true shows regardless of account default", () => {
-    const defaults = buildConditionalDefaults(noAccounts, null);
+    const defaults = buildConditionalDefaults(noAccounts);
     expect(isNavVisible("/mortgage", { "/mortgage": true }, defaults)).toBe(
       true,
     );
   });
   it("override=false hides regardless of account default", () => {
-    const defaults = buildConditionalDefaults(withMortgage, null);
+    const defaults = buildConditionalDefaults(withMortgage);
     expect(isNavVisible("/mortgage", { "/mortgage": false }, defaults)).toBe(
       false,
     );
@@ -235,15 +234,15 @@ describe("isNavVisible: unified override model", () => {
       isNavVisible(
         "/mortgage",
         {},
-        buildConditionalDefaults(withMortgage, null),
+        buildConditionalDefaults(withMortgage),
       ),
     ).toBe(true);
     expect(
-      isNavVisible("/mortgage", {}, buildConditionalDefaults(noAccounts, null)),
+      isNavVisible("/mortgage", {}, buildConditionalDefaults(noAccounts)),
     ).toBe(false);
   });
   it("paths not in conditionalDefaults default to true", () => {
-    const defaults = buildConditionalDefaults(noAccounts, null);
+    const defaults = buildConditionalDefaults(noAccounts);
     expect(isNavVisible("/transactions", {}, defaults)).toBe(true);
     expect(isNavVisible("/retirement", {}, defaults)).toBe(true);
   });
@@ -329,7 +328,7 @@ describe("per-item switch independence", () => {
   it("per-item on for /fire while master is off — /fire visible, master still false", () => {
     let overrides = toggleAdvancedNav({}, false);
     overrides = toggleItem(overrides, "/fire", true);
-    const defaults = buildConditionalDefaults(noAccounts, null);
+    const defaults = buildConditionalDefaults(noAccounts);
     expect(isNavVisible("/fire", overrides, defaults)).toBe(true);
     expect(deriveShowAdvanced(overrides)).toBe(false);
   });
@@ -337,7 +336,7 @@ describe("per-item switch independence", () => {
   it("per-item off for /investment-tools overrides master-on state", () => {
     let overrides = toggleAdvancedNav({}, true);
     overrides = toggleItem(overrides, "/investment-tools", false);
-    const defaults = buildConditionalDefaults(noAccounts, null);
+    const defaults = buildConditionalDefaults(noAccounts);
     expect(isNavVisible("/investment-tools", overrides, defaults)).toBe(false);
     expect(deriveShowAdvanced(overrides)).toBe(false);
   });
@@ -413,28 +412,28 @@ describe("reset to defaults", () => {
   it("post-reset: mortgage ON when mortgage account exists", () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ "/mortgage": false }));
     resetToDefaults();
-    const defaults = buildConditionalDefaults(withMortgage, null);
+    const defaults = buildConditionalDefaults(withMortgage);
     expect(isItemOn({ path: "/mortgage" }, loadOverrides(), defaults)).toBe(
       true,
     );
   });
   it("post-reset: mortgage OFF when no mortgage account", () => {
     resetToDefaults();
-    const defaults = buildConditionalDefaults(noAccounts, null);
+    const defaults = buildConditionalDefaults(noAccounts);
     expect(isItemOn({ path: "/mortgage" }, loadOverrides(), defaults)).toBe(
       false,
     );
   });
   it("post-reset: rental-properties ON with rental account", () => {
     resetToDefaults();
-    const defaults = buildConditionalDefaults(withRental, null);
+    const defaults = buildConditionalDefaults(withRental);
     expect(
       isItemOn({ path: "/rental-properties" }, loadOverrides(), defaults),
     ).toBe(true);
   });
   it("post-reset: rental-properties OFF without rental account", () => {
     resetToDefaults();
-    const defaults = buildConditionalDefaults(noAccounts, null);
+    const defaults = buildConditionalDefaults(noAccounts);
     expect(
       isItemOn({ path: "/rental-properties" }, loadOverrides(), defaults),
     ).toBe(false);
@@ -468,12 +467,12 @@ describe("NAV_SECTIONS: structure", () => {
       "/rules",
     ]);
   });
-  it("advanced items are /investment-tools, /bond-ladder, /pe-performance", () => {
+  it("advanced items are /investment-tools, /pe-performance", () => {
     const advancedPaths = NAV_SECTIONS.flatMap((s) => s.items)
       .filter((i) => i.advanced)
       .map((i) => i.path)
       .sort();
-    expect(advancedPaths).toEqual(["/bond-ladder", "/investment-tools", "/pe-performance"]);
+    expect(advancedPaths).toEqual(["/investment-tools", "/pe-performance"]);
   });
   it("no spending items are advanced; /recurring-bills and /rules are conditional", () => {
     const spending = NAV_SECTIONS.find((s) => s.group === "Spending");
@@ -514,7 +513,7 @@ describe("top-nav Advanced button: removed (consolidated into Preferences)", () 
 
   it("enabling advanced via Preferences toggle makes all advanced paths visible", () => {
     const overrides = toggleAdvancedNav({}, true);
-    const defaults = buildConditionalDefaults(noAccounts, null);
+    const defaults = buildConditionalDefaults(noAccounts);
     for (const p of ADVANCED_NAV_PATHS) {
       expect(isNavVisible(p, overrides, defaults)).toBe(true);
     }
@@ -522,7 +521,7 @@ describe("top-nav Advanced button: removed (consolidated into Preferences)", () 
 
   it("disabling advanced via Preferences toggle hides all advanced paths", () => {
     const overrides = toggleAdvancedNav({}, false);
-    const defaults = buildConditionalDefaults(noAccounts, null);
+    const defaults = buildConditionalDefaults(noAccounts);
     for (const p of ADVANCED_NAV_PATHS) {
       expect(isNavVisible(p, overrides, defaults)).toBe(false);
     }
@@ -548,14 +547,14 @@ describe("Life Planning hub: always visible (SS age-gating inside hub)", () => {
   });
 
   it("/ss-claiming is not in conditionalDefaults (merged into hub)", () => {
-    const defaults = buildConditionalDefaults(noAccounts, null);
+    const defaults = buildConditionalDefaults(noAccounts);
     expect("/ss-claiming" in defaults).toBe(false);
   });
 
   it("/life-planning is always visible regardless of age", () => {
-    const defaultsNoAge = buildConditionalDefaults(noAccounts, null);
-    const defaultsYoung = buildConditionalDefaults(noAccounts, 30);
-    const defaultsOld = buildConditionalDefaults(noAccounts, 65);
+    const defaultsNoAge = buildConditionalDefaults(noAccounts);
+    const defaultsYoung = buildConditionalDefaults(noAccounts);
+    const defaultsOld = buildConditionalDefaults(noAccounts);
     // undefined means not in map → defaults to true in isNavVisible
     expect(defaultsNoAge["/life-planning"] ?? true).toBe(true);
     expect(defaultsYoung["/life-planning"] ?? true).toBe(true);

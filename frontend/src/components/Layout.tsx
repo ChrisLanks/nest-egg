@@ -964,13 +964,7 @@ export const Layout = () => {
       label: "Planning Tools",
       path: "/investment-tools",
       tooltip:
-        "FIRE metrics, equity compensation, loan modeler, HSA optimizer, tax-equivalent yield, asset location, employer match, cost basis aging, and what-if scenarios",
-      advanced: true,
-    },
-    {
-      label: "Bond Ladder",
-      path: "/bond-ladder",
-      tooltip: "Build a Treasury/CD/TIPS bond ladder for income generation",
+        "FIRE metrics, equity compensation, loan modeler, HSA optimizer, tax-equivalent yield, asset location, employer match, cost basis aging, bond ladder, and what-if scenarios",
       advanced: true,
     },
     {

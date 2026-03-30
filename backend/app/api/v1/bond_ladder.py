@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.treasury_rates import _fetch_fred_rate, TREASURY_SERIES
+from app.constants.financial import BOND_LADDER as BOND_LADDER_CONSTANTS
 from app.core.cache import get as cache_get
 from app.core.database import get_db
 from app.dependencies import get_current_user
@@ -17,12 +17,8 @@ from app.services.bond_ladder_service import build_ladder, estimate_cd_rates
 
 router = APIRouter()
 
-# Fallback treasury rates when cache is unavailable
-_FALLBACK_TREASURY_RATES = {
-    "1_month": 0.0435, "3_month": 0.0430, "6_month": 0.0425,
-    "1_year": 0.0420, "2_year": 0.0410, "5_year": 0.0400,
-    "10_year": 0.0395, "30_year": 0.0410,
-}
+# Fallback treasury rates sourced from app.constants.financial.BOND_LADDER
+_FALLBACK_TREASURY_RATES = BOND_LADDER_CONSTANTS.FALLBACK_TREASURY_RATES
 
 
 class BondLadderRequest(BaseModel):
