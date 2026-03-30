@@ -210,12 +210,16 @@ async def update_goal(
         sanitized["description"] = input_sanitization_service.sanitize_html(
             sanitized["description"]
         )
-    goal = await savings_goal_service.update_goal(
-        db=db,
-        goal_id=goal_id,
-        user=current_user,
-        **sanitized,
-    )
+    try:
+        goal = await savings_goal_service.update_goal(
+            db=db,
+            goal_id=goal_id,
+            user=current_user,
+            **sanitized,
+        )
+    except Exception:
+        logger.exception("update_goal failed for goal %s", goal_id)
+        raise HTTPException(status_code=500, detail="Failed to update goal — check server logs")
 
     if not goal:
         raise HTTPException(status_code=404, detail="Savings goal not found")
@@ -300,11 +304,15 @@ async def get_goal_progress(
     db: AsyncSession = Depends(get_db),
 ):
     """Get progress metrics for a savings goal."""
-    progress = await savings_goal_service.get_goal_progress(
-        db=db,
-        goal_id=goal_id,
-        user=current_user,
-    )
+    try:
+        progress = await savings_goal_service.get_goal_progress(
+            db=db,
+            goal_id=goal_id,
+            user=current_user,
+        )
+    except Exception:
+        logger.exception("get_goal_progress failed for goal %s", goal_id)
+        raise HTTPException(status_code=500, detail="Failed to compute goal progress")
 
     if not progress:
         raise HTTPException(status_code=404, detail="Savings goal not found")

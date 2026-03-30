@@ -826,3 +826,95 @@ class TestSharedGoalFields:
 
             call_kwargs = mock_update.call_args.kwargs
             assert call_kwargs["is_shared"] is True
+
+
+@pytest.mark.unit
+class TestUpdateGoalErrorHandling:
+    """Test update_goal endpoint error handling (500 path)."""
+
+    @pytest.fixture
+    def mock_db(self):
+        return AsyncMock()
+
+    @pytest.fixture
+    def mock_user(self):
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        return user
+
+    @pytest.mark.asyncio
+    async def test_raises_500_when_service_throws(self, mock_db, mock_user):
+        """Should convert an unexpected service exception into a 500 HTTPException."""
+        goal_id = uuid4()
+        update_data = SavingsGoalUpdate(is_completed=True)
+
+        with patch(
+            "app.api.v1.savings_goals.savings_goal_service.update_goal",
+            side_effect=Exception("DB constraint violation"),
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await update_goal(
+                    http_request=MagicMock(),
+                    goal_id=goal_id,
+                    goal_data=update_data,
+                    current_user=mock_user,
+                    db=mock_db,
+                )
+
+            assert exc_info.value.status_code == 500
+
+    @pytest.mark.asyncio
+    async def test_404_still_raised_when_service_returns_none(self, mock_db, mock_user):
+        """Should still raise 404 when service returns None (goal not found)."""
+        goal_id = uuid4()
+        update_data = SavingsGoalUpdate(name="New Name")
+
+        with patch(
+            "app.api.v1.savings_goals.savings_goal_service.update_goal",
+            return_value=None,
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await update_goal(
+                    http_request=MagicMock(),
+                    goal_id=goal_id,
+                    goal_data=update_data,
+                    current_user=mock_user,
+                    db=mock_db,
+                )
+
+            assert exc_info.value.status_code == 404
+
+
+@pytest.mark.unit
+class TestGetGoalProgressErrorHandling:
+    """Test get_goal_progress endpoint error handling (500 path)."""
+
+    @pytest.fixture
+    def mock_db(self):
+        return AsyncMock()
+
+    @pytest.fixture
+    def mock_user(self):
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        return user
+
+    @pytest.mark.asyncio
+    async def test_raises_500_when_service_throws(self, mock_db, mock_user):
+        """Should convert an unexpected service exception into a 500 HTTPException."""
+        goal_id = uuid4()
+
+        with patch(
+            "app.api.v1.savings_goals.savings_goal_service.get_goal_progress",
+            side_effect=TypeError("unsupported operand"),
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await get_goal_progress(
+                    goal_id=goal_id,
+                    current_user=mock_user,
+                    db=mock_db,
+                )
+
+            assert exc_info.value.status_code == 500

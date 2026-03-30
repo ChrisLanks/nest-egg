@@ -182,23 +182,30 @@ class SavingsGoalService:
             and goal.current_amount >= goal.target_amount
         )
         if just_completed or just_hit_target:
-            await NotificationService.create_notification(
-                db=db,
-                organization_id=user.organization_id,
-                user_id=user.id,
-                type=NotificationType.GOAL_COMPLETED,
-                title=f"Goal reached: {goal.name}",
-                message=(
-                    f"You've saved ${float(goal.current_amount):,.0f} — "
-                    f"your {goal.name} goal is complete!"
-                ),
-                priority=NotificationPriority.HIGH,
-                related_entity_type="savings_goal",
-                related_entity_id=goal.id,
-                action_url="/goals",
-                action_label="View Goals",
-                expires_in_days=30,
-            )
+            try:
+                await NotificationService.create_notification(
+                    db=db,
+                    organization_id=user.organization_id,
+                    user_id=user.id,
+                    type=NotificationType.GOAL_COMPLETED,
+                    title=f"Goal reached: {goal.name}",
+                    message=(
+                        f"You've saved ${float(goal.current_amount):,.0f} — "
+                        f"your {goal.name} goal is complete!"
+                    ),
+                    priority=NotificationPriority.HIGH,
+                    related_entity_type="savings_goal",
+                    related_entity_id=goal.id,
+                    action_url="/goals",
+                    action_label="View Goals",
+                    expires_in_days=30,
+                )
+            except Exception:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Failed to create goal_completed notification (enum may need migration)",
+                    exc_info=True,
+                )
 
         return goal
 
@@ -263,23 +270,30 @@ class SavingsGoalService:
             and prev_amount < goal.target_amount
             and goal.current_amount >= goal.target_amount
         ):
-            await NotificationService.create_notification(
-                db=db,
-                organization_id=user.organization_id,
-                user_id=user.id,
-                type=NotificationType.GOAL_COMPLETED,
-                title=f"Goal reached: {goal.name}",
-                message=(
-                    f"Your account balance hit ${float(goal.current_amount):,.0f} — "
-                    f"you've reached your {goal.name} target!"
-                ),
-                priority=NotificationPriority.HIGH,
-                related_entity_type="savings_goal",
-                related_entity_id=goal.id,
-                action_url="/goals",
-                action_label="View Goals",
-                expires_in_days=30,
-            )
+            try:
+                await NotificationService.create_notification(
+                    db=db,
+                    organization_id=user.organization_id,
+                    user_id=user.id,
+                    type=NotificationType.GOAL_COMPLETED,
+                    title=f"Goal reached: {goal.name}",
+                    message=(
+                        f"Your account balance hit ${float(goal.current_amount):,.0f} — "
+                        f"you've reached your {goal.name} target!"
+                    ),
+                    priority=NotificationPriority.HIGH,
+                    related_entity_type="savings_goal",
+                    related_entity_id=goal.id,
+                    action_url="/goals",
+                    action_label="View Goals",
+                    expires_in_days=30,
+                )
+            except Exception:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Failed to create goal_completed notification (enum may need migration)",
+                    exc_info=True,
+                )
 
         return goal
 
@@ -307,23 +321,30 @@ class SavingsGoalService:
         await db.refresh(goal)
 
         # Notify that the goal was used/funded
-        await NotificationService.create_notification(
-            db=db,
-            organization_id=user.organization_id,
-            user_id=user.id,
-            type=NotificationType.GOAL_FUNDED,
-            title=f"Goal funded: {goal.name}",
-            message=(
-                f"You marked your {goal.name} goal as funded — the money has been put to use. "
-                f"Great work!"
-            ),
-            priority=NotificationPriority.MEDIUM,
-            related_entity_type="savings_goal",
-            related_entity_id=goal.id,
-            action_url="/goals",
-            action_label="View Goals",
-            expires_in_days=14,
-        )
+        try:
+            await NotificationService.create_notification(
+                db=db,
+                organization_id=user.organization_id,
+                user_id=user.id,
+                type=NotificationType.GOAL_FUNDED,
+                title=f"Goal funded: {goal.name}",
+                message=(
+                    f"You marked your {goal.name} goal as funded — the money has been put to use. "
+                    f"Great work!"
+                ),
+                priority=NotificationPriority.MEDIUM,
+                related_entity_type="savings_goal",
+                related_entity_id=goal.id,
+                action_url="/goals",
+                action_label="View Goals",
+                expires_in_days=14,
+            )
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Failed to create goal_funded notification (enum may need migration)",
+                exc_info=True,
+            )
 
         # Recalculate remaining auto-sync goals now that this one is excluded
         await SavingsGoalService.auto_sync_goals(db, user, method)
@@ -505,8 +526,9 @@ class SavingsGoalService:
         remaining = goal.target_amount - goal.current_amount
 
         # Calculate days elapsed and remaining
-        days_elapsed = (date.today() - goal.start_date).days
-        days_remaining = (goal.target_date - date.today()).days if goal.target_date else None
+        today = date.today()
+        days_elapsed = (today - goal.start_date).days if goal.start_date else 0
+        days_remaining = (goal.target_date - today).days if goal.target_date else None
 
         # Calculate required monthly savings
         monthly_required = None

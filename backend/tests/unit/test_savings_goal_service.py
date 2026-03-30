@@ -865,3 +865,100 @@ class TestAllocateBalancesNPlusOne:
         # Only 1 execute call: the initial goals fetch (no accounts fetch, no reload)
         assert db.execute.call_count == 1
         db.refresh.assert_not_called()
+
+
+@pytest.mark.unit
+class TestGetGoalProgressNullStartDate:
+    """Regression: get_goal_progress must not crash when start_date is None."""
+
+    @pytest.mark.asyncio
+    async def test_null_start_date_returns_zero_days_elapsed(self, db, test_user):
+        """
+        Goals with a NULL start_date (edge case from old imports) should
+        return days_elapsed=0 rather than raising a TypeError.
+        The service null guard handles this without hitting the DB constraint.
+        """
+        from unittest.mock import AsyncMock as _AsyncMock, MagicMock as _MagicMock, patch
+
+        # Build a goal mock with start_date=None to simulate old/corrupt data
+        goal_mock = Mock()
+        goal_mock.id = uuid4()
+        goal_mock.name = "Null Start Goal"
+        goal_mock.target_amount = Decimal("5000.00")
+        goal_mock.current_amount = Decimal("2500.00")
+        goal_mock.start_date = None  # the edge case we're guarding against
+        goal_mock.target_date = None
+        goal_mock.is_completed = False
+
+        mock_result = _MagicMock()
+        mock_result.scalar_one_or_none.return_value = goal_mock
+
+        mock_db = _AsyncMock()
+        mock_db.execute.return_value = mock_result
+
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+
+        progress = await SavingsGoalService.get_goal_progress(mock_db, goal_mock.id, user)
+        assert progress is not None
+        assert progress["days_elapsed"] == 0
+        assert progress["progress_percentage"] == 50.0
+
+
+@pytest.mark.unit
+class TestNotificationFailureResilience:
+    """Regression: notification failures in update_goal/fund_goal must not raise 500."""
+
+    @pytest.mark.asyncio
+    async def test_update_goal_completes_despite_notification_error(self, db, test_user):
+        """
+        If NotificationService.create_notification raises (e.g. enum not in DB),
+        update_goal should still succeed and return the updated goal.
+        """
+        from unittest.mock import patch
+
+        service = SavingsGoalService()
+        goal = await service.create_goal(
+            db,
+            test_user,
+            name="Complete Me",
+            target_amount=Decimal("1000.00"),
+            start_date=date.today(),
+        )
+
+        with patch(
+            "app.services.savings_goal_service.NotificationService.create_notification",
+            side_effect=Exception("invalid input value for enum notificationtype: goal_completed"),
+        ):
+            updated = await service.update_goal(db, goal.id, test_user, is_completed=True)
+
+        assert updated is not None
+        assert updated.is_completed is True
+        assert updated.completed_at is not None
+
+    @pytest.mark.asyncio
+    async def test_fund_goal_completes_despite_notification_error(self, db, test_user):
+        """
+        If NotificationService.create_notification raises,
+        fund_goal should still mark the goal as funded.
+        """
+        from unittest.mock import patch
+
+        service = SavingsGoalService()
+        goal = await service.create_goal(
+            db,
+            test_user,
+            name="Fund Me",
+            target_amount=Decimal("5000.00"),
+            start_date=date.today(),
+        )
+
+        with patch(
+            "app.services.savings_goal_service.NotificationService.create_notification",
+            side_effect=Exception("invalid input value for enum notificationtype: goal_funded"),
+        ):
+            funded = await service.fund_goal(db, goal.id, test_user)
+
+        assert funded is not None
+        assert funded.is_funded is True
