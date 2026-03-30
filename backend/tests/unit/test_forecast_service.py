@@ -1271,6 +1271,13 @@ class TestGenerateForecast:
                 new_callable=AsyncMock,
                 return_value=[],
             ),
+            patch(
+                "app.services.forecast_service.RecurringDetectionService.detect_recurring_patterns",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch("app.services.forecast_service.cache.setnx_with_ttl", new=AsyncMock(return_value=True)),
+            patch("app.services.forecast_service.cache.delete", new=AsyncMock(return_value=True)),
         ):
             forecast = await ForecastService.generate_forecast(db, org_id, days_ahead=5)
 

@@ -68,11 +68,30 @@ class ForecastService:
         # Get current account balances (exclude cash flow exclusions)
         current_balance = await ForecastService._get_total_balance(db, organization_id, user_id)
 
-        # Get recurring transactions
+        # Get recurring transactions — trigger on-demand detection if none exist yet
         user = User(organization_id=organization_id)
         recurring = await RecurringDetectionService.get_recurring_transactions(
             db, user, is_active=True
         )
+
+        if not recurring:
+            # No patterns yet — run detection on-demand behind a distributed lock to
+            # prevent a thundering herd (many concurrent requests all triggering detection).
+            # setnx sets the key only if absent; expire ensures it auto-releases.
+            lock_key = f"forecast:detect_lock:{organization_id}"
+            acquired = await cache.setnx_with_ttl(lock_key, 60)
+            if acquired:
+                try:
+                    await RecurringDetectionService.detect_recurring_patterns(db, user)
+                    await db.commit()
+                finally:
+                    await cache.delete(lock_key)
+                # Re-fetch with relationships loaded
+                recurring = await RecurringDetectionService.get_recurring_transactions(
+                    db, user, is_active=True
+                )
+            # If lock was not acquired another request is already running detection —
+            # proceed with empty recurring list and return the balance-only forecast.
 
         # Filter by user_id if provided
         if user_id:

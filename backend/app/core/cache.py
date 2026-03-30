@@ -56,6 +56,22 @@ async def delete(key: str) -> bool:
         return False
 
 
+async def setnx_with_ttl(key: str, ttl: int) -> bool:
+    """Atomically set key only if it does not exist, with expiration (distributed lock).
+
+    Returns True if the lock was acquired (key was absent), False if already held.
+    Uses SET NX EX which is atomic in Redis — safe against race conditions.
+    """
+    if not redis_client:
+        return True  # No Redis → always act as if lock acquired (single-process fallback)
+    try:
+        result = await redis_client.set(key, 1, nx=True, ex=ttl)
+        return result is not None
+    except Exception as e:
+        logging.error(f"Cache setnx error: {e}")
+        return False
+
+
 async def delete_pattern(pattern: str) -> int:
     """Delete all keys matching a pattern. Returns count of deleted keys."""
     if not redis_client:
