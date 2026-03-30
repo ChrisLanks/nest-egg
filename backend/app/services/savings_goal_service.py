@@ -539,7 +539,7 @@ class SavingsGoalService:
 
         # On track calculation
         on_track = None
-        if goal.target_date and days_elapsed > 0:
+        if goal.target_date and goal.start_date and days_elapsed > 0:
             total_days = (goal.target_date - goal.start_date).days
             if total_days > 0:
                 expected_progress = (days_elapsed / total_days) * 100
