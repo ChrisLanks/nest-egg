@@ -535,6 +535,9 @@ export const Layout = () => {
     isLoadingGrants,
     selectedMemberIds,
     isAllSelected,
+    memberEffectiveUserId,
+    isPartialMemberSelection,
+    matchesMemberFilter,
   } = useUserView();
   const logoutMutation = useLogout();
   const {
@@ -596,7 +599,7 @@ export const Layout = () => {
 
   // ── Nav visibility: centralized defaults from useNavDefaults hook ──
   const { accounts, accountsLoading, userAge, conditionalDefaults } =
-    useNavDefaults(selectedUserId);
+    useNavDefaults(selectedUserId, memberEffectiveUserId, isPartialMemberSelection, matchesMemberFilter);
 
   // Derived flags still needed for feature-discovery toasts
   const has529 = accounts.some((a) => a.account_type === "retirement_529");

@@ -12,6 +12,7 @@ import { useLocalStorage } from "./useLocalStorage";
 
 interface Account {
   account_type: string;
+  user_id?: string;
   is_rental_property?: boolean;
   plaid_item_id?: string | null;
   plaid_item_hash?: string | null;
@@ -211,17 +212,32 @@ export function getLockedNavTooltip(path: string): string | undefined {
  * Both Layout and PreferencesPage call this so they always agree on what
  * "default visible" means for each path.
  */
-export function useNavDefaults(selectedUserId?: string | null) {
-  const { data: accounts = [], isLoading: accountsLoading } = useQuery<
+export function useNavDefaults(
+  selectedUserId?: string | null,
+  memberEffectiveUserId?: string | null,
+  isPartialMemberSelection?: boolean,
+  matchesMemberFilter?: (itemUserId: string | null | undefined) => boolean,
+) {
+  // In combined view with member filter, use memberEffectiveUserId for the query
+  // (undefined = fetch all, then filter client-side for partial selections)
+  const queryUserId = selectedUserId ?? memberEffectiveUserId ?? null;
+
+  const { data: rawAccounts = [], isLoading: accountsLoading } = useQuery<
     Account[]
   >({
-    queryKey: ["accounts", selectedUserId ?? null],
+    queryKey: ["accounts", queryUserId, isPartialMemberSelection ?? false],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const params = queryUserId ? { user_id: queryUserId } : {};
       const res = await api.get("/accounts", { params });
       return res.data;
     },
   });
+
+  // When 2+ members are selected (partial), filter client-side by selected members
+  const accounts =
+    isPartialMemberSelection && matchesMemberFilter
+      ? rawAccounts.filter((a) => matchesMemberFilter(a.user_id))
+      : rawAccounts;
 
   const { data: userProfile } = useQuery({
     queryKey: ["user-profile-nav"],
