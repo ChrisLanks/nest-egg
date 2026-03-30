@@ -100,7 +100,7 @@ const TopMerchantsWidgetBase: React.FC = () => {
           <Heading size="md">Top Merchants</Heading>
           <Link
             as={RouterLink}
-            to="/income-expenses"
+            to="/cash-flow"
             fontSize="sm"
             color="brand.500"
           >

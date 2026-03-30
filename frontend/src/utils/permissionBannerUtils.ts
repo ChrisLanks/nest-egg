@@ -22,7 +22,7 @@ export const ROUTE_TO_RESOURCE_TYPE: Record<string, string> = {
   "/investments": "holding",
   "/budgets": "budget",
   "/goals": "savings_goal",
-  "/income-expenses": "report",
+  "/cash-flow": "report",
   "/trends": "report",
   "/reports": "report",
   "/tax-deductible": "report",

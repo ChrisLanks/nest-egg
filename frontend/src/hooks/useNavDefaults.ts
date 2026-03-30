@@ -79,7 +79,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     group: "Analytics",
     items: [
-      { label: "Cash Flow", path: "/income-expenses" },
+      { label: "Cash Flow", path: "/cash-flow" },
       { label: "Net Worth Timeline", path: "/net-worth-timeline" },
       { label: "Trends", path: "/trends" },
       { label: "Reports", path: "/reports" },

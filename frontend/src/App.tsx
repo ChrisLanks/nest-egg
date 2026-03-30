@@ -35,9 +35,9 @@ const CategoriesPage = lazy(() =>
   import("./pages/CategoriesPage").then((m) => ({ default: m.CategoriesPage })),
 );
 const PreferencesPage = lazy(() => import("./pages/PreferencesPage"));
-const IncomeExpensesPage = lazy(() =>
-  import("./features/income-expenses/pages/IncomeExpensesPage").then((m) => ({
-    default: m.IncomeExpensesPage,
+const CashFlowPage = lazy(() =>
+  import("./pages/CashFlowPage").then((m) => ({
+    default: m.CashFlowPage,
   })),
 );
 const AccountDetailPage = lazy(() =>
@@ -62,11 +62,7 @@ const RecurringTransactionsPage = lazy(
 const BillsPage = lazy(() => import("./pages/BillsPage"));
 const RecurringBillsPage = lazy(() => import("./pages/RecurringBillsPage"));
 const TaxDeductiblePage = lazy(() => import("./pages/TaxDeductiblePage"));
-const CashFlowForecastPage = lazy(() =>
-  import("./pages/CashFlowForecastPage").then((m) => ({
-    default: m.CashFlowForecastPage,
-  })),
-);
+
 const TrendsPage = lazy(() => import("./pages/TrendsPage"));
 const ReportsPage = lazy(() => import("./pages/ReportsPage"));
 const YearInReviewPage = lazy(() =>
@@ -202,8 +198,12 @@ function App() {
                       />
                       <Route path="/rules" element={<RulesPage />} />
                       <Route
+                        path="/cash-flow"
+                        element={<CashFlowPage />}
+                      />
+                      <Route
                         path="/income-expenses"
-                        element={<IncomeExpensesPage />}
+                        element={<Navigate to="/cash-flow" replace />}
                       />
                       <Route path="/categories" element={<CategoriesPage />} />
                       <Route
@@ -212,7 +212,7 @@ function App() {
                       />
                       <Route
                         path="/cash-flow-forecast"
-                        element={<CashFlowForecastPage />}
+                        element={<Navigate to="/cash-flow?tab=forecast" replace />}
                       />
                       <Route path="/trends" element={<TrendsPage />} />
                       <Route path="/reports" element={<ReportsPage />} />

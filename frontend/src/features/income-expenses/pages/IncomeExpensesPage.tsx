@@ -366,7 +366,7 @@ const MoneyFlowSankey = ({
   );
 };
 
-export const IncomeExpensesPage = () => {
+export const IncomeExpensesPage = ({ embedded = false }: { embedded?: boolean }) => {
   // Use global user view context + multi-member filter
   const {
     selectedUserId,
@@ -1935,15 +1935,17 @@ export const IncomeExpensesPage = () => {
       <VStack spacing={8} align="stretch">
         {/* Header with Date Range Picker */}
         <HStack justify="space-between" align="start">
-          <Box>
-            <Heading size="lg" mb={2}>
-              Cash Flow
-              <HelpHint hint={helpContent.incomeExpenses.cashFlow} />
-            </Heading>
-            <Text color="text.secondary">
-              Analyze your income sources and spending patterns
-            </Text>
-          </Box>
+          {!embedded && (
+            <Box>
+              <Heading size="lg" mb={2}>
+                Cash Flow
+                <HelpHint hint={helpContent.incomeExpenses.cashFlow} />
+              </Heading>
+              <Text color="text.secondary">
+                Analyze your income sources and spending patterns
+              </Text>
+            </Box>
+          )}
           <DateRangePicker
             value={dateRange}
             onChange={handleDateRangeChange}

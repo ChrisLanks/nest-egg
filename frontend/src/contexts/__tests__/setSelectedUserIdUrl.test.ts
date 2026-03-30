@@ -57,10 +57,10 @@ describe("setSelectedUserId URL construction", () => {
   it("preserves existing search params alongside user param", () => {
     const result = buildNavigationTarget(
       "user-456",
-      "/income-expenses",
+      "/cash-flow",
       "?start=2026-01-01&end=2026-03-31",
     );
-    expect(result.pathname).toBe("/income-expenses");
+    expect(result.pathname).toBe("/cash-flow");
     expect(result.search).toContain("user=user-456");
     expect(result.search).toContain("start=2026-01-01");
     expect(result.search).toContain("end=2026-03-31");

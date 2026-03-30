@@ -64,7 +64,7 @@ const GOAL_STEPS: Record<
       label: "Check your spending breakdown",
       hint: "See exactly where your money goes each month.",
       action: false,
-      path: "/income-expenses",
+      path: "/cash-flow",
     },
   ],
   retirement: [

@@ -110,7 +110,7 @@ const QuarterlyPerformanceWidgetBase: React.FC = () => {
           <Heading size="md">Quarterly Performance</Heading>
           <Link
             as={RouterLink}
-            to="/income-expenses"
+            to="/cash-flow"
             fontSize="sm"
             color="brand.500"
           >

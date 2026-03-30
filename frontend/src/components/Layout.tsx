@@ -870,15 +870,9 @@ export const Layout = () => {
   const allAnalyticsItems = [
     {
       label: "Cash Flow",
-      path: "/income-expenses",
+      path: "/cash-flow",
       tooltip:
-        "Visual breakdown of income vs. spending — see where your money comes from and goes",
-    },
-    {
-      label: "Cash Flow Forecast",
-      path: "/cash-flow-forecast",
-      tooltip:
-        "30/60/90-day projected balance with upcoming transactions and low-balance alerts",
+        "Income vs. spending breakdown and 30/60/90-day balance forecast",
     },
     {
       label: "Net Worth Timeline",

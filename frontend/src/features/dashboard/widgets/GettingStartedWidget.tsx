@@ -83,7 +83,7 @@ const WHAT_NEXT_ITEMS: Record<
     {
       label: "See your spending trends",
       desc: "How has your spending changed month to month?",
-      path: "/income-expenses",
+      path: "/cash-flow",
     },
     {
       label: "Set up recurring bill tracking",
@@ -134,7 +134,7 @@ const WHAT_NEXT_ITEMS: Record<
     {
       label: "See your spending trends",
       desc: "How has your spending changed month to month?",
-      path: "/income-expenses",
+      path: "/cash-flow",
     },
     {
       label: "Check your retirement outlook",

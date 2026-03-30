@@ -122,6 +122,7 @@ describe("Unified view control — no per-page MemberMultiSelect", () => {
     "src/pages/SavingsGoalsPage.tsx",
     "src/features/retirement/pages/RetirementPage.tsx",
     "src/features/income-expenses/pages/IncomeExpensesPage.tsx",
+    "src/pages/CashFlowPage.tsx",
   ];
 
   for (const file of pageFiles) {

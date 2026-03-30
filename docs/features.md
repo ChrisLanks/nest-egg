@@ -64,7 +64,15 @@ Comprehensive 11-tab portfolio analysis with **multi-provider** market data:
 - **Account Exclusion Tooltip**: Explains why primary residence and vehicles are excluded by default (needed to live in/use; investment properties count)
 - **Trump Account Support**: Available as a manual investment account type
 
-## Cash Flow Analytics (Income vs Expenses)
+## Cash Flow (`/cash-flow`) — Overview + Forecast tabs
+
+The Cash Flow page consolidates two views under a single route with tab navigation:
+- **Overview tab**: income vs. spending breakdown (formerly `/income-expenses`)
+- **Forecast tab**: 30/60/90-day projected balance (formerly `/cash-flow-forecast`)
+
+Old routes `/income-expenses` and `/cash-flow-forecast` redirect to `/cash-flow` and `/cash-flow?tab=forecast` respectively.
+
+### Overview Tab (Income vs Expenses)
 
 - **Advanced Drill-Down**: Click any stat or chart element to filter
 - **Time Period Selection**: Month, Quarter, Year, YTD, Custom range
@@ -639,7 +647,7 @@ the active household view (individual member vs combined). Pages live under
 - **Best / Worst Month**: Identifies which calendar month had the highest and lowest savings rate
 - **Household Scoping**: Optional `user_id` parameter scopes results to one member's accounts; omit for combined household view
 - **Dashboard Widget**: `savings-rate` widget (span 1) shows current month rate, 12-month average, and a mini bar chart of the last 6 months with color-coded bars (green ≥20%, yellow ≥10%, red <10%)
-- **Links to**: `/income-expenses` for the full cash flow view
+- **Links to**: `/cash-flow` for the full cash flow view
 
 ### True Monthly Debt Cost (`GET /api/v1/financial-planning/debt-cost`)
 

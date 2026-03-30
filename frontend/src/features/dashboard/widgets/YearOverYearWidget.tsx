@@ -113,7 +113,7 @@ const YearOverYearWidgetBase: React.FC = () => {
           <Heading size="md">Year over Year</Heading>
           <Link
             as={RouterLink}
-            to="/income-expenses"
+            to="/cash-flow"
             fontSize="sm"
             color="brand.500"
           >

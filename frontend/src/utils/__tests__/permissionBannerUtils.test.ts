@@ -170,7 +170,7 @@ describe("getResourceTypeForPath", () => {
     expect(getResourceTypeForPath("/investments")).toBe("holding");
     expect(getResourceTypeForPath("/budgets")).toBe("budget");
     expect(getResourceTypeForPath("/goals")).toBe("savings_goal");
-    expect(getResourceTypeForPath("/income-expenses")).toBe("report");
+    expect(getResourceTypeForPath("/cash-flow")).toBe("report");
     expect(getResourceTypeForPath("/trends")).toBe("report");
     expect(getResourceTypeForPath("/reports")).toBe("report");
     expect(getResourceTypeForPath("/tax-deductible")).toBe("report");

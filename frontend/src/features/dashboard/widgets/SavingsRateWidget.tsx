@@ -92,7 +92,7 @@ const SavingsRateWidgetBase: React.FC = () => {
           <Heading size="md">Savings Rate</Heading>
           <Link
             as={RouterLink}
-            to="/income-expenses"
+            to="/cash-flow"
             fontSize="sm"
             color="brand.500"
           >
