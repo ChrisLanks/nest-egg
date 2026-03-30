@@ -99,6 +99,18 @@ class SpendingInsight(BaseModel):
     icon: str
 
 
+class ForecastTransaction(BaseModel):
+    """Individual transaction within a forecast day."""
+
+    merchant: Optional[str] = None
+    amount: float
+    category: Optional[str] = None
+    label: Optional[str] = None
+    account_id: Optional[str] = None
+    account_name: Optional[str] = None
+    event_type: str = "recurring"
+
+
 class ForecastDataPoint(BaseModel):
     """Cash flow forecast data point."""
 
@@ -106,6 +118,28 @@ class ForecastDataPoint(BaseModel):
     projected_balance: float
     day_change: float
     transaction_count: int
+    income: float = 0.0
+    expenses: float = 0.0
+    transactions: list[ForecastTransaction] = []
+
+
+class ForecastBreakdownItem(BaseModel):
+    """Named amount for a forecast breakdown dimension."""
+
+    name: str
+    amount: float
+
+
+class ForecastSummary(BaseModel):
+    """Aggregated forecast summary over the full window."""
+
+    total_income: float
+    total_expenses: float
+    net: float
+    by_category: list[ForecastBreakdownItem]
+    by_merchant: list[ForecastBreakdownItem]
+    by_label: list[ForecastBreakdownItem]
+    by_account: list[ForecastBreakdownItem]
 
 
 class DashboardData(BaseModel):
@@ -414,6 +448,25 @@ async def get_cash_flow_forecast(
     )
 
     return [ForecastDataPoint(**day) for day in forecast]
+
+
+@router.get("/forecast/summary", response_model=ForecastSummary)
+async def get_cash_flow_forecast_summary(
+    days_ahead: int = Query(90, ge=30, le=365, description="Number of days to forecast"),
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get aggregated forecast summary: totals and breakdowns by category/merchant/label/account."""
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+
+    summary = await ForecastService.generate_forecast_summary(
+        db, current_user.organization_id, user_id, days_ahead
+    )
+    return ForecastSummary(**summary)
 
 
 # ---------------------------------------------------------------------------

@@ -130,17 +130,95 @@ class ForecastService:
             day_change = sum(t["amount"] for t in day_transactions)
             running_balance += day_change
 
+            # Build per-day breakdowns
+            income_txns = [t for t in day_transactions if t["amount"] > 0]
+            expense_txns = [t for t in day_transactions if t["amount"] < 0]
+
             forecast.append(
                 {
                     "date": forecast_date.isoformat(),
                     "projected_balance": float(running_balance),
                     "day_change": float(day_change),
                     "transaction_count": len(day_transactions),
+                    "income": float(sum(t["amount"] for t in income_txns)),
+                    "expenses": float(sum(t["amount"] for t in expense_txns)),
+                    "transactions": [
+                        {
+                            "merchant": t.get("merchant"),
+                            "amount": float(t["amount"]),
+                            "category": t.get("category"),
+                            "label": t.get("label"),
+                            "account_id": t.get("account_id"),
+                            "account_name": t.get("account_name"),
+                            "event_type": t.get("event_type", "recurring"),
+                        }
+                        for t in day_transactions
+                    ],
                 }
             )
 
         await cache.setex(cache_key, 3600, forecast)  # 1 hour TTL
         return forecast
+
+    @staticmethod
+    async def generate_forecast_summary(
+        db: AsyncSession,
+        organization_id: UUID,
+        user_id: Optional[UUID] = None,
+        days_ahead: int = 90,
+    ) -> Dict:
+        """
+        Aggregate the full forecast into summary totals and breakdowns.
+
+        Returns total projected income, expenses, and net, plus ranked
+        breakdowns by category, merchant, label, and account.
+        """
+        forecast = await ForecastService.generate_forecast(
+            db, organization_id, user_id, days_ahead
+        )
+
+        by_category: Dict[str, float] = defaultdict(float)
+        by_merchant: Dict[str, float] = defaultdict(float)
+        by_label: Dict[str, float] = defaultdict(float)
+        by_account: Dict[str, float] = defaultdict(float)
+        total_income = 0.0
+        total_expenses = 0.0
+
+        for day in forecast:
+            for txn in day.get("transactions", []):
+                amount = txn["amount"]
+                cat = txn.get("category") or "Uncategorized"
+                merchant = txn.get("merchant") or "Unknown"
+                label = txn.get("label")
+                account = txn.get("account_name") or "Unknown Account"
+
+                by_category[cat] += amount
+                by_merchant[merchant] += amount
+                if label:
+                    by_label[label] += amount
+                by_account[account] += amount
+
+                if amount > 0:
+                    total_income += amount
+                else:
+                    total_expenses += amount
+
+        def to_ranked(d: Dict[str, float]) -> List[Dict]:
+            return sorted(
+                [{"name": k, "amount": round(v, 2)} for k, v in d.items()],
+                key=lambda x: abs(x["amount"]),
+                reverse=True,
+            )
+
+        return {
+            "total_income": round(total_income, 2),
+            "total_expenses": round(total_expenses, 2),
+            "net": round(total_income + total_expenses, 2),
+            "by_category": to_ranked(by_category),
+            "by_merchant": to_ranked(by_merchant),
+            "by_label": to_ranked(by_label),
+            "by_account": to_ranked(by_account),
+        }
 
     @staticmethod
     async def _get_total_balance(
@@ -276,6 +354,11 @@ class ForecastService:
                     "date": current_date,
                     "amount": pattern.average_amount,
                     "merchant": pattern.merchant_name,
+                    "category": pattern.category.name if pattern.category else None,
+                    "label": pattern.label.name if pattern.label else None,
+                    "account_id": str(pattern.account_id) if pattern.account_id else None,
+                    "account_name": pattern.account.name if pattern.account else None,
+                    "event_type": "recurring",
                 }
             )
             current_date += delta
@@ -348,6 +431,11 @@ class ForecastService:
                                     "date": vest_date,
                                     "amount": vest_value,  # Positive since it's an asset increase
                                     "merchant": f"{account.name} - Vesting",
+                                    "category": "Vesting",
+                                    "label": None,
+                                    "account_id": str(account.id),
+                                    "account_name": account.name,
+                                    "event_type": "vesting",
                                 }
                             )
 
@@ -410,6 +498,11 @@ class ForecastService:
                             "date": current_month,
                             "amount": monthly_interest,  # Positive since it's income
                             "merchant": f"{account.name} - Interest Income",
+                            "category": "Interest Income",
+                            "label": None,
+                            "account_id": str(account.id),
+                            "account_name": account.name,
+                            "event_type": "interest_income",
                         }
                     )
 
@@ -428,6 +521,11 @@ class ForecastService:
                             "date": maturity_date,
                             "amount": principal_amount,  # Positive since you're receiving repayment
                             "merchant": f"{account.name} - Principal Repayment",
+                            "category": "Principal Repayment",
+                            "label": None,
+                            "account_id": str(account.id),
+                            "account_name": account.name,
+                            "event_type": "principal_repayment",
                         }
                     )
 
@@ -496,6 +594,11 @@ class ForecastService:
                             "date": maturity_date,
                             "amount": maturity_value,
                             "merchant": f"{account.name} - CD Maturity",
+                            "category": "CD Maturity",
+                            "label": None,
+                            "account_id": str(account.id),
+                            "account_name": account.name,
+                            "event_type": "cd_maturity",
                         }
                     )
                     continue
@@ -518,6 +621,11 @@ class ForecastService:
                     "date": maturity_date,
                     "amount": maturity_value,
                     "merchant": f"{account.name} - CD Maturity",
+                    "category": "CD Maturity",
+                    "label": None,
+                    "account_id": str(account.id),
+                    "account_name": account.name,
+                    "event_type": "cd_maturity",
                 }
             )
 
@@ -593,6 +701,11 @@ class ForecastService:
                             "date": payment_date,
                             "amount": -monthly_payment,  # Negative = cash outflow
                             "merchant": f"{account.name} - Loan Payment",
+                            "category": "Loan Payment",
+                            "label": None,
+                            "account_id": str(account.id),
+                            "account_name": account.name,
+                            "event_type": "loan_payment",
                         }
                     )
 
@@ -715,6 +828,11 @@ class ForecastService:
                         "date": next_date,
                         "amount": coupon_amount,
                         "merchant": f"{account.name} Coupon",
+                        "category": "Bond Coupon",
+                        "label": None,
+                        "account_id": str(account.id),
+                        "account_name": account.name,
+                        "event_type": "bond_coupon",
                     }
                 )
                 next_date += timedelta(days=interval_days)
@@ -726,6 +844,11 @@ class ForecastService:
                         "date": account.maturity_date,
                         "amount": principal,
                         "merchant": f"{account.name} Maturity",
+                        "category": "Bond Maturity",
+                        "label": None,
+                        "account_id": str(account.id),
+                        "account_name": account.name,
+                        "event_type": "bond_maturity",
                     }
                 )
 
@@ -782,6 +905,11 @@ class ForecastService:
                         "date": next_date,
                         "amount": account.monthly_benefit,
                         "merchant": f"{account.name} Income",
+                        "category": "Pension / Annuity",
+                        "label": None,
+                        "account_id": str(account.id),
+                        "account_name": account.name,
+                        "event_type": "pension_annuity",
                     }
                 )
                 # Advance one month
