@@ -68,6 +68,7 @@ import { RebalancingPanel } from "../features/investments/components/Rebalancing
 import { FeeAnalysisPanel } from "../features/investments/components/FeeAnalysisPanel";
 import { DividendIncomePanel } from "../features/investments/components/DividendIncomePanel";
 import { AllocationHistoryChart } from "../features/investments/components/AllocationHistoryChart";
+import { BenchmarkComparisonPanel } from "../features/investments/components/BenchmarkComparisonPanel";
 import { useRetirementAccountData } from "../features/retirement/hooks/useRetirementScenarios";
 import HelpHint from "../components/HelpHint";
 import { helpContent } from "../constants/helpContent";
@@ -1357,7 +1358,7 @@ export const InvestmentsPage = () => {
                   {
                     key: "projections",
                     label: "Projections",
-                    indexes: [2, 3, 4],
+                    indexes: [2, 3, 4, 13],
                   },
                   {
                     key: "optimization",
@@ -1462,7 +1463,7 @@ export const InvestmentsPage = () => {
               )}
 
               {/* Projections sub-items */}
-              {[2, 3, 4].includes(selectedTabIndex) && (
+              {[2, 3, 4, 13].includes(selectedTabIndex) && (
                 <>
                   {(
                     [
@@ -1480,6 +1481,10 @@ export const InvestmentsPage = () => {
                         idx: 4,
                         label: "Risk Analysis",
                         hint: helpContent.investments.riskAnalysis,
+                      },
+                      {
+                        idx: 13,
+                        label: "Benchmark",
                       },
                     ] as const
                   ).map((item) => (
@@ -1635,6 +1640,7 @@ export const InvestmentsPage = () => {
               {selectedTabIndex === 10 && <DividendIncomePanel />}
               {selectedTabIndex === 11 && <CapitalGainsHarvestingPanel />}
               {selectedTabIndex === 12 && <StressTestPanel />}
+              {selectedTabIndex === 13 && <BenchmarkComparisonPanel userId={activeUserId} />}
             </Box>
           </CardBody>
         </Card>

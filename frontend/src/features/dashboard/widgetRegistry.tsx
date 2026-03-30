@@ -43,6 +43,7 @@ import { DebtCostWidget } from "./widgets/DebtCostWidget";
 import { BillPriceAlertsWidget } from "./widgets/BillPriceAlertsWidget";
 import { MortgageRateWidget } from "./widgets/MortgageRateWidget";
 import { GettingStartedWidget } from "./widgets/GettingStartedWidget";
+import { SmartInsightsWidget } from "./widgets/SmartInsightsWidget";
 import type { LayoutItem, WidgetDefinition } from "./types";
 
 export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
@@ -353,6 +354,14 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
     defaultSpan: 1,
     component: MortgageRateWidget,
   },
+  "smart-insights": {
+    id: "smart-insights",
+    title: "Smart Insights",
+    description:
+      "Proactive financial alerts derived from your live data: spending anomalies, budget overruns, emergency fund gaps, fee drag, IRMAA risk, and more.",
+    defaultSpan: 2,
+    component: SmartInsightsWidget,
+  },
 };
 
 /**
@@ -377,6 +386,7 @@ export const ADVANCED_LAYOUT: LayoutItem[] = [
   { id: "net-worth-chart", span: 2 },
   { id: "financial-health", span: 1 },
   { id: "retirement-readiness", span: 1 },
+  { id: "smart-insights", span: 2 },
   { id: "spending-insights", span: 2 },
   { id: "cash-flow-trend", span: 2 },
   { id: "cash-flow-forecast", span: 2 },

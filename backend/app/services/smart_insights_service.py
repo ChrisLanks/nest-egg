@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.financial import MEDICARE, RETIREMENT, TAX
 from app.models.account import Account, AccountType
+from app.models.budget import Budget, BudgetPeriod
 from app.models.holding import Holding
 from app.models.transaction import Transaction
 from app.services.dashboard_service import DashboardService
@@ -48,6 +49,8 @@ INSIGHT_IRMAA_CLIFF = "irmaa_cliff"
 INSIGHT_ROTH_OPPORTUNITY = "roth_opportunity"
 INSIGHT_HSA_OPPORTUNITY = "hsa_opportunity"
 INSIGHT_NET_WORTH_BENCHMARK = "net_worth_benchmark"
+INSIGHT_SPENDING_ANOMALY = "spending_anomaly"
+INSIGHT_BUDGET_OVERRUN = "budget_overrun"
 
 # ── Account type groupings ─────────────────────────────────────────────────
 LIQUID_ACCOUNT_TYPES = frozenset(
@@ -168,6 +171,11 @@ class SmartInsightsService:
     _IRMAA_AGE_THRESHOLD = 55
     # Distance from IRMAA tier boundary to trigger warning ($)
     _IRMAA_GAP_THRESHOLD = 10_000
+    # Spending anomaly: merchant must be 2x normal and at least this much above avg
+    _ANOMALY_MULTIPLIER = 2.0
+    _ANOMALY_MIN_EXCESS = 50.0
+    # Budget run-rate: flag when projected MTD spend will exceed budget by this fraction
+    _BUDGET_OVERRUN_THRESHOLD = 1.05  # 5% over budget
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -201,6 +209,8 @@ class SmartInsightsService:
             self._check_roth_opportunity_sync(accounts, user_birthdate),
             self._check_hsa_opportunity_sync(accounts),
             self._check_net_worth_benchmark(accounts, account_ids, user_birthdate),
+            self._check_spending_anomaly(account_ids),
+            self._check_budget_overrun(organization_id, user_id, account_ids),
         ]
 
         insights: list[_Insight] = []
@@ -743,4 +753,215 @@ class SmartInsightsService:
             amount_label="Your current net worth",
             data_vintage=vintage_label,
             data_is_stale=is_stale,
+        )
+
+    async def _check_spending_anomaly(
+        self, account_ids: list[UUID]
+    ) -> Optional[_Insight]:
+        """Flag when any merchant's spend this month is 2x+ their 3-month average.
+
+        Looks at the current calendar month vs the prior 3 full months.
+        Only triggers when the excess is meaningful (>= $50).
+        Skips transfers.
+        """
+        if not account_ids:
+            return None
+
+        today = date.today()
+        month_start = today.replace(day=1)
+        three_months_ago = (month_start - timedelta(days=90)).replace(day=1)
+
+        # MTD spending by merchant (current month)
+        mtd_result = await self.db.execute(
+            select(
+                Transaction.merchant_name,
+                func.sum(func.abs(Transaction.amount)).label("mtd_total"),
+            ).where(
+                and_(
+                    Transaction.account_id.in_(account_ids),
+                    Transaction.date >= month_start,
+                    Transaction.amount < 0,
+                    Transaction.is_transfer.is_(False),
+                    Transaction.merchant_name.isnot(None),
+                )
+            ).group_by(Transaction.merchant_name)
+        )
+        mtd_by_merchant = {r.merchant_name: float(r.mtd_total) for r in mtd_result.all()}
+
+        if not mtd_by_merchant:
+            return None
+
+        # Average monthly spend per merchant over prior 3 months
+        hist_result = await self.db.execute(
+            select(
+                Transaction.merchant_name,
+                func.sum(func.abs(Transaction.amount)).label("hist_total"),
+            ).where(
+                and_(
+                    Transaction.account_id.in_(account_ids),
+                    Transaction.date >= three_months_ago,
+                    Transaction.date < month_start,
+                    Transaction.amount < 0,
+                    Transaction.is_transfer.is_(False),
+                    Transaction.merchant_name.isnot(None),
+                )
+            ).group_by(Transaction.merchant_name)
+        )
+        # avg per month = total / 3
+        hist_avg_by_merchant = {
+            r.merchant_name: float(r.hist_total) / 3.0
+            for r in hist_result.all()
+            if float(r.hist_total) > 0
+        }
+
+        # Find worst anomaly
+        worst_merchant: Optional[str] = None
+        worst_ratio = 0.0
+        worst_mtd = 0.0
+        worst_avg = 0.0
+
+        for merchant, mtd in mtd_by_merchant.items():
+            avg = hist_avg_by_merchant.get(merchant)
+            if avg is None or avg < 5.0:
+                continue  # skip merchants with negligible history
+            ratio = mtd / avg
+            excess = mtd - avg
+            if (
+                ratio >= self._ANOMALY_MULTIPLIER
+                and excess >= self._ANOMALY_MIN_EXCESS
+                and ratio > worst_ratio
+            ):
+                worst_ratio = ratio
+                worst_merchant = merchant
+                worst_mtd = mtd
+                worst_avg = avg
+
+        if worst_merchant is None:
+            return None
+
+        excess = worst_mtd - worst_avg
+        return _Insight(
+            insight_type=INSIGHT_SPENDING_ANOMALY,
+            title=f"Unusual spending at {worst_merchant}",
+            message=(
+                f"You've spent ${worst_mtd:,.0f} at {worst_merchant} this month — "
+                f"{worst_ratio:.1f}x your typical ${worst_avg:,.0f}/month. "
+                f"That's ${excess:,.0f} above your normal pattern."
+            ),
+            action=f"Review recent transactions at {worst_merchant}",
+            priority="medium" if worst_ratio < 5.0 else "high",
+            category="spending",
+            icon="🔍",
+            priority_score=min(70, 40 + worst_ratio * 5),
+            amount=round(excess, 2),
+            amount_label="Spend above typical monthly amount",
+        )
+
+    async def _check_budget_overrun(
+        self,
+        organization_id: UUID,
+        user_id: Optional[UUID],
+        account_ids: list[UUID],
+    ) -> Optional[_Insight]:
+        """Flag when an active monthly budget is on track to exceed its limit.
+
+        Projects full-month spend from MTD velocity:
+            projected = (mtd_spend / days_elapsed) * days_in_month
+        Fires when projected >= budget_amount * _BUDGET_OVERRUN_THRESHOLD.
+        """
+        if not account_ids:
+            return None
+
+        today = date.today()
+        days_elapsed = today.day
+        if days_elapsed < 3:
+            return None  # too early in month to project accurately
+
+        import calendar
+        days_in_month = calendar.monthrange(today.year, today.month)[1]
+        month_start = today.replace(day=1)
+
+        # Fetch active monthly budgets
+        budget_conditions = [
+            Budget.organization_id == organization_id,
+            Budget.period == BudgetPeriod.MONTHLY,
+            Budget.start_date <= today,
+        ]
+        if user_id is not None:
+            # budget is org-wide; user filter not supported at DB level
+            pass
+
+        bq = await self.db.execute(
+            select(
+                Budget.id,
+                Budget.name,
+                Budget.amount,
+                Budget.category_id,
+                Budget.label_id,
+            ).where(and_(*budget_conditions))
+        )
+        budgets = bq.all()
+        if not budgets:
+            return None
+
+        worst_budget_name: Optional[str] = None
+        worst_projected = 0.0
+        worst_limit = 0.0
+        worst_mtd = 0.0
+
+        for b in budgets:
+            limit = float(b.amount)
+            if limit <= 0:
+                continue
+
+            # Build spend query for this budget's scope
+            spend_conditions = [
+                Transaction.account_id.in_(account_ids),
+                Transaction.date >= month_start,
+                Transaction.amount < 0,
+                Transaction.is_transfer.is_(False),
+            ]
+            if b.category_id is not None:
+                spend_conditions.append(Transaction.category_id == b.category_id)
+            if b.label_id is not None:
+                spend_conditions.append(Transaction.label_id == b.label_id)
+
+            mtd_result = await self.db.execute(
+                select(func.sum(func.abs(Transaction.amount))).where(
+                    and_(*spend_conditions)
+                )
+            )
+            mtd_spend = float(mtd_result.scalar() or 0)
+            if mtd_spend <= 0:
+                continue
+
+            projected = (mtd_spend / days_elapsed) * days_in_month
+
+            if projected >= limit * self._BUDGET_OVERRUN_THRESHOLD and projected > worst_projected:
+                worst_projected = projected
+                worst_budget_name = b.name
+                worst_limit = limit
+                worst_mtd = mtd_spend
+
+        if worst_budget_name is None:
+            return None
+
+        overrun = worst_projected - worst_limit
+        days_remaining = days_in_month - days_elapsed
+        return _Insight(
+            insight_type=INSIGHT_BUDGET_OVERRUN,
+            title=f"'{worst_budget_name}' budget on track to overspend",
+            message=(
+                f"You've spent ${worst_mtd:,.0f} with {days_remaining} days left — "
+                f"on pace for ${worst_projected:,.0f} against a "
+                f"${worst_limit:,.0f} monthly budget. "
+                f"Projected overrun: ${overrun:,.0f}."
+            ),
+            action=f"Review spending in '{worst_budget_name}' to stay within budget",
+            priority="high" if overrun > worst_limit * 0.2 else "medium",
+            category="spending",
+            icon="📉",
+            priority_score=min(80, 50 + (overrun / max(worst_limit, 1)) * 100),
+            amount=round(overrun, 2),
+            amount_label="Projected budget overrun",
         )

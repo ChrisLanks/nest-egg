@@ -44,6 +44,11 @@ import {
   useColorModeValue,
   useToast,
   VStack,
+  SimpleGrid,
+  Stat,
+  StatLabel,
+  StatNumber,
+  StatHelpText,
 } from "@chakra-ui/react";
 import { AddIcon, BellIcon, CalendarIcon } from "@chakra-ui/icons";
 import {
@@ -418,10 +423,53 @@ const BillsPage: React.FC = () => {
 
         {/* Upcoming Bills (next 30 days) */}
         <Box>
-          <Heading size="md" mb={4}>
-            <Icon as={BellIcon} mr={2} />
-            Upcoming (Next 30 Days)
-          </Heading>
+          <HStack justify="space-between" align="center" mb={4}>
+            <Heading size="md">
+              <Icon as={BellIcon} mr={2} />
+              Upcoming (Next 30 Days)
+            </Heading>
+            {upcomingBills && upcomingBills.length > 0 && (() => {
+              const total30 = upcomingBills.reduce(
+                (sum, b) => sum + Math.abs(b.average_amount),
+                0,
+              );
+              const overdueTotal = upcomingBills
+                .filter((b) => b.is_overdue)
+                .reduce((sum, b) => sum + Math.abs(b.average_amount), 0);
+              return (
+                <SimpleGrid columns={overdueTotal > 0 ? 2 : 1} spacing={3}>
+                  <Card size="sm">
+                    <CardBody py={2} px={4}>
+                      <Stat size="sm">
+                        <StatLabel fontSize="xs">Due in 30 days</StatLabel>
+                        <StatNumber fontSize="md">
+                          {formatCurrency(total30)}
+                        </StatNumber>
+                        <StatHelpText mb={0}>
+                          {upcomingBills.length} bill{upcomingBills.length !== 1 ? "s" : ""}
+                        </StatHelpText>
+                      </Stat>
+                    </CardBody>
+                  </Card>
+                  {overdueTotal > 0 && (
+                    <Card size="sm" borderColor="red.300" borderWidth={1}>
+                      <CardBody py={2} px={4}>
+                        <Stat size="sm">
+                          <StatLabel fontSize="xs" color="red.500">Overdue</StatLabel>
+                          <StatNumber fontSize="md" color="red.500">
+                            {formatCurrency(overdueTotal)}
+                          </StatNumber>
+                          <StatHelpText mb={0}>
+                            {upcomingBills.filter((b) => b.is_overdue).length} overdue
+                          </StatHelpText>
+                        </Stat>
+                      </CardBody>
+                    </Card>
+                  )}
+                </SimpleGrid>
+              );
+            })()}
+          </HStack>
 
           {upcomingBills && upcomingBills.length > 0 ? (
             <VStack spacing={3} align="stretch">

@@ -36,6 +36,11 @@ import {
   useDisclosure,
   Tooltip,
   Icon,
+  SimpleGrid,
+  Stat,
+  StatLabel,
+  StatNumber,
+  StatHelpText,
 } from "@chakra-ui/react";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -425,6 +430,35 @@ export const AccountsPage = () => {
     );
   }, [accounts]);
 
+  // ── Account type summary (pure client-side) ──────────────────────────────
+  const CASH_TYPES = new Set([
+    "checking", "savings", "money_market", "cd", "cash",
+  ]);
+  const DEBT_TYPES = new Set([
+    "credit_card", "loan", "student_loan", "mortgage",
+  ]);
+  const INVESTMENT_TYPES = new Set([
+    "brokerage", "retirement_401k", "retirement_403b", "retirement_457b",
+    "retirement_ira", "retirement_roth", "retirement_sep_ira",
+    "retirement_simple_ira", "retirement_529", "hsa", "pension",
+    "crypto", "private_equity", "private_debt", "collectibles",
+    "precious_metals", "bond", "stock_options", "espp", "business_equity",
+  ]);
+
+  const accountTypeSummary = useMemo(() => {
+    if (!accounts) return null;
+    const active = accounts.filter((a) => a.is_active);
+    let cash = 0, investments = 0, debt = 0, other = 0;
+    for (const a of active) {
+      const bal = a.current_balance ?? 0;
+      if (CASH_TYPES.has(a.account_type)) cash += bal;
+      else if (DEBT_TYPES.has(a.account_type)) debt += Math.abs(bal);
+      else if (INVESTMENT_TYPES.has(a.account_type)) investments += bal;
+      else other += bal;
+    }
+    return { cash, investments, debt, other };
+  }, [accounts]);
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -650,6 +684,58 @@ export const AccountsPage = () => {
             </Menu>
           )}
         </HStack>
+
+        {/* Account Type Summary Cards */}
+        {accountTypeSummary && (
+          <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4}>
+            <Card>
+              <CardBody>
+                <Stat>
+                  <StatLabel>Cash & Savings</StatLabel>
+                  <StatNumber fontSize="xl">
+                    {formatCurrency(accountTypeSummary.cash)}
+                  </StatNumber>
+                  <StatHelpText>Liquid accounts</StatHelpText>
+                </Stat>
+              </CardBody>
+            </Card>
+            <Card>
+              <CardBody>
+                <Stat>
+                  <StatLabel>Investments</StatLabel>
+                  <StatNumber fontSize="xl">
+                    {formatCurrency(accountTypeSummary.investments)}
+                  </StatNumber>
+                  <StatHelpText>Brokerage & retirement</StatHelpText>
+                </Stat>
+              </CardBody>
+            </Card>
+            <Card>
+              <CardBody>
+                <Stat>
+                  <StatLabel>Total Debt</StatLabel>
+                  <StatNumber fontSize="xl" color="red.500">
+                    {formatCurrency(accountTypeSummary.debt)}
+                  </StatNumber>
+                  <StatHelpText>Credit cards & loans</StatHelpText>
+                </Stat>
+              </CardBody>
+            </Card>
+            {accountTypeSummary.other > 0 && (
+              <Card>
+                <CardBody>
+                  <Stat>
+                    <StatLabel>Other Assets</StatLabel>
+                    <StatNumber fontSize="xl">
+                      {formatCurrency(accountTypeSummary.other)}
+                    </StatNumber>
+                    <StatHelpText>Property, vehicles & more</StatHelpText>
+                  </Stat>
+                </CardBody>
+              </Card>
+            )}
+          </SimpleGrid>
+        )}
 
         {/* Accounts by Institution */}
         {Object.entries(accountsByInstitution).map(
