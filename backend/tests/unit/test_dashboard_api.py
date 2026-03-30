@@ -12,8 +12,10 @@ from app.api.v1.dashboard import (
     DashboardData,
     DashboardSummary,
     ForecastDataPoint,
+    ForecastSummary,
     SpendingInsight,
     get_cash_flow_forecast,
+    get_cash_flow_forecast_summary,
     get_dashboard_data,
     get_dashboard_summary,
     get_spending_insights,
@@ -500,6 +502,12 @@ class TestGetCashFlowForecast:
                 "projected_balance": 5000.0,
                 "day_change": -50.0,
                 "transaction_count": 3,
+                "income": 0.0,
+                "expenses": -50.0,
+                "transactions": [
+                    {"merchant": "Netflix", "amount": -50.0, "category": "Subscriptions",
+                     "label": None, "account_id": None, "account_name": None, "event_type": "recurring"}
+                ],
             }
         ]
 
@@ -518,6 +526,11 @@ class TestGetCashFlowForecast:
         assert len(result) == 1
         assert isinstance(result[0], ForecastDataPoint)
         assert result[0].projected_balance == 5000.0
+        assert result[0].income == 0.0
+        assert result[0].expenses == -50.0
+        assert len(result[0].transactions) == 1
+        assert result[0].transactions[0].merchant == "Netflix"
+        assert result[0].transactions[0].event_type == "recurring"
 
     @pytest.mark.asyncio
     async def test_forecast_with_user_id(self):
@@ -543,3 +556,147 @@ class TestGetCashFlowForecast:
 
         mock_verify.assert_awaited_once()
         assert result == []
+
+
+# ---------------------------------------------------------------------------
+# get_cash_flow_forecast_summary
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestGetCashFlowForecastSummary:
+    @pytest.mark.asyncio
+    async def test_returns_summary(self):
+        """Should return ForecastSummary with totals and breakdowns."""
+        user = _make_user()
+        db = AsyncMock()
+
+        mock_summary = {
+            "total_income": 5500.0,
+            "total_expenses": -2200.0,
+            "net": 3300.0,
+            "by_category": [{"name": "Uncategorized", "amount": 3300.0}],
+            "by_merchant": [
+                {"name": "Direct Deposit", "amount": 5500.0},
+                {"name": "Rent", "amount": -2200.0},
+            ],
+            "by_label": [],
+            "by_account": [{"name": "Checking", "amount": 3300.0}],
+        }
+
+        with patch(
+            "app.api.v1.dashboard.ForecastService.generate_forecast_summary",
+            new_callable=AsyncMock,
+        ) as mock_gen:
+            mock_gen.return_value = mock_summary
+
+            result = await get_cash_flow_forecast_summary(
+                days_ahead=90,
+                user_id=None,
+                current_user=user,
+                db=db,
+            )
+
+        assert isinstance(result, ForecastSummary)
+        assert result.total_income == 5500.0
+        assert result.total_expenses == -2200.0
+        assert result.net == 3300.0
+        assert len(result.by_merchant) == 2
+        assert result.by_merchant[0].name == "Direct Deposit"
+        assert result.by_label == []
+
+    @pytest.mark.asyncio
+    async def test_summary_verifies_household_member(self):
+        """Should verify household member when user_id provided."""
+        user = _make_user()
+        target_user_id = uuid4()
+        db = AsyncMock()
+
+        mock_summary = {
+            "total_income": 0.0,
+            "total_expenses": 0.0,
+            "net": 0.0,
+            "by_category": [],
+            "by_merchant": [],
+            "by_label": [],
+            "by_account": [],
+        }
+
+        with patch(
+            "app.api.v1.dashboard.verify_household_member", new_callable=AsyncMock
+        ) as mock_verify:
+            with patch(
+                "app.api.v1.dashboard.ForecastService.generate_forecast_summary",
+                new_callable=AsyncMock,
+                return_value=mock_summary,
+            ):
+                await get_cash_flow_forecast_summary(
+                    days_ahead=90,
+                    user_id=target_user_id,
+                    current_user=user,
+                    db=db,
+                )
+
+        mock_verify.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_summary_passes_days_ahead(self):
+        """Should forward days_ahead parameter to the service."""
+        user = _make_user()
+        db = AsyncMock()
+
+        empty_summary = {
+            "total_income": 0.0, "total_expenses": 0.0, "net": 0.0,
+            "by_category": [], "by_merchant": [], "by_label": [], "by_account": [],
+        }
+
+        with patch(
+            "app.api.v1.dashboard.ForecastService.generate_forecast_summary",
+            new_callable=AsyncMock,
+            return_value=empty_summary,
+        ) as mock_gen:
+            await get_cash_flow_forecast_summary(
+                days_ahead=30,
+                user_id=None,
+                current_user=user,
+                db=db,
+            )
+
+        mock_gen.assert_awaited_once()
+        args = mock_gen.call_args.args
+        assert args[3] == 30  # days_ahead is 4th positional arg (db, org_id, user_id, days_ahead)
+
+    @pytest.mark.asyncio
+    async def test_summary_breakdown_items_are_typed(self):
+        """ForecastSummary breakdown items must be ForecastBreakdownItem instances."""
+        from app.api.v1.dashboard import ForecastBreakdownItem
+
+        user = _make_user()
+        db = AsyncMock()
+
+        mock_summary = {
+            "total_income": 1200.0,
+            "total_expenses": -500.0,
+            "net": 700.0,
+            "by_category": [{"name": "Income", "amount": 1200.0}, {"name": "Bills", "amount": -500.0}],
+            "by_merchant": [{"name": "Employer", "amount": 1200.0}],
+            "by_label": [{"name": "Work", "amount": 1200.0}],
+            "by_account": [{"name": "Checking", "amount": 700.0}],
+        }
+
+        with patch(
+            "app.api.v1.dashboard.ForecastService.generate_forecast_summary",
+            new_callable=AsyncMock,
+            return_value=mock_summary,
+        ):
+            result = await get_cash_flow_forecast_summary(
+                days_ahead=90,
+                user_id=None,
+                current_user=user,
+                db=db,
+            )
+
+        assert all(isinstance(item, ForecastBreakdownItem) for item in result.by_category)
+        assert all(isinstance(item, ForecastBreakdownItem) for item in result.by_merchant)
+        assert all(isinstance(item, ForecastBreakdownItem) for item in result.by_label)
+        assert all(isinstance(item, ForecastBreakdownItem) for item in result.by_account)

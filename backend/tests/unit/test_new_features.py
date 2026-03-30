@@ -134,55 +134,104 @@ class TestForm8949Export:
         assert "import io" in src
 
 
-class TestCashFlowForecastPage:
-    """CashFlowForecastPage: route and nav entry wired correctly."""
+class TestCashFlowPage:
+    """CashFlowPage: unified /cash-flow route with Overview + Forecast tabs."""
 
-    def test_route_in_app_tsx(self):
+    def test_cash_flow_route_in_app_tsx(self):
+        """App.tsx must define the /cash-flow route with CashFlowPage."""
         import os
-        app_tsx = os.path.join(
-            os.path.dirname(__file__), "../../../frontend/src/App.tsx"
-        )
+        app_tsx = os.path.join(os.path.dirname(__file__), "../../../frontend/src/App.tsx")
         with open(app_tsx) as f:
             src = f.read()
-        assert "/cash-flow-forecast" in src
-        assert "CashFlowForecastPage" in src
+        assert "/cash-flow" in src
+        assert "CashFlowPage" in src
 
-    def test_nav_entry_in_layout(self):
+    def test_old_routes_redirect_in_app_tsx(self):
+        """Old /income-expenses and /cash-flow-forecast must redirect to /cash-flow."""
         import os
-        layout_tsx = os.path.join(
-            os.path.dirname(__file__), "../../../frontend/src/components/Layout.tsx"
-        )
+        app_tsx = os.path.join(os.path.dirname(__file__), "../../../frontend/src/App.tsx")
+        with open(app_tsx) as f:
+            src = f.read()
+        assert "/income-expenses" in src
+        assert "/cash-flow-forecast" in src
+        # Both old routes must now use Navigate (redirect), not render a page directly
+        assert src.count("Navigate") >= 2
+
+    def test_single_nav_entry_in_layout(self):
+        """Layout.tsx must have exactly one Cash Flow entry pointing to /cash-flow."""
+        import os
+        layout_tsx = os.path.join(os.path.dirname(__file__), "../../../frontend/src/components/Layout.tsx")
         with open(layout_tsx) as f:
             src = f.read()
-        assert "Cash Flow Forecast" in src
-        assert "/cash-flow-forecast" in src
+        assert "/cash-flow" in src
+        assert "Cash Flow Forecast" not in src  # No longer a separate nav item
+        assert src.count("/cash-flow-forecast") == 0
 
-    def test_page_file_exists(self):
+    def test_cash_flow_page_file_exists(self):
+        """CashFlowPage.tsx must exist under src/pages/."""
         import os
-        page = os.path.join(
-            os.path.dirname(__file__), "../../../frontend/src/pages/CashFlowForecastPage.tsx"
-        )
+        page = os.path.join(os.path.dirname(__file__), "../../../frontend/src/pages/CashFlowPage.tsx")
         assert os.path.exists(page)
 
-    def test_page_calls_forecast_endpoint(self):
+    def test_page_has_both_tabs(self):
+        """CashFlowPage must render both Overview and Forecast tabs."""
         import os
-        page = os.path.join(
-            os.path.dirname(__file__), "../../../frontend/src/pages/CashFlowForecastPage.tsx"
-        )
+        page = os.path.join(os.path.dirname(__file__), "../../../frontend/src/pages/CashFlowPage.tsx")
+        with open(page) as f:
+            src = f.read()
+        assert "Overview" in src
+        assert "Forecast" in src
+        assert "IncomeExpensesPage" in src  # Overview tab reuses existing component
+
+    def test_page_calls_forecast_endpoints(self):
+        """CashFlowPage must call both /dashboard/forecast and /dashboard/forecast/summary."""
+        import os
+        page = os.path.join(os.path.dirname(__file__), "../../../frontend/src/pages/CashFlowPage.tsx")
         with open(page) as f:
             src = f.read()
         assert "/dashboard/forecast" in src
+        assert "/dashboard/forecast/summary" in src
         assert "days_ahead" in src
 
-    def test_page_has_low_balance_alert(self):
+    def test_page_has_recharts_charts(self):
+        """CashFlowPage Forecast tab must include balance and income/expense charts."""
         import os
-        page = os.path.join(
-            os.path.dirname(__file__), "../../../frontend/src/pages/CashFlowForecastPage.tsx"
-        )
+        page = os.path.join(os.path.dirname(__file__), "../../../frontend/src/pages/CashFlowPage.tsx")
+        with open(page) as f:
+            src = f.read()
+        assert "AreaChart" in src   # Balance trajectory
+        assert "BarChart" in src    # Income vs expenses
+        assert "recharts" in src
+
+    def test_page_has_group_by_controls(self):
+        """Forecast tab must have group-by breakdown (category/merchant/label/account)."""
+        import os
+        page = os.path.join(os.path.dirname(__file__), "../../../frontend/src/pages/CashFlowPage.tsx")
+        with open(page) as f:
+            src = f.read()
+        assert "category" in src
+        assert "merchant" in src
+        assert "label" in src
+        assert "account" in src
+
+    def test_page_has_low_balance_alert(self):
+        """Forecast tab must still warn about negative / low projected balances."""
+        import os
+        page = os.path.join(os.path.dirname(__file__), "../../../frontend/src/pages/CashFlowPage.tsx")
         with open(page) as f:
             src = f.read()
         assert "low" in src.lower()
         assert "negative balance" in src.lower()
+
+    def test_tab_param_in_url(self):
+        """Tab state must be persisted via ?tab= search param for deep-linking."""
+        import os
+        page = os.path.join(os.path.dirname(__file__), "../../../frontend/src/pages/CashFlowPage.tsx")
+        with open(page) as f:
+            src = f.read()
+        assert "useSearchParams" in src
+        assert "TAB_NAME_MAP" in src  # tab names stored in mapping constant
+        assert '"forecast"' in src   # "forecast" tab name defined in mapping
 
 
 class TestCreditScoreTab:
