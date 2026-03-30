@@ -358,7 +358,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
     id: "smart-insights",
     title: "Smart Insights",
     description:
-      "Proactive financial alerts derived from your live data: spending anomalies, budget overruns, emergency fund gaps, fee drag, IRMAA risk, and more.",
+      "Proactive financial alerts derived from your live data: spending anomalies, budget overruns, emergency fund gaps, high fund costs, Medicare premium risk, and more.",
     defaultSpan: 2,
     component: SmartInsightsWidget,
   },
