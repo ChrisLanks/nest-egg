@@ -163,8 +163,8 @@ export const PrivateDebtAccountForm = ({
                 onChange={(valueString) =>
                   onChange(parseFloat(valueString) || 0)
                 }
-                min={0}
-                max={100}
+                clampValueOnBlur={false}
+                keepWithinRange={false}
                 precision={2}
               >
                 <NumberInputField placeholder="e.g., 5.5" />

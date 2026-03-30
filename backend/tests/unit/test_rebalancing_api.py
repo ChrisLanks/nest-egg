@@ -340,14 +340,18 @@ class TestGetRebalancingAnalysis:
         ]
         mock_allocation.drift_threshold = Decimal("5.0")
 
-        # Mock holdings query result
+        # Mock holdings query result (individual rows with current_total_value)
         mock_row1 = MagicMock()
         mock_row1.asset_class = "domestic"
-        mock_row1.total_value = Decimal("70000")
+        mock_row1.asset_type = "stock"
+        mock_row1.country = "US"
+        mock_row1.current_total_value = Decimal("70000")
 
         mock_row2 = MagicMock()
         mock_row2.asset_class = "bond"
-        mock_row2.total_value = Decimal("30000")
+        mock_row2.asset_type = "bond"
+        mock_row2.country = "US"
+        mock_row2.current_total_value = Decimal("30000")
 
         mock_holdings_result = MagicMock()
         mock_holdings_result.all.return_value = [mock_row1, mock_row2]
@@ -407,8 +411,8 @@ class TestGetRebalancingAnalysis:
                 assert result.needs_rebalancing is True
 
     @pytest.mark.asyncio
-    async def test_analysis_with_null_asset_class(self):
-        """Holdings with null asset_class should be grouped as 'other'."""
+    async def test_analysis_with_null_asset_class_us_stock(self):
+        """Holdings with null asset_class and US country should fall back to 'domestic'."""
         db = AsyncMock()
         user = MagicMock()
         user.organization_id = uuid4()
@@ -418,13 +422,15 @@ class TestGetRebalancingAnalysis:
         mock_allocation.id = uuid4()
         mock_allocation.name = "Portfolio"
         mock_allocation.allocations = [
-            {"asset_class": "other", "target_percent": 100, "label": "Other"},
+            {"asset_class": "domestic", "target_percent": 100, "label": "US Stocks"},
         ]
         mock_allocation.drift_threshold = Decimal("5.0")
 
         mock_row = MagicMock()
         mock_row.asset_class = None  # Null asset class
-        mock_row.total_value = Decimal("50000")
+        mock_row.asset_type = "stock"
+        mock_row.country = "United States"
+        mock_row.current_total_value = Decimal("50000")
 
         mock_result = MagicMock()
         mock_result.all.return_value = [mock_row]
@@ -438,13 +444,57 @@ class TestGetRebalancingAnalysis:
             with patch(
                 "app.api.v1.rebalancing.RebalancingService.calculate_drift",
                 return_value=([], [], False, Decimal("0")),
-            ):
+            ) as mock_drift:
                 result = await get_rebalancing_analysis(http_request=MagicMock(), current_user=user, db=db)
                 assert result.portfolio_total == Decimal("50000")
+                # Null asset_class with US stock country falls back to "domestic"
+                current_by_class = mock_drift.call_args[0][1]
+                assert "domestic" in current_by_class
+                assert current_by_class["domestic"] == Decimal("50000")
+
+    @pytest.mark.asyncio
+    async def test_analysis_with_null_asset_class_intl(self):
+        """Holdings with null asset_class and non-US country fall back to 'international'."""
+        db = AsyncMock()
+        user = MagicMock()
+        user.organization_id = uuid4()
+        user.id = uuid4()
+
+        mock_allocation = MagicMock()
+        mock_allocation.id = uuid4()
+        mock_allocation.name = "Portfolio"
+        mock_allocation.allocations = [
+            {"asset_class": "international", "target_percent": 100, "label": "Intl"},
+        ]
+        mock_allocation.drift_threshold = Decimal("5.0")
+
+        mock_row = MagicMock()
+        mock_row.asset_class = None
+        mock_row.asset_type = "stock"
+        mock_row.country = "Germany"
+        mock_row.current_total_value = Decimal("20000")
+
+        mock_result = MagicMock()
+        mock_result.all.return_value = [mock_row]
+        db.execute = AsyncMock(return_value=mock_result)
+
+        with patch(
+            "app.api.v1.rebalancing.RebalancingService.get_active_allocation",
+            new_callable=AsyncMock,
+            return_value=mock_allocation,
+        ):
+            with patch(
+                "app.api.v1.rebalancing.RebalancingService.calculate_drift",
+                return_value=([], [], False, Decimal("0")),
+            ) as mock_drift:
+                result = await get_rebalancing_analysis(http_request=MagicMock(), current_user=user, db=db)
+                assert result.portfolio_total == Decimal("20000")
+                current_by_class = mock_drift.call_args[0][1]
+                assert "international" in current_by_class
 
     @pytest.mark.asyncio
     async def test_analysis_with_zero_total_value(self):
-        """Holdings with null total_value should default to 0."""
+        """Holdings with null current_total_value should default to 0."""
         db = AsyncMock()
         user = MagicMock()
         user.organization_id = uuid4()
@@ -458,7 +508,9 @@ class TestGetRebalancingAnalysis:
 
         mock_row = MagicMock()
         mock_row.asset_class = "domestic"
-        mock_row.total_value = None
+        mock_row.asset_type = "stock"
+        mock_row.country = "US"
+        mock_row.current_total_value = None
 
         mock_result = MagicMock()
         mock_result.all.return_value = [mock_row]

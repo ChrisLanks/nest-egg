@@ -234,8 +234,8 @@ export const BasicManualAccountForm = ({
                       }}
                       precision={3}
                       step={0.125}
-                      min={0}
-                      max={100}
+                      clampValueOnBlur={false}
+                      keepWithinRange={false}
                       w="full"
                     >
                       <NumberInputField placeholder="e.g., 6.75" />

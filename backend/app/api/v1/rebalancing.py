@@ -6,7 +6,7 @@ from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -209,7 +209,8 @@ async def get_rebalancing_analysis(
     """
     Fetch active allocation and current portfolio data, then compute drift analysis.
 
-    Queries holdings grouped by asset_class and sums current_total_value.
+    Queries holdings and classifies each by asset_class, falling back to country/asset_type
+    inference for holdings with NULL asset_class (common for newly-added or crypto holdings).
     Returns drift items, trade recommendations, and rebalancing flag.
     Scoped to the current user's accounts only.
     """
@@ -246,18 +247,32 @@ async def get_rebalancing_analysis(
     result = await db.execute(
         select(
             Holding.asset_class,
-            func.sum(Holding.current_total_value).label("total_value"),
+            Holding.asset_type,
+            Holding.country,
+            Holding.current_total_value,
         )
         .where(and_(*holdings_conditions))
-        .group_by(Holding.asset_class)
     )
     rows = result.all()
 
     current_by_class = {}
     portfolio_total = Decimal("0")
     for row in rows:
-        asset_class = row.asset_class or "other"
-        value = Decimal(str(row.total_value)) if row.total_value else Decimal("0")
+        value = Decimal(str(row.current_total_value)) if row.current_total_value else Decimal("0")
+        # Resolve asset_class with fallback: stored value → country inference → "domestic"
+        asset_class = row.asset_class
+        if not asset_class:
+            country = (row.country or "").strip()
+            asset_type = (row.asset_type or "").lower().strip()
+            if asset_type in ("bond", "fixed_income", "mutual_fund_bond"):
+                asset_class = "bond"
+            elif asset_type == "cash":
+                asset_class = "cash"
+            elif country and country.upper() not in ("US", "USA", "UNITED STATES", ""):
+                asset_class = "international"
+            else:
+                # Default unclassified equities to domestic
+                asset_class = "domestic"
         current_by_class[asset_class] = current_by_class.get(asset_class, Decimal("0")) + value
         portfolio_total += value
 
