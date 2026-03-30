@@ -154,25 +154,7 @@ describe("buildConditionalDefaults: /rental-properties", () => {
   });
 });
 
-// ── investment-gated paths ────────────────────────────────────────────────────
-
-describe("buildConditionalDefaults: /tax-deductible", () => {
-  it("hidden with no investments or rental", () => {
-    expect(
-      buildConditionalDefaults([checking()], null)["/tax-deductible"],
-    ).toBe(false);
-  });
-  it("shown with investment account", () => {
-    expect(
-      buildConditionalDefaults([brokerage()], null)["/tax-deductible"],
-    ).toBe(true);
-  });
-  it("shown with rental property (no investments)", () => {
-    expect(buildConditionalDefaults([rental()], null)["/tax-deductible"]).toBe(
-      true,
-    );
-  });
-});
+// ── /tax-deductible is now a tab inside /reports — no longer conditional ─────
 
 // ── /education (529) ──────────────────────────────────────────────────────────
 

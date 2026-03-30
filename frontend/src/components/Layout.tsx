@@ -884,22 +884,10 @@ export const Layout = () => {
         "Chart of your total assets minus debts over time — the single most important financial number",
     },
     {
-      label: "Trends",
-      path: "/trends",
-      tooltip:
-        "Month-over-month spending patterns by category — spot habits and changes over time",
-    },
-    {
-      label: "Reports",
+      label: "Reports & Trends",
       path: "/reports",
       tooltip:
-        "Custom reports: filter by date, account, or category and export to CSV",
-    },
-    {
-      label: "Year in Review",
-      path: "/year-in-review",
-      tooltip:
-        "Annual financial summary — biggest expenses, income milestones, and net worth growth",
+        "Spending trends, annual year-in-review, tax-deductible transactions, and custom reports",
     },
     {
       label: "Smart Insights",
@@ -910,12 +898,6 @@ export const Layout = () => {
       label: "Financial Health",
       path: "/financial-health",
       tooltip: "Financial ratios, debt-to-income, emergency fund coverage, and liquidity analysis",
-    },
-    {
-      label: "Tax Deductible",
-      path: "/tax-deductible",
-      tooltip:
-        "Transactions flagged as tax-deductible — helpful for filing or working with an accountant",
     },
     {
       label: "Rental Properties",
@@ -965,7 +947,7 @@ export const Layout = () => {
         "Analyze your mortgage: amortization schedule, extra payment impact, and break-even on refinancing",
     },
     // ── Consolidated hubs ─────────────────────────────────────────────────
-    // Note: HSA Planner is inside Investment Tools — no separate nav entry needed
+    // Note: HSA Planner is inside Planning Tools — no separate nav entry needed
     {
       label: "Tax Center",
       path: "/tax-center",
@@ -982,14 +964,8 @@ export const Layout = () => {
       label: "Planning Tools",
       path: "/investment-tools",
       tooltip:
-        "FIRE metrics, equity compensation, loan modeler, HSA optimizer, tax-equivalent yield, asset location, employer match, and cost basis aging",
+        "FIRE metrics, equity compensation, loan modeler, HSA optimizer, tax-equivalent yield, asset location, employer match, cost basis aging, and what-if scenarios",
       advanced: true,
-    },
-    {
-      label: "What-If Scenarios",
-      path: "/what-if",
-      tooltip:
-        "Mortgage vs invest, salary change, relocation tax impact, early retirement analysis",
     },
     {
       label: "Bond Ladder",

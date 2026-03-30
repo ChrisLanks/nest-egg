@@ -464,7 +464,6 @@ describe("NAV_SECTIONS: structure", () => {
       "/recurring-bills",
       "/rental-properties",
       "/rules",
-      "/tax-deductible",
     ]);
   });
   it("only /investment-tools is advanced (consolidated from 5 individual items)", () => {

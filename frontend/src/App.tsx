@@ -61,15 +61,7 @@ const RecurringTransactionsPage = lazy(
 );
 const BillsPage = lazy(() => import("./pages/BillsPage"));
 const RecurringBillsPage = lazy(() => import("./pages/RecurringBillsPage"));
-const TaxDeductiblePage = lazy(() => import("./pages/TaxDeductiblePage"));
-
-const TrendsPage = lazy(() => import("./pages/TrendsPage"));
 const ReportsPage = lazy(() => import("./pages/ReportsPage"));
-const YearInReviewPage = lazy(() =>
-  import("./pages/YearInReviewPage").then((m) => ({
-    default: m.YearInReviewPage,
-  })),
-);
 const DebtPayoffPage = lazy(() => import("./pages/DebtPayoffPage"));
 const RentalPropertiesPage = lazy(() =>
   import("./pages/RentalPropertiesPage").then((m) => ({
@@ -130,7 +122,6 @@ const FinancialHealthPage = lazy(() => import("./pages/FinancialHealthPage"));
 const FinancialPlanPage = lazy(() => import("./pages/FinancialPlanPage"));
 const PePerformancePage = lazy(() => import("./pages/PePerformancePage"));
 const BondLadderPage = lazy(() => import("./pages/BondLadderPage"));
-const WhatIfPage = lazy(() => import("./pages/WhatIfPage"));
 const WelcomePage = lazy(() => import("./pages/WelcomePage"));
 const VerifyEmailPage = lazy(() => import("./pages/VerifyEmailPage"));
 const ForgotPasswordPage = lazy(() =>
@@ -208,13 +199,13 @@ function App() {
                       <Route path="/categories" element={<CategoriesPage />} />
                       <Route
                         path="/tax-deductible"
-                        element={<TaxDeductiblePage />}
+                        element={<Navigate to="/reports" replace />}
                       />
                       <Route
                         path="/cash-flow-forecast"
                         element={<Navigate to="/cash-flow?tab=forecast" replace />}
                       />
-                      <Route path="/trends" element={<TrendsPage />} />
+                      <Route path="/trends" element={<Navigate to="/reports" replace />} />
                       <Route path="/reports" element={<ReportsPage />} />
                       <Route
                         path="/net-worth-timeline"
@@ -222,7 +213,7 @@ function App() {
                       />
                       <Route
                         path="/year-in-review"
-                        element={<YearInReviewPage />}
+                        element={<Navigate to="/reports" replace />}
                       />
                       <Route path="/accounts" element={<AccountsPage />} />
                       <Route
@@ -270,7 +261,7 @@ function App() {
                       <Route path="/financial-plan" element={<FinancialPlanPage />} />
                       <Route path="/pe-performance" element={<PePerformancePage />} />
                       <Route path="/bond-ladder" element={<BondLadderPage />} />
-                      <Route path="/what-if" element={<WhatIfPage />} />
+                      <Route path="/what-if" element={<Navigate to="/investment-tools" replace />} />
                       {/* Individual pages still accessible directly (deep links, bookmarks) */}
                       <Route path="/ss-claiming" element={<Navigate to="/life-planning" replace />} />
                       <Route path="/tax-projection" element={<Navigate to="/tax-center" replace />} />

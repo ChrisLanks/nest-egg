@@ -1,11 +1,18 @@
 /**
- * Custom Reports page with template management and execution
+ * Reports hub — Trends, Year in Review, Tax Deductible, and Custom Reports in one tabbed view.
  */
 
 import {
   Box,
+  Center,
   Container,
   Heading,
+  Spinner,
+  Tab,
+  TabList,
+  TabPanel,
+  TabPanels,
+  Tabs,
   Text,
   VStack,
   HStack,
@@ -21,8 +28,6 @@ import {
   Td,
   Badge,
   useToast,
-  Spinner,
-  Center,
   Modal,
   ModalOverlay,
   ModalContent,
@@ -42,8 +47,20 @@ import {
   AlertIcon,
 } from "@chakra-ui/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { DeleteIcon, DownloadIcon, ViewIcon } from "@chakra-ui/icons";
+
+const TrendsPage = lazy(() => import("./TrendsPage"));
+const YearInReviewPage = lazy(() => import("./YearInReviewPage"));
+const TaxDeductiblePage = lazy(() => import("./TaxDeductiblePage"));
+
+const TAB_KEY = "nest-egg-tab-reports";
+const getInitialTab = () => {
+  try { return parseInt(localStorage.getItem(TAB_KEY) ?? "0", 10) || 0; } catch { return 0; }
+};
+const TabLoader = () => (
+  <Center py={12}><Spinner size="lg" color="brand.500" /></Center>
+);
 import {
   BarChart,
   Bar,
@@ -80,7 +97,7 @@ interface ReportResult {
   };
 }
 
-export default function ReportsPage() {
+function CustomReportsTab() {
   const {
     selectedUserId,
     canWriteResource,
@@ -669,5 +686,54 @@ export default function ReportsPage() {
         </ModalContent>
       </Modal>
     </Container>
+  );
+}
+
+export default function ReportsPage() {
+  const [tabIndex, setTabIndex] = useState(getInitialTab);
+  const handleTabChange = (idx: number) => {
+    setTabIndex(idx);
+    try { localStorage.setItem(TAB_KEY, String(idx)); } catch {}
+  };
+
+  return (
+    <Box pt={4}>
+      <Box px={6} mb={2}>
+        <Heading size="lg">Reports & Trends</Heading>
+        <Text color="text.secondary" mt={1} fontSize="sm">
+          Spending trends, annual review, tax-deductible transactions, and custom reports.
+        </Text>
+      </Box>
+      <Tabs colorScheme="brand" variant="enclosed" px={6} index={tabIndex} onChange={handleTabChange}>
+        <TabList>
+          <Tab fontSize="sm">Trends</Tab>
+          <Tab fontSize="sm">Year in Review</Tab>
+          <Tab fontSize="sm">Tax Deductible</Tab>
+          <Tab fontSize="sm">Custom Reports</Tab>
+        </TabList>
+        <TabPanels>
+          <TabPanel px={0}>
+            <Suspense fallback={<TabLoader />}>
+              <TrendsPage />
+            </Suspense>
+          </TabPanel>
+          <TabPanel px={0}>
+            <Suspense fallback={<TabLoader />}>
+              <YearInReviewPage />
+            </Suspense>
+          </TabPanel>
+          <TabPanel px={0}>
+            <Suspense fallback={<TabLoader />}>
+              <TaxDeductiblePage />
+            </Suspense>
+          </TabPanel>
+          <TabPanel px={0}>
+            <Suspense fallback={<TabLoader />}>
+              <CustomReportsTab />
+            </Suspense>
+          </TabPanel>
+        </TabPanels>
+      </Tabs>
+    </Box>
   );
 }

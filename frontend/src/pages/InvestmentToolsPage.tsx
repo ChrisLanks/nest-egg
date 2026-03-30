@@ -1,9 +1,9 @@
 /**
- * Investment Tools — consolidated advanced investment hub.
+ * Planning Tools — consolidated advanced planning and investment hub.
  *
  * Combines FIRE metrics, Equity Compensation, Loan Modeler, HSA Optimizer,
- * Tax-Equivalent Yield, Asset Location, Employer Match, and Cost Basis Aging
- * into a single tabbed view.
+ * Tax-Equivalent Yield, Asset Location, Employer Match, Cost Basis Aging,
+ * and What-If Scenarios into a single tabbed view.
  *
  * Note: Dividend Calendar has moved to the main Calendar page.
  */
@@ -40,6 +40,7 @@ const EmployerMatchTab = lazy(() =>
 const CostBasisAgingTab = lazy(() =>
   import("./CostBasisAgingTab").then((m) => ({ default: m.CostBasisAgingTab })),
 );
+const WhatIfPage = lazy(() => import("./WhatIfPage"));
 
 const TabLoader = () => (
   <Center py={12}>
@@ -66,7 +67,7 @@ export const InvestmentToolsPage = () => {
         <Text color="text.secondary" mt={1} fontSize="sm">
           FIRE progress, equity compensation modeling, loan analysis, HSA
           strategy, tax-equivalent yield, asset location, employer match
-          optimization, and cost basis aging.
+          optimization, cost basis aging, and what-if scenarios.
         </Text>
       </Box>
       <Tabs colorScheme="brand" variant="enclosed" px={6} index={tabIndex} onChange={handleTabChange}>
@@ -79,6 +80,7 @@ export const InvestmentToolsPage = () => {
           <Tab fontSize="sm">Asset Location</Tab>
           <Tab fontSize="sm">Employer Match</Tab>
           <Tab fontSize="sm">Cost Basis</Tab>
+          <Tab fontSize="sm">What-If</Tab>
         </TabList>
         <TabPanels>
           <TabPanel px={0}>
@@ -119,6 +121,11 @@ export const InvestmentToolsPage = () => {
           <TabPanel px={0}>
             <Suspense fallback={<TabLoader />}>
               <CostBasisAgingTab />
+            </Suspense>
+          </TabPanel>
+          <TabPanel px={0}>
+            <Suspense fallback={<TabLoader />}>
+              <WhatIfPage />
             </Suspense>
           </TabPanel>
         </TabPanels>
