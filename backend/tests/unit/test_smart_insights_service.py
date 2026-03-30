@@ -760,7 +760,7 @@ class TestCheckNetWorthBenchmark:
         svc = self._svc()
         svc._annual_income_estimate = AsyncMock(return_value=Decimal("80000"))
         with patch(
-            "app.services.scf_benchmark_service.get_benchmarks",
+            "app.services.smart_insights_service.get_benchmarks",
             return_value=self._mock_benchmarks(2019, True),
         ):
             result = await svc._check_net_worth_benchmark(
@@ -777,8 +777,8 @@ class TestCheckNetWorthBenchmark:
         svc = self._svc()
         svc._annual_income_estimate = AsyncMock(return_value=Decimal("80000"))
         with patch(
-            "app.services.scf_benchmark_service.get_benchmarks",
-            return_value=self._mock_benchmarks(2022, False),
+            "app.services.smart_insights_service.get_benchmarks",
+            return_value=self._mock_benchmarks(2024, False),
         ):
             result = await svc._check_net_worth_benchmark(
                 accounts, [], self._birthdate(40)

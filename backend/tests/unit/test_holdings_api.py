@@ -743,7 +743,7 @@ class TestGetRMDSummary:
         target_user.birthdate = None  # No birthdate
 
         user_result = Mock()
-        user_result.scalar_one.return_value = target_user
+        user_result.scalar_one_or_none.return_value = target_user
         mock_db.execute.return_value = user_result
 
         with patch("app.api.v1.holdings.verify_household_member", return_value=None):
@@ -776,7 +776,7 @@ class TestGetRMDSummary:
         target_user.birthdate = date(date.today().year - 60, 1, 1)
 
         user_result = Mock()
-        user_result.scalar_one.return_value = target_user
+        user_result.scalar_one_or_none.return_value = target_user
         mock_db.execute.return_value = user_result
 
         with patch("app.api.v1.holdings.verify_household_member", return_value=None):
@@ -799,7 +799,7 @@ class TestGetRMDSummary:
 
         # Mock user lookup
         user_result = Mock()
-        user_result.scalar_one.return_value = target_user
+        user_result.scalar_one_or_none.return_value = target_user
 
         # Mock account with retirement funds
         account = Mock(spec=Account)
@@ -1898,7 +1898,7 @@ class TestGetRmdSummary:
         other_user.birthdate = None
 
         user_result = Mock()
-        user_result.scalar_one.return_value = other_user
+        user_result.scalar_one_or_none.return_value = other_user
         mock_db.execute.return_value = user_result
 
         with patch("app.api.v1.holdings.verify_household_member", return_value=None):

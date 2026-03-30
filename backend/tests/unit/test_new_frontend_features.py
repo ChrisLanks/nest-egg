@@ -37,6 +37,8 @@ def _make_user(**overrides):
         "birth_year": None,
         "dashboard_layout": None,
         "birthdate": None,
+        "state_of_residence": None,
+        "target_retirement_state": None,
         "created_at": datetime(2025, 1, 1),
         "updated_at": datetime(2025, 1, 1),
         "login_count": 0,

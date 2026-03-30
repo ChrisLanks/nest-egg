@@ -460,7 +460,7 @@ class TestUpdateGuest:
         mock_result1.scalar_one_or_none.return_value = guest
         # Second query: get email (after refresh)
         mock_result2 = Mock()
-        mock_result2.scalar_one.return_value = "guest@example.com"
+        mock_result2.scalar_one_or_none.return_value = "guest@example.com"
 
         db.execute.side_effect = [mock_result1, mock_result2]
         db.commit = AsyncMock()

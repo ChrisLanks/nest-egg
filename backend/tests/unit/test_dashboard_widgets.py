@@ -762,7 +762,7 @@ class TestRmdPlannerWidget:
 
         # Individual view (with user_id)
         user_result = MagicMock()
-        user_result.scalar_one.return_value = user
+        user_result.scalar_one_or_none.return_value = user
         db.execute = AsyncMock(return_value=user_result)
 
         with patch("app.api.v1.holdings.verify_household_member", new_callable=AsyncMock):
@@ -780,7 +780,7 @@ class TestRmdPlannerWidget:
         db = AsyncMock()
 
         user_result = MagicMock()
-        user_result.scalar_one.return_value = user
+        user_result.scalar_one_or_none.return_value = user
         db.execute = AsyncMock(return_value=user_result)
 
         with patch("app.api.v1.holdings.verify_household_member", new_callable=AsyncMock):

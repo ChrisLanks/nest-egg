@@ -649,7 +649,7 @@ class TestGetInvitationDetails:
 
         # Mock user query
         user_result = Mock()
-        user_result.scalar_one.return_value = invited_by
+        user_result.scalar_one_or_none.return_value = invited_by
 
         mock_db.execute.side_effect = [invitation_result, user_result]
 
