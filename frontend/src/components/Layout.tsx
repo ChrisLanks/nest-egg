@@ -851,16 +851,16 @@ export const Layout = () => {
         "Set monthly or custom spending limits by category and get alerts when you're close",
     },
     {
-      label: "Recurring & Bills",
-      path: "/recurring-bills",
-      tooltip:
-        "Subscriptions, recurring payments, and upcoming bill due dates — all in one place",
-    },
-    {
       label: "Categories & Labels",
       path: "/categories",
       tooltip:
         "Organize transactions into groups (Groceries, Dining, etc.) to understand your spending",
+    },
+    {
+      label: "Recurring & Bills",
+      path: "/recurring-bills",
+      tooltip:
+        "Subscriptions, recurring payments, and upcoming bill due dates — all in one place",
     },
     {
       label: "Rules",
@@ -1295,9 +1295,9 @@ export const Layout = () => {
               />
 
 
-              {/* Portfolio */}
+              {/* Investments */}
               <TopNavItem
-                label="Portfolio"
+                label="Investments"
                 isActive={location.pathname === "/investments"}
                 onClick={() => navigateWithParams("/investments")}
               />

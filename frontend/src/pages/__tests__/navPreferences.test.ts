@@ -32,6 +32,8 @@ const LEGACY_ADVANCED_KEY = "nest-egg-show-advanced-nav";
 // Must match ADVANCED_PATHS in PreferencesPage (all items with advanced: true in NAV_SECTIONS)
 const ADVANCED_NAV_PATHS = [
   "/investment-tools",
+  "/bond-ladder",
+  "/pe-performance",
 ];
 
 // ── Account fixtures ──────────────────────────────────────────────────────────
@@ -466,11 +468,12 @@ describe("NAV_SECTIONS: structure", () => {
       "/rules",
     ]);
   });
-  it("only /investment-tools is advanced (consolidated from 5 individual items)", () => {
+  it("advanced items are /investment-tools, /bond-ladder, /pe-performance", () => {
     const advancedPaths = NAV_SECTIONS.flatMap((s) => s.items)
       .filter((i) => i.advanced)
-      .map((i) => i.path);
-    expect(advancedPaths).toEqual(["/investment-tools"]);
+      .map((i) => i.path)
+      .sort();
+    expect(advancedPaths).toEqual(["/bond-ladder", "/investment-tools", "/pe-performance"]);
   });
   it("no spending items are advanced; /recurring-bills and /rules are conditional", () => {
     const spending = NAV_SECTIONS.find((s) => s.group === "Spending");

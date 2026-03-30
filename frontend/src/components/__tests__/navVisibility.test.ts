@@ -236,10 +236,10 @@ describe("buildConditionalDefaults: consolidated hub paths always visible", () =
     expect(buildConditionalDefaults([], null)["/investment-tools"]).toBe(true);
     expect(buildConditionalDefaults([brokerage()], 25)["/investment-tools"]).toBe(true);
   });
-  it("old individual paths NOT in conditionalDefaults map (except ss-claiming which is age-gated)", () => {
+  it("old individual paths NOT in conditionalDefaults map (consolidated into hub pages)", () => {
     const d = buildConditionalDefaults([brokerage()], 35);
-    // /ss-claiming is age-gated (shown at 50+), so it IS in the map
-    expect("/ss-claiming" in d).toBe(true);
+    // /ss-claiming is inside /life-planning hub — no longer a top-level nav entry
+    expect("/ss-claiming" in d).toBe(false);
     expect("/fire" in d).toBe(false);
     expect("/tax-projection" in d).toBe(false);
     expect("/hsa" in d).toBe(false);
@@ -290,10 +290,11 @@ describe("reset to defaults: post-reset visibility is account-aware", () => {
     expect(isNavVisible("/life-planning", {}, defaults)).toBe(true);
     expect(isNavVisible("/investment-tools", {}, defaults)).toBe(true);
   });
-  it("ss-claiming hidden after reset for user aged 35 (age-gated: requires 50+)", () => {
-    // /ss-claiming is age-gated: shown at 50+. Age 35 → condition not met → hidden
+  it("/ss-claiming not in map — merged into /life-planning hub which is always visible", () => {
+    // /ss-claiming is no longer a top-level nav path; it's a tab inside /life-planning
     const defaults = buildConditionalDefaults([], 35);
-    expect(isNavVisible("/ss-claiming", {}, defaults)).toBe(false);
+    expect("/ss-claiming" in defaults).toBe(false);
+    expect(isNavVisible("/life-planning", {}, defaults)).toBe(true);
   });
 });
 

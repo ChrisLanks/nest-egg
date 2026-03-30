@@ -20,16 +20,6 @@ interface Account {
 
 const DEBT_TYPES = new Set(["credit_card", "loan", "student_loan", "mortgage"]);
 
-const INVESTMENT_TYPES = new Set([
-  "brokerage",
-  "retirement_401k",
-  "retirement_ira",
-  "retirement_roth_ira",
-  "retirement_403b",
-  "retirement_457",
-  "retirement_pension",
-  "crypto",
-]);
 
 /** Nav item definition — matches NAV_SECTIONS shape in PreferencesPage */
 export interface NavItem {
@@ -141,6 +131,18 @@ export const NAV_SECTIONS: NavSection[] = [
         advanced: true,
         reason: "Advanced — FIRE, equity compensation, loan modeling, and what-if scenarios",
       },
+      {
+        label: "Bond Ladder",
+        path: "/bond-ladder",
+        advanced: true,
+        reason: "Advanced — Treasury/CD/TIPS bond ladder builder for income generation",
+      },
+      {
+        label: "PE Performance",
+        path: "/pe-performance",
+        advanced: true,
+        reason: "Advanced — Private equity TVPI, DPI, RVPI, IRR metrics and capital call history",
+      },
     ],
   },
 ];
@@ -157,16 +159,10 @@ export function buildConditionalDefaults(
   const hasRental = accounts.some((a) => a.is_rental_property);
   const hasMortgage = accounts.some((a) => a.account_type === "mortgage");
   const has529 = accounts.some((a) => a.account_type === "retirement_529");
-  const hasInvestments = accounts.some((a) =>
-    INVESTMENT_TYPES.has(a.account_type),
-  );
   const hasLinkedAccounts = accounts.some(
     (a) => a.plaid_item_id !== null || a.plaid_item_hash !== null,
   );
   const hasAnyAccounts = accounts.length > 0;
-
-  // SS Optimizer is only relevant for users approaching retirement age
-  const isSsAge = userAge !== null && userAge >= 50;
 
   return {
     "/rental-properties": hasRental,
@@ -175,7 +171,6 @@ export function buildConditionalDefaults(
     "/mortgage": hasMortgage,
     "/recurring-bills": hasLinkedAccounts,
     "/rules": hasAnyAccounts,
-    "/ss-claiming": isSsAge,
     // Consolidated hubs — always visible (contain their own conditional logic)
     "/tax-center": true,
     "/life-planning": true,
@@ -197,7 +192,6 @@ export function getLockedNavTooltip(path: string): string | undefined {
     "/recurring-bills": "Connect a bank account to unlock",
     "/rules": "Add an account to unlock",
     "/tax-deductible": "Add an investment or rental account to unlock",
-    "/ss-claiming": "Available once you reach age 50",
   };
   return hints[path];
 }
