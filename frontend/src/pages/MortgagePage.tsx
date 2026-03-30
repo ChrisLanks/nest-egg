@@ -46,6 +46,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
 import { FiInfo } from "react-icons/fi";
 import {
   financialPlanningApi,
@@ -53,6 +54,15 @@ import {
 } from "../api/financialPlanning";
 import { useUserView } from "../contexts/UserViewContext";
 import { useLocalStorage } from "../hooks/useLocalStorage";
+
+function useDebounce<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(id);
+  }, [value, delayMs]);
+  return debounced;
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -371,12 +381,19 @@ export const MortgagePage = () => {
     "",
   );
 
+  // Debounce all user-editable numeric inputs so the API is only called
+  // after the user stops typing (600 ms idle), not on every keystroke.
+  const debouncedRefinanceRate = useDebounce(refinanceRate, 600);
+  const debouncedRefinanceTerm = useDebounce(refinanceTerm, 600);
+  const debouncedClosingCosts = useDebounce(closingCosts, 600);
+  const debouncedExtraPayment = useDebounce(extraPayment, 600);
+
   const params = {
     user_id: selectedUserId || undefined,
-    refinance_rate: refinanceRate ? parseFloat(refinanceRate) / 100 : undefined,
-    refinance_term_months: refinanceTerm ? parseInt(refinanceTerm) : undefined,
-    closing_costs: closingCosts ? parseFloat(closingCosts) : undefined,
-    extra_monthly_payment: extraPayment ? parseFloat(extraPayment) : undefined,
+    refinance_rate: debouncedRefinanceRate ? parseFloat(debouncedRefinanceRate) / 100 : undefined,
+    refinance_term_months: debouncedRefinanceTerm ? parseInt(debouncedRefinanceTerm) : undefined,
+    closing_costs: debouncedClosingCosts ? parseFloat(debouncedClosingCosts) : undefined,
+    extra_monthly_payment: debouncedExtraPayment ? parseFloat(debouncedExtraPayment) : undefined,
   };
 
   const { data, isLoading, isError } = useQuery({

@@ -33,6 +33,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import api from "../services/api";
 import { useUserView } from "../contexts/UserViewContext";
+import { ACCOUNT_TYPE_LABELS } from "../constants/accountTypeGroups";
 
 interface YieldHolding {
   account_id: string;
@@ -58,13 +59,6 @@ interface TaxEquivYieldResponse {
   total_annual_tax_cost: number;
 }
 
-const ACCOUNT_TYPE_LABELS: Record<string, string> = {
-  cd: "CD",
-  bond: "Bond",
-  i_bond: "I-Bond",
-  savings: "Savings",
-  money_market: "Money Market",
-};
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("en-US", {

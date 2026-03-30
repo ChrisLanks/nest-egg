@@ -34,6 +34,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import api from "../services/api";
 import { useCurrency } from "../contexts/CurrencyContext";
+import { ACCOUNT_TYPE_LABELS } from "../constants/accountTypeGroups";
 
 interface LiquidAccount {
   account_id: string;
@@ -231,7 +232,7 @@ export const LiquidityDashboardTab = () => {
                   {data.liquid_accounts.map((acct) => (
                     <Tr key={acct.account_id}>
                       <Td>{acct.account_name}</Td>
-                      <Td>{acct.account_type}</Td>
+                      <Td>{ACCOUNT_TYPE_LABELS[acct.account_type] ?? acct.account_type}</Td>
                       <Td isNumeric>{fmt(acct.balance)}</Td>
                       <Td>
                         {acct.is_accessible ? (

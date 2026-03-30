@@ -151,3 +151,49 @@ export const ACCOUNT_TYPE_SIDEBAR_CONFIG: Record<
   [AccountType.MANUAL]: { label: "Other", order: 13 },
   [AccountType.OTHER]: { label: "Other", order: 13 },
 };
+
+// ---------------------------------------------------------------------------
+// Human-friendly display names for individual account types
+// Import this wherever you need to show a readable account type label.
+// Usage: ACCOUNT_TYPE_LABELS[account.account_type] ?? account.account_type
+// ---------------------------------------------------------------------------
+export const ACCOUNT_TYPE_LABELS: Record<string, string> = {
+  [AccountType.CHECKING]: "Checking",
+  [AccountType.SAVINGS]: "Savings",
+  [AccountType.MONEY_MARKET]: "Money Market",
+  [AccountType.CD]: "Certificate of Deposit (CD)",
+  [AccountType.CASH]: "Cash",
+  [AccountType.CREDIT_CARD]: "Credit Card",
+  [AccountType.BROKERAGE]: "Brokerage",
+  [AccountType.RETIREMENT_401K]: "401(k)",
+  [AccountType.RETIREMENT_403B]: "403(b)",
+  [AccountType.RETIREMENT_457B]: "457(b)",
+  [AccountType.RETIREMENT_IRA]: "Traditional IRA",
+  [AccountType.RETIREMENT_ROTH]: "Roth IRA",
+  [AccountType.RETIREMENT_SEP_IRA]: "SEP IRA",
+  [AccountType.RETIREMENT_SIMPLE_IRA]: "SIMPLE IRA",
+  [AccountType.RETIREMENT_529]: "529 Plan",
+  [AccountType.HSA]: "Health Savings Account (HSA)",
+  [AccountType.PENSION]: "Pension",
+  [AccountType.LOAN]: "Loan",
+  [AccountType.STUDENT_LOAN]: "Student Loan",
+  [AccountType.MORTGAGE]: "Mortgage",
+  [AccountType.PROPERTY]: "Real Estate",
+  [AccountType.VEHICLE]: "Vehicle",
+  [AccountType.BOND]: "Bond",
+  [AccountType.STOCK_OPTIONS]: "Stock Options",
+  [AccountType.ESPP]: "Employee Stock Purchase Plan (ESPP)",
+  [AccountType.PRIVATE_EQUITY]: "Private Equity",
+  [AccountType.PRIVATE_DEBT]: "Private Debt",
+  [AccountType.COLLECTIBLES]: "Collectibles",
+  [AccountType.PRECIOUS_METALS]: "Precious Metals",
+  [AccountType.LIFE_INSURANCE_CASH_VALUE]: "Life Insurance (Cash Value)",
+  [AccountType.ANNUITY]: "Annuity",
+  [AccountType.BUSINESS_EQUITY]: "Business Equity",
+  [AccountType.CRYPTO]: "Cryptocurrency",
+  [AccountType.TRUST]: "Trust",
+  [AccountType.CUSTODIAL_UGMA]: "Custodial (UGMA/UTMA)",
+  [AccountType.TRUMP_ACCOUNT]: "Trump Account",
+  [AccountType.MANUAL]: "Manual Account",
+  [AccountType.OTHER]: "Other",
+};

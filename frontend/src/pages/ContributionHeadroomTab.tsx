@@ -32,6 +32,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import api from "../services/api";
+import { ACCOUNT_TYPE_LABELS } from "../constants/accountTypeGroups";
 
 interface AccountHeadroom {
   account_id: string;
@@ -60,17 +61,6 @@ interface HeadroomResponse {
   members: MemberHeadroom[];
 }
 
-const ACCOUNT_TYPE_LABELS: Record<string, string> = {
-  retirement_401k: "401(k)",
-  retirement_403b: "403(b)",
-  retirement_457b: "457(b)",
-  retirement_ira: "Traditional IRA",
-  retirement_roth: "Roth IRA",
-  retirement_sep_ira: "SEP IRA",
-  retirement_simple_ira: "SIMPLE IRA",
-  hsa: "HSA",
-  retirement_529: "529 Plan",
-};
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("en-US", {

@@ -450,7 +450,7 @@ export const AccountsPage = () => {
     const active = accounts.filter((a) => a.is_active);
     let cash = 0, investments = 0, debt = 0, other = 0;
     for (const a of active) {
-      const bal = a.current_balance ?? 0;
+      const bal = Number(a.current_balance) || 0;
       if (CASH_TYPES.has(a.account_type)) cash += bal;
       else if (DEBT_TYPES.has(a.account_type)) debt += Math.abs(bal);
       else if (INVESTMENT_TYPES.has(a.account_type)) investments += bal;

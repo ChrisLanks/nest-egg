@@ -55,12 +55,16 @@ export const ScenarioComparisonChart = ({
   const tooltipBorder = useColorModeValue("gray.200", "gray.600");
 
   // Merge all scenario projections into unified data keyed by year
+  const validScenarios = scenarios.filter((s) => s.summary?.projections?.length);
+  if (validScenarios.length === 0) return null;
+
   const maxYears = Math.max(
-    ...scenarios.map((s) => s.summary.projections.length),
+    ...validScenarios.map((s) => s.summary.projections.length),
   );
   const chartData = Array.from({ length: maxYears }, (_, i) => {
     const row: Record<string, number> = { year: i };
     scenarios.forEach((s, si) => {
+      if (!s.summary?.projections) return;
       const p = s.summary.projections[i];
       if (!p) return;
       const prefix = `s${si}`;

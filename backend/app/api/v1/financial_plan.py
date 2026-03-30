@@ -76,22 +76,51 @@ async def get_financial_plan_summary(
     }
 
     # ── Retirement ───────────────────────────────────────────────────────
-    retirement_section = await _build_retirement_section(db, org_id, subject_user)
+    try:
+        retirement_section = await _build_retirement_section(db, org_id, subject_user)
+    except Exception:
+        logger.exception("financial-plan: retirement section failed")
+        retirement_section = {"on_track": False, "no_scenario": True, "projected_at_retirement": 0,
+                               "monthly_income_projected": 0, "monthly_income_needed": 0, "gap": 0,
+                               "retirement_age": RETIREMENT.DEFAULT_RETIREMENT_AGE, "years_until_retirement": 0}
 
     # ── Education ────────────────────────────────────────────────────────
-    education_section = await _build_education_section(db, org_id)
+    try:
+        education_section = await _build_education_section(db, org_id)
+    except Exception:
+        logger.exception("financial-plan: education section failed")
+        education_section = {"total_education_gap": 0, "children": [], "total_529_balance": 0}
 
     # ── Debt ─────────────────────────────────────────────────────────────
-    debt_section = await _build_debt_section(db, org_id)
+    try:
+        debt_section = await _build_debt_section(db, org_id)
+    except Exception:
+        logger.exception("financial-plan: debt section failed")
+        debt_section = {"total_debt": 0, "high_interest_debt": 0, "accounts": []}
 
     # ── Insurance ────────────────────────────────────────────────────────
-    insurance_section = await _build_insurance_section(db, org_id, nw_data["total_net_worth"])
+    try:
+        insurance_section = await _build_insurance_section(db, org_id, nw_data["total_net_worth"])
+    except Exception:
+        logger.exception("financial-plan: insurance section failed")
+        insurance_section = {"life_coverage_gap": 0, "life_coverage_need": 0, "life_coverage_existing": 0,
+                              "has_disability": False, "has_umbrella": False, "umbrella_recommended": False,
+                              "_has_life": False, "_coverage_score": 0}
 
     # ── Estate ───────────────────────────────────────────────────────────
-    estate_section = await _build_estate_section(db, org_id, subject_user, nw_data["total_net_worth"])
+    try:
+        estate_section = await _build_estate_section(db, org_id, subject_user, nw_data["total_net_worth"])
+    except Exception:
+        logger.exception("financial-plan: estate section failed")
+        estate_section = {"has_will": False, "has_poa": False, "has_hcpoa": False,
+                          "has_trust": False, "beneficiary_coverage": 0}
 
     # ── Emergency Fund ───────────────────────────────────────────────────
-    emergency_section = await _build_emergency_fund_section(db, org_id)
+    try:
+        emergency_section = await _build_emergency_fund_section(db, org_id)
+    except Exception:
+        logger.exception("financial-plan: emergency fund section failed")
+        emergency_section = {"months_covered": 0, "recommended_months": HEALTH.EMERGENCY_FUND_TARGET_MONTHS, "shortfall": 0}
 
     # ── Health Score ─────────────────────────────────────────────────────
     health_score = _compute_health_score(

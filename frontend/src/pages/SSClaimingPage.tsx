@@ -101,6 +101,10 @@ export const SSClaimingPage = () => {
   );
   const [manualPia, setManualPia] = useLocalStorage("ss-manual-pia", "");
   const [spousePia, setSpousePia] = useLocalStorage("ss-spouse-pia", "");
+  const [plannedRetirementAge, setPlannedRetirementAge] = useLocalStorage(
+    "ss-planned-retirement-age",
+    "65",
+  );
   // Auto-submit on load if persisted salary exists (returning users see results immediately)
   const [submitted, setSubmitted] = useState(
     () => (parseFloat(localStorage.getItem("ss-salary") ?? "") || 0) > 0,
@@ -108,6 +112,7 @@ export const SSClaimingPage = () => {
 
   const salaryNum = parseFloat(salary) || 0;
   const birthYearNum = parseInt(birthYear) || CURRENT_YEAR - 58;
+  const plannedRetirementAgeNum = parseInt(plannedRetirementAge) || 65;
 
   const params: SSClaimingParams = {
     user_id: selectedUserId || undefined,
@@ -194,6 +199,30 @@ export const SSClaimingPage = () => {
                       <NumberDecrementStepper />
                     </NumberInputStepper>
                   </NumberInput>
+                </FormControl>
+              </SimpleGrid>
+              <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} w="full">
+                <FormControl>
+                  <FormLabel fontSize="xs">
+                    Planned Retirement Age
+                    <InfoTip label="The age at which you plan to stop working. This is used to show how many years you'd wait between retirement and when you start claiming Social Security." />
+                  </FormLabel>
+                  <NumberInput
+                    size="sm"
+                    min={50}
+                    max={80}
+                    value={plannedRetirementAge}
+                    onChange={(val) => setPlannedRetirementAge(val)}
+                  >
+                    <NumberInputField />
+                    <NumberInputStepper>
+                      <NumberIncrementStepper />
+                      <NumberDecrementStepper />
+                    </NumberInputStepper>
+                  </NumberInput>
+                  <FormHelperText fontSize="xs">
+                    Used to show years from retirement until claiming starts.
+                  </FormHelperText>
                 </FormControl>
               </SimpleGrid>
               <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} w="full">
@@ -345,6 +374,10 @@ export const SSClaimingPage = () => {
                         <InfoTip label="Total Social Security income if you live to age 92 — an optimistic scenario. Longer lifespans strongly favor delaying to 70 for the highest monthly amount." />
                       </Th>
                       <Th isNumeric>
+                        After Retirement
+                        <InfoTip label={`Years you'd wait after your planned retirement age (${plannedRetirementAgeNum}) before claiming. Negative means you'd still be working when you start claiming.`} />
+                      </Th>
+                      <Th isNumeric>
                         Break-even vs 62
                         <InfoTip label="How long you need to live after claiming before this age 'pays off' compared to claiming at 62. For example, if the break-even is 12y 3m, you need to collect benefits for at least that long before the higher monthly amount catches up." />
                       </Th>
@@ -354,6 +387,7 @@ export const SSClaimingPage = () => {
                     {data.options.map((opt) => {
                       const isOptBase =
                         opt.claiming_age === data.optimal_age_base_scenario;
+                      const yearsAfterRetirement = opt.claiming_age - plannedRetirementAgeNum;
                       return (
                         <Tr
                           key={opt.claiming_age}
@@ -381,6 +415,13 @@ export const SSClaimingPage = () => {
                           <Td isNumeric>{fmt(opt.lifetime_pessimistic)}</Td>
                           <Td isNumeric>{fmt(opt.lifetime_base)}</Td>
                           <Td isNumeric>{fmt(opt.lifetime_optimistic)}</Td>
+                          <Td isNumeric color={yearsAfterRetirement < 0 ? "orange.500" : undefined}>
+                            {yearsAfterRetirement > 0
+                              ? `+${yearsAfterRetirement}y`
+                              : yearsAfterRetirement === 0
+                              ? "At retirement"
+                              : `${yearsAfterRetirement}y`}
+                          </Td>
                           <Td isNumeric>
                             {opt.breakeven_vs_62_months == null
                               ? "—"

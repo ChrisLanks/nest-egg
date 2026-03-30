@@ -412,12 +412,10 @@ export const GrowthProjectionsChart = ({
 
   const showMultiScenario = scenarios.length > 1;
 
-  // Build scenario data for comparison chart
-  const scenarioChartData: ScenarioData[] = scenarios.map((sc, i) => ({
-    name: sc.name,
-    color: sc.color,
-    summary: simulationResults[i],
-  }));
+  // Build scenario data for comparison chart — only include scenarios with results
+  const scenarioChartData: ScenarioData[] = scenarios
+    .map((sc, i) => ({ name: sc.name, color: sc.color, summary: simulationResults[i] }))
+    .filter((sc) => sc.summary != null) as ScenarioData[];
 
   // Worker hasn't returned results yet — show spinner until ready
   if (!activeSummary || !summaryStats) {

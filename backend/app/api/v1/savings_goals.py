@@ -1,11 +1,14 @@
 """Savings goals API endpoints."""
 
+import logging
 from decimal import Decimal
 from enum import Enum
 from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+
+logger = logging.getLogger(__name__)
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -139,11 +142,15 @@ async def auto_sync_goals(
     - waterfall: priority order, each goal claims up to its target
     - proportional: balance split proportionally by target amounts
     """
-    updated = await savings_goal_service.auto_sync_goals(
-        db=db,
-        user=current_user,
-        method=request.method,
-    )
+    try:
+        updated = await savings_goal_service.auto_sync_goals(
+            db=db,
+            user=current_user,
+            method=request.method,
+        )
+    except Exception:
+        logger.exception("auto-sync goals failed")
+        raise HTTPException(status_code=500, detail="Failed to sync goals — check server logs")
     return updated
 
 

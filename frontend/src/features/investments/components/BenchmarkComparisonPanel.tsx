@@ -40,7 +40,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueries } from "@tanstack/react-query";
 import { format, subMonths, subYears, parseISO } from "date-fns";
 import api from "../../../services/api";
 
@@ -138,11 +138,10 @@ export function BenchmarkComparisonPanel({ userId }: BenchmarkComparisonPanelPro
 
   // ── Benchmark price history ───────────────────────────────────────────────
 
-  const benchmarkQueries = selectedBenchmarks.map((symbol) =>
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    useQuery<HistoricalPrice[]>({
+  const benchmarkQueries = useQueries({
+    queries: selectedBenchmarks.map((symbol) => ({
       queryKey: ["benchmark-history", symbol, startStr, endStr],
-      queryFn: async () => {
+      queryFn: async (): Promise<HistoricalPrice[]> => {
         const res = await api.get(`/market-data/historical/${symbol}`, {
           params: { start_date: startStr, end_date: endStr, interval: "1wk" },
         });
@@ -150,8 +149,8 @@ export function BenchmarkComparisonPanel({ userId }: BenchmarkComparisonPanelPro
       },
       staleTime: 60 * 60 * 1000, // 1h — benchmark data is stable
       retry: false,
-    })
-  );
+    })),
+  });
 
   const benchmarksLoading = benchmarkQueries.some((q) => q.isLoading);
 
