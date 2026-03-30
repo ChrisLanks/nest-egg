@@ -49,9 +49,9 @@ export const FinancialHealthPage = () => {
   return (
     <Box pt={4}>
       <Box px={6} mb={2}>
-        <Heading size="lg">Financial Health</Heading>
+        <Heading size="lg">Financial Checkup</Heading>
         <Text color="text.secondary" mt={1} fontSize="sm">
-          Financial ratios, debt-to-income analysis, emergency fund coverage, and credit score tracking.
+          Are you on track? Savings rate, emergency fund coverage, debt-to-income ratio, and credit score.
         </Text>
       </Box>
       <Tabs colorScheme="brand" variant="enclosed" px={6} index={tabIndex} onChange={handleTabChange}>

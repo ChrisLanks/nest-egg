@@ -150,11 +150,16 @@ describe("isItemOn: account-aware defaults (conditionalDefaults)", () => {
     ).toBe(true);
   });
 
-  it("non-conditional items default to on (not in conditionalDefaults map)", () => {
+  it("account-gated items are off with no accounts, on once any account exists", () => {
     const defaults = buildConditionalDefaults(noAccounts);
-    expect(isItemOn({ path: "/transactions" }, {}, defaults)).toBe(true);
-    expect(isItemOn({ path: "/retirement" }, {}, defaults)).toBe(true);
-    expect(isItemOn({ path: "/goals" }, {}, defaults)).toBe(true);
+    expect(isItemOn({ path: "/transactions" }, {}, defaults)).toBe(false);
+    expect(isItemOn({ path: "/retirement" }, {}, defaults)).toBe(false);
+    expect(isItemOn({ path: "/goals" }, {}, defaults)).toBe(false);
+
+    const withAccount = buildConditionalDefaults([{ account_type: "checking", plaid_item_id: null, plaid_item_hash: null }]);
+    expect(isItemOn({ path: "/transactions" }, {}, withAccount)).toBe(true);
+    expect(isItemOn({ path: "/retirement" }, {}, withAccount)).toBe(true);
+    expect(isItemOn({ path: "/goals" }, {}, withAccount)).toBe(true);
   });
 
   it("mortgage shows as ON when user has mortgage account", () => {
@@ -206,7 +211,7 @@ describe("isItemOn: account-aware defaults (conditionalDefaults)", () => {
     ).toBe(false);
   });
 
-  it("override false turns off a non-conditional item", () => {
+  it("override false turns off a conditional item", () => {
     const defaults = buildConditionalDefaults(noAccounts);
     expect(
       isItemOn({ path: "/budgets" }, { "/budgets": false }, defaults),
@@ -243,8 +248,11 @@ describe("isNavVisible: unified override model", () => {
   });
   it("paths not in conditionalDefaults default to true", () => {
     const defaults = buildConditionalDefaults(noAccounts);
-    expect(isNavVisible("/transactions", {}, defaults)).toBe(true);
-    expect(isNavVisible("/retirement", {}, defaults)).toBe(true);
+    // /overview is alwaysOn and not in the conditional map — defaults to true
+    expect(isNavVisible("/overview", {}, defaults)).toBe(true);
+    // account-gated paths are in the map — return false with no accounts
+    expect(isNavVisible("/transactions", {}, defaults)).toBe(false);
+    expect(isNavVisible("/retirement", {}, defaults)).toBe(false);
   });
 });
 
@@ -453,18 +461,32 @@ describe("NAV_SECTIONS: structure", () => {
       expect(item.alwaysOn).toBe(true);
     }
   });
-  it("conditional items include all account-gated tabs", () => {
+  it("conditional items include all account-gated tabs (progressive disclosure)", () => {
     const conditionalPaths = NAV_SECTIONS.flatMap((s) => s.items)
       .filter((i) => i.conditional)
       .map((i) => i.path)
       .sort();
+    // All non-alwaysOn, non-advanced items are conditional (progressive disclosure)
     expect(conditionalPaths).toEqual([
+      "/budgets",
+      "/cash-flow",
+      "/categories",
       "/debt-payoff",
       "/education",
+      "/financial-health",
+      "/financial-plan",
+      "/goals",
+      "/life-planning",
       "/mortgage",
+      "/net-worth-timeline",
       "/recurring-bills",
       "/rental-properties",
+      "/reports",
+      "/retirement",
       "/rules",
+      "/smart-insights",
+      "/tax-center",
+      "/transactions",
     ]);
   });
   it("advanced items are /investment-tools, /pe-performance", () => {
@@ -474,15 +496,11 @@ describe("NAV_SECTIONS: structure", () => {
       .sort();
     expect(advancedPaths).toEqual(["/investment-tools", "/pe-performance"]);
   });
-  it("no spending items are advanced; /recurring-bills and /rules are conditional", () => {
+  it("no spending items are advanced; all spending items are conditional (progressive disclosure)", () => {
     const spending = NAV_SECTIONS.find((s) => s.group === "Spending");
     expect(spending!.items.every((i) => !i.advanced)).toBe(true);
-    expect(
-      spending!.items
-        .filter((i) => i.conditional)
-        .map((i) => i.path)
-        .sort(),
-    ).toEqual(["/recurring-bills", "/rules"]);
+    // All spending items are conditional — hidden until first account is added
+    expect(spending!.items.every((i) => i.conditional)).toBe(true);
   });
   it("all items have unique paths", () => {
     const allPaths = NAV_SECTIONS.flatMap((s) => s.items).map((i) => i.path);
@@ -551,14 +569,14 @@ describe("Life Planning hub: always visible (SS age-gating inside hub)", () => {
     expect("/ss-claiming" in defaults).toBe(false);
   });
 
-  it("/life-planning is always visible regardless of age", () => {
-    const defaultsNoAge = buildConditionalDefaults(noAccounts);
-    const defaultsYoung = buildConditionalDefaults(noAccounts);
-    const defaultsOld = buildConditionalDefaults(noAccounts);
-    // undefined means not in map → defaults to true in isNavVisible
-    expect(defaultsNoAge["/life-planning"] ?? true).toBe(true);
-    expect(defaultsYoung["/life-planning"] ?? true).toBe(true);
-    expect(defaultsOld["/life-planning"] ?? true).toBe(true);
+  it("/life-planning is visible once any account exists (no age-gating)", () => {
+    // No accounts: locked (progressive disclosure, not age-gated)
+    const defaultsNoAccounts = buildConditionalDefaults(noAccounts);
+    expect(defaultsNoAccounts["/life-planning"]).toBe(false);
+
+    // Any account (regardless of age): unlocked
+    const withAnyAccount = buildConditionalDefaults([{ account_type: "checking", plaid_item_id: null, plaid_item_hash: null }]);
+    expect(withAnyAccount["/life-planning"]).toBe(true);
   });
 });
 

@@ -851,7 +851,7 @@ export const Layout = () => {
         "Set monthly or custom spending limits by category and get alerts when you're close",
     },
     {
-      label: "Categories & Labels",
+      label: "Spending Categories",
       path: "/categories",
       tooltip:
         "Organize transactions into groups (Groceries, Dining, etc.) to understand your spending",
@@ -895,9 +895,9 @@ export const Layout = () => {
       tooltip: "Personalized tips based on your actual data — savings opportunities, fee alerts, and more",
     },
     {
-      label: "Financial Health",
+      label: "Financial Checkup",
       path: "/financial-health",
-      tooltip: "Financial ratios, debt-to-income, emergency fund coverage, and liquidity analysis",
+      tooltip: "Are you on track? Savings rate, emergency fund coverage, debt-to-income ratio, and liquidity at a glance",
     },
     {
       label: "Rental Properties",
@@ -908,37 +908,31 @@ export const Layout = () => {
   ];
 
   const allPlanningItems = [
-    // ── Front and center ──────────────────────────────────────────────────
-    {
-      label: "Financial Plan",
-      path: "/financial-plan",
-      tooltip:
-        "Unified financial health view — retirement, education, debt, insurance, estate, and emergency fund at a glance",
-    },
+    // ── Beginner-first: most universal items first ─────────────────────────
     {
       label: "Goals",
       path: "/goals",
       tooltip:
-        "Set savings targets (emergency fund, vacation, down payment) and track your progress",
+        "Set savings targets — emergency fund, vacation, down payment — and track your progress",
     },
-    // ── Core planning ─────────────────────────────────────────────────────
     {
-      label: "Retirement",
+      label: "Retirement Planner",
       path: "/retirement",
       tooltip:
         "Project whether you'll have enough to retire — see your savings trajectory and model different life scenarios",
     },
     {
-      label: "Education",
-      path: "/education",
+      label: "My Dashboard",
+      path: "/financial-plan",
       tooltip:
-        "529 college savings projections — see if you're on track to cover tuition costs per child",
+        "Your financial health score — retirement, education, debt, insurance, and estate all in one view",
     },
+    // ── Unlocked by specific account types ────────────────────────────────
     {
       label: "Debt Payoff",
       path: "/debt-payoff",
       tooltip:
-        "Pick a payoff strategy — pay smallest debts first for quick wins, or highest interest first to save money — and see exactly when you'll be debt-free",
+        "Pick a payoff strategy — smallest debts first for quick wins, or highest interest first to save money — and see exactly when you'll be debt-free",
     },
     {
       label: "Mortgage",
@@ -946,31 +940,38 @@ export const Layout = () => {
       tooltip:
         "Analyze your mortgage: amortization schedule, extra payment impact, and break-even on refinancing",
     },
+    {
+      label: "Education",
+      path: "/education",
+      tooltip:
+        "529 college savings projections — see if you're on track to cover tuition costs per child",
+    },
     // ── Consolidated hubs ─────────────────────────────────────────────────
-    // Note: HSA Planner is inside Planning Tools — no separate nav entry needed
     {
       label: "Tax Center",
       path: "/tax-center",
       tooltip:
-        "Tax projection, three-bucket optimization, charitable giving, IRMAA, Roth wizard, and contribution headroom",
+        "Estimate your tax bill, optimize across account types, track charitable giving, and plan Roth conversions",
     },
     {
-      label: "Life Planning",
+      label: "Retirement & Benefits",
       path: "/life-planning",
       tooltip:
-        "Social Security optimizer, variable income smoothing, estate & beneficiary planning, RMD projections, insurance audit, and pension modeling — per-person tools for households",
+        "Social Security optimizer, RMD projections, pension modeling, estate & beneficiary planning, insurance audit, and variable income smoothing",
     },
+    // ── Advanced ──────────────────────────────────────────────────────────
     {
-      label: "Planning Tools",
+      label: "Calculators",
       path: "/investment-tools",
       tooltip:
-        "FIRE metrics, equity compensation, loan modeler, HSA optimizer, tax-equivalent yield, asset location, employer match, cost basis aging, bond ladder, and what-if scenarios",
+        "FIRE progress, loan modeler, HSA optimizer, bond ladder, employer match, what-if scenarios, and more",
       advanced: true,
     },
     {
       label: "PE Performance",
       path: "/pe-performance",
-      tooltip: "Private equity TVPI, DPI, RVPI, IRR metrics and capital call history",
+      tooltip:
+        "Private equity TVPI, DPI, MOIC, IRR metrics and capital call history",
       advanced: true,
     },
   ];

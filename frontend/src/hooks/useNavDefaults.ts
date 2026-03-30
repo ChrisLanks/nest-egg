@@ -36,7 +36,18 @@ export interface NavSection {
   items: NavItem[];
 }
 
-/** Canonical nav section definitions shared across Layout and Preferences */
+/**
+ * Canonical nav section definitions shared across Layout and Preferences.
+ *
+ * Progressive disclosure philosophy:
+ *  - alwaysOn: visible from day one, even with no accounts
+ *  - conditional: unlocked by specific account type (mortgage, 529, etc.)
+ *  - no flag (default): shown once ANY account exists (gated in buildConditionalDefaults)
+ *  - advanced: hidden behind the "Show advanced features" toggle in Preferences
+ *
+ * Day-one view (zero accounts): Overview, Calendar, Investments, Accounts only.
+ * After first account: Goals, Retirement Planner, My Dashboard + spending/analytics unlock.
+ */
 export const NAV_SECTIONS: NavSection[] = [
   {
     group: "Top Level",
@@ -50,9 +61,24 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     group: "Spending",
     items: [
-      { label: "Transactions", path: "/transactions" },
-      { label: "Budgets", path: "/budgets" },
-      { label: "Categories & Labels", path: "/categories" },
+      {
+        label: "Transactions",
+        path: "/transactions",
+        conditional: true,
+        reason: "Shown once any account is added",
+      },
+      {
+        label: "Budgets",
+        path: "/budgets",
+        conditional: true,
+        reason: "Shown once any account is added",
+      },
+      {
+        label: "Spending Categories",
+        path: "/categories",
+        conditional: true,
+        reason: "Shown once any account is added",
+      },
       {
         label: "Recurring & Bills",
         path: "/recurring-bills",
@@ -70,18 +96,35 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     group: "Analytics",
     items: [
-      { label: "Cash Flow", path: "/cash-flow" },
-      { label: "Net Worth Timeline", path: "/net-worth-timeline" },
+      {
+        label: "Cash Flow",
+        path: "/cash-flow",
+        conditional: true,
+        reason: "Shown once any account is added",
+      },
+      {
+        label: "Net Worth Timeline",
+        path: "/net-worth-timeline",
+        conditional: true,
+        reason: "Shown once any account is added",
+      },
       {
         label: "Reports & Trends",
         path: "/reports",
-        reason: "Spending trends, annual review, tax-deductible transactions, and custom reports",
+        conditional: true,
+        reason: "Shown once any account is added",
       },
-      { label: "Smart Insights", path: "/smart-insights" },
       {
-        label: "Financial Health",
+        label: "Smart Insights",
+        path: "/smart-insights",
+        conditional: true,
+        reason: "Shown once any account is added",
+      },
+      {
+        label: "Financial Checkup",
         path: "/financial-health",
-        reason: "Financial ratios, debt-to-income analysis, and emergency fund coverage",
+        conditional: true,
+        reason: "Shown once any account is added",
       },
       {
         label: "Rental Properties",
@@ -94,14 +137,24 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     group: "Planning",
     items: [
-      { label: "Financial Plan", path: "/financial-plan" },
-      { label: "Goals", path: "/goals" },
-      { label: "Retirement", path: "/retirement" },
+      // ── Beginner-first order: most universal items first ──
       {
-        label: "Education",
-        path: "/education",
+        label: "Goals",
+        path: "/goals",
         conditional: true,
-        reason: "Shown when you have a 529 account",
+        reason: "Shown once any account is added",
+      },
+      {
+        label: "Retirement Planner",
+        path: "/retirement",
+        conditional: true,
+        reason: "Shown once any account is added",
+      },
+      {
+        label: "My Dashboard",
+        path: "/financial-plan",
+        conditional: true,
+        reason: "Shown once any account is added",
       },
       {
         label: "Debt Payoff",
@@ -116,34 +169,49 @@ export const NAV_SECTIONS: NavSection[] = [
         reason: "Shown when you have a mortgage account",
       },
       {
+        label: "Education",
+        path: "/education",
+        conditional: true,
+        reason: "Shown when you have a 529 account",
+      },
+      // ── Consolidated hubs (always visible once accounts exist) ──
+      {
         label: "Tax Center",
         path: "/tax-center",
-        reason: "Tax projection, tax buckets, and charitable giving",
+        conditional: true,
+        reason: "Shown once any account is added",
       },
       {
-        label: "Life Planning",
+        label: "Retirement & Benefits",
         path: "/life-planning",
-        reason: "Social Security, variable income, and estate planning",
+        conditional: true,
+        reason: "Shown once any account is added",
       },
+      // ── Advanced ──
       {
-        label: "Planning Tools",
+        label: "Calculators",
         path: "/investment-tools",
         advanced: true,
-        reason: "Advanced — FIRE, equity compensation, loan modeling, bond ladder, and what-if scenarios",
+        reason: "Advanced — FIRE, loan modeler, HSA, bond ladder, what-if scenarios, and more",
       },
       {
         label: "PE Performance",
         path: "/pe-performance",
         advanced: true,
-        reason: "Advanced — Private equity TVPI, DPI, RVPI, IRR metrics and capital call history",
+        reason: "Advanced — Private equity TVPI, DPI, MOIC, IRR metrics and capital call history",
       },
     ],
   },
 ];
 
 /**
- * Computes per-path default visibility based on accounts and user age.
+ * Computes per-path default visibility based on accounts.
  * Paths not in this map default to `true` (always visible).
+ *
+ * Progressive disclosure: most items are hidden until the user has at least
+ * one account, reducing day-one overwhelm. Only Overview/Calendar/Investments/
+ * Accounts are shown before any account is added (those are alwaysOn in
+ * NAV_SECTIONS and not gated here).
  */
 export function buildConditionalDefaults(
   accounts: Account[],
@@ -158,18 +226,29 @@ export function buildConditionalDefaults(
   const hasAnyAccounts = accounts.length > 0;
 
   return {
-    "/rental-properties": hasRental,
-    "/education": has529,
-    "/debt-payoff": hasDebt,
-    "/mortgage": hasMortgage,
+    // ── Spending — unlock with any account ──────────────────────────────
+    "/transactions": hasAnyAccounts,
+    "/budgets": hasAnyAccounts,
+    "/categories": hasAnyAccounts,
     "/recurring-bills": hasLinkedAccounts,
     "/rules": hasAnyAccounts,
-    // Consolidated hubs — always visible (contain their own conditional logic)
-    "/tax-center": true,
-    "/life-planning": true,
-    "/investment-tools": true,
-    "/financial-health": true,
-    "/financial-plan": true,
+    // ── Analytics — unlock with any account ─────────────────────────────
+    "/cash-flow": hasAnyAccounts,
+    "/net-worth-timeline": hasAnyAccounts,
+    "/reports": hasAnyAccounts,
+    "/smart-insights": hasAnyAccounts,
+    "/financial-health": hasAnyAccounts,
+    "/rental-properties": hasRental,
+    // ── Planning — goals/retirement/dashboard unlock with any account ────
+    "/goals": hasAnyAccounts,
+    "/retirement": hasAnyAccounts,
+    "/financial-plan": hasAnyAccounts,
+    "/debt-payoff": hasDebt,
+    "/mortgage": hasMortgage,
+    "/education": has529,
+    "/tax-center": hasAnyAccounts,
+    "/life-planning": hasAnyAccounts,
+    // investment-tools and pe-performance are advanced — gated separately
   };
 }
 
@@ -178,13 +257,27 @@ export function buildConditionalDefaults(
  */
 export function getLockedNavTooltip(path: string): string | undefined {
   const hints: Record<string, string> = {
+    // Unlocked by any account
+    "/transactions": "Add an account to unlock",
+    "/budgets": "Add an account to unlock",
+    "/categories": "Add an account to unlock",
+    "/cash-flow": "Add an account to unlock",
+    "/net-worth-timeline": "Add an account to unlock",
+    "/reports": "Add an account to unlock",
+    "/smart-insights": "Add an account to unlock",
+    "/financial-health": "Add an account to unlock",
+    "/goals": "Add an account to unlock",
+    "/retirement": "Add an account to unlock",
+    "/financial-plan": "Add an account to unlock",
+    "/tax-center": "Add an account to unlock",
+    "/life-planning": "Add an account to unlock",
+    "/rules": "Add an account to unlock",
+    // Unlocked by specific account types
+    "/recurring-bills": "Connect a bank account to unlock",
     "/rental-properties": "Add a rental property account to unlock",
     "/education": "Add a 529 account to unlock",
     "/debt-payoff": "Add a loan or credit card account to unlock",
     "/mortgage": "Add a mortgage account to unlock",
-    "/recurring-bills": "Connect a bank account to unlock",
-    "/rules": "Add an account to unlock",
-    "/tax-deductible": "Add an investment or rental account to unlock",
   };
   return hints[path];
 }

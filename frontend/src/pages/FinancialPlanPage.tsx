@@ -165,7 +165,7 @@ const FinancialPlanPage = () => {
   return (
     <Box maxW="1200px" mx="auto" px={4} py={6}>
       <Heading size="lg" mb={6}>
-        Financial Plan
+        My Dashboard
       </Heading>
 
       {/* Health Score */}

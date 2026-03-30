@@ -107,17 +107,27 @@ describe("nav consolidation — spending items", () => {
 
 describe("buildConditionalDefaults — hub paths", () => {
   const noAccounts = buildConditionalDefaults([]);
+  const withAccount = buildConditionalDefaults([{ account_type: "checking", plaid_item_id: null, plaid_item_hash: null }]);
 
-  it("tax-center always visible", () => {
-    expect(noAccounts["/tax-center"]).toBe(true);
+  it("tax-center hidden with no accounts (progressive disclosure)", () => {
+    expect(noAccounts["/tax-center"]).toBe(false);
   });
 
-  it("life-planning always visible", () => {
-    expect(noAccounts["/life-planning"]).toBe(true);
+  it("tax-center visible once any account exists", () => {
+    expect(withAccount["/tax-center"]).toBe(true);
   });
 
-  it("investment-tools always visible by default", () => {
-    expect(noAccounts["/investment-tools"]).toBe(true);
+  it("life-planning hidden with no accounts (progressive disclosure)", () => {
+    expect(noAccounts["/life-planning"]).toBe(false);
+  });
+
+  it("life-planning visible once any account exists", () => {
+    expect(withAccount["/life-planning"]).toBe(true);
+  });
+
+  it("investment-tools NOT in conditionalDefaults (advanced — gated separately)", () => {
+    // investment-tools is advanced, not in the conditional defaults map
+    expect("/investment-tools" in noAccounts).toBe(false);
   });
 
   it("old individual paths are NOT in conditionalDefaults", () => {
@@ -210,8 +220,17 @@ describe("filterVisible with consolidated nav", () => {
     expect(paths).toContain("/investment-tools");
   });
 
-  it("tax-center and life-planning always visible (not advanced)", () => {
+  it("tax-center and life-planning hidden with no accounts (progressive disclosure)", () => {
     const visible = filterVisible(false, {}, defaults);
+    const paths = visible.map((i) => i.path);
+    // With zero accounts, hubs are locked — not shown by default
+    expect(paths).not.toContain("/tax-center");
+    expect(paths).not.toContain("/life-planning");
+  });
+
+  it("tax-center and life-planning visible once any account exists", () => {
+    const withAccount = buildConditionalDefaults([{ account_type: "checking", plaid_item_id: null, plaid_item_hash: null }]);
+    const visible = filterVisible(false, {}, withAccount);
     const paths = visible.map((i) => i.path);
     expect(paths).toContain("/tax-center");
     expect(paths).toContain("/life-planning");

@@ -223,18 +223,22 @@ describe("buildConditionalDefaults: /rules", () => {
 // /ss-claiming, /fire, /tax-projection are no longer individual nav items;
 // they are rendered as tabs inside hub pages which are always visible.
 
-describe("buildConditionalDefaults: consolidated hub paths always visible", () => {
-  it("/tax-center always true regardless of accounts", () => {
-    expect(buildConditionalDefaults([])["/tax-center"]).toBe(true);
+describe("buildConditionalDefaults: consolidated hub paths — progressive disclosure", () => {
+  it("/tax-center hidden with no accounts", () => {
+    expect(buildConditionalDefaults([])["/tax-center"]).toBe(false);
+  });
+  it("/tax-center visible once any account exists", () => {
     expect(buildConditionalDefaults([checking()])["/tax-center"]).toBe(true);
   });
-  it("/life-planning always true regardless of accounts or age", () => {
-    expect(buildConditionalDefaults([])["/life-planning"]).toBe(true);
-    expect(buildConditionalDefaults([])["/life-planning"]).toBe(true);
+  it("/life-planning hidden with no accounts", () => {
+    expect(buildConditionalDefaults([])["/life-planning"]).toBe(false);
   });
-  it("/investment-tools always true regardless of accounts", () => {
-    expect(buildConditionalDefaults([])["/investment-tools"]).toBe(true);
-    expect(buildConditionalDefaults([brokerage()])["/investment-tools"]).toBe(true);
+  it("/life-planning visible once any account exists", () => {
+    expect(buildConditionalDefaults([checking()])["/life-planning"]).toBe(true);
+  });
+  it("/investment-tools NOT in conditionalDefaults (advanced — gated separately by filterVisible)", () => {
+    expect("/investment-tools" in buildConditionalDefaults([])).toBe(false);
+    expect("/investment-tools" in buildConditionalDefaults([brokerage()])).toBe(false);
   });
   it("old individual paths NOT in conditionalDefaults map (consolidated into hub pages)", () => {
     const d = buildConditionalDefaults([brokerage()]);
@@ -249,19 +253,17 @@ describe("buildConditionalDefaults: consolidated hub paths always visible", () =
 // ── Paths not in the map default to true ─────────────────────────────────────
 
 describe("buildConditionalDefaults: paths not in map default to true via ?? true", () => {
-  it("/overview not in map", () => {
+  it("/overview not in map (alwaysOn — not gated)", () => {
     expect(buildConditionalDefaults([])["/overview"]).toBeUndefined();
     expect(buildConditionalDefaults([])["/overview"] ?? true).toBe(true);
   });
-  it("/transactions not in map", () => {
-    expect(buildConditionalDefaults([])["/transactions"] ?? true).toBe(
-      true,
-    );
+  it("/transactions IS in map — hidden until any account added", () => {
+    expect(buildConditionalDefaults([])["/transactions"]).toBe(false);
+    expect(buildConditionalDefaults([checking()])["/transactions"]).toBe(true);
   });
-  it("/retirement not in map", () => {
-    expect(buildConditionalDefaults([])["/retirement"] ?? true).toBe(
-      true,
-    );
+  it("/retirement IS in map — hidden until any account added", () => {
+    expect(buildConditionalDefaults([])["/retirement"]).toBe(false);
+    expect(buildConditionalDefaults([checking()])["/retirement"]).toBe(true);
   });
 });
 
@@ -284,17 +286,24 @@ describe("reset to defaults: post-reset visibility is account-aware", () => {
     const defaults = buildConditionalDefaults([checking()]);
     expect(isNavVisible("/rental-properties", {}, defaults)).toBe(false);
   });
-  it("hub pages always visible after reset regardless of accounts", () => {
+  it("hub pages hidden with no accounts (progressive disclosure)", () => {
     const defaults = buildConditionalDefaults([]);
+    expect(isNavVisible("/tax-center", {}, defaults)).toBe(false);
+    expect(isNavVisible("/life-planning", {}, defaults)).toBe(false);
+  });
+  it("hub pages visible after reset once any account exists", () => {
+    const defaults = buildConditionalDefaults([checking()]);
     expect(isNavVisible("/tax-center", {}, defaults)).toBe(true);
     expect(isNavVisible("/life-planning", {}, defaults)).toBe(true);
-    expect(isNavVisible("/investment-tools", {}, defaults)).toBe(true);
   });
-  it("/ss-claiming not in map — merged into /life-planning hub which is always visible", () => {
+  it("/ss-claiming not in map — merged into /life-planning hub (visible once any account exists)", () => {
     // /ss-claiming is no longer a top-level nav path; it's a tab inside /life-planning
     const defaults = buildConditionalDefaults([]);
     expect("/ss-claiming" in defaults).toBe(false);
-    expect(isNavVisible("/life-planning", {}, defaults)).toBe(true);
+    // /life-planning is gated on hasAnyAccounts (progressive disclosure, not age-gated)
+    expect(isNavVisible("/life-planning", {}, defaults)).toBe(false);
+    const withAccount = buildConditionalDefaults([checking()]);
+    expect(isNavVisible("/life-planning", {}, withAccount)).toBe(true);
   });
 });
 

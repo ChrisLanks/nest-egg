@@ -1,9 +1,12 @@
 /**
- * Planning Tools — consolidated advanced planning and investment hub.
+ * Calculators — consolidated advanced planning calculators hub.
  *
- * Combines FIRE metrics, Equity Compensation, Loan Modeler, HSA Optimizer,
- * Tax-Equivalent Yield, Asset Location, Employer Match, Cost Basis Aging,
- * and What-If Scenarios into a single tabbed view.
+ * Combines FIRE metrics, Loan Modeler, HSA Optimizer, Employer Match,
+ * What-If Scenarios, Bond Ladder, Equity Compensation, Tax-Equivalent Yield,
+ * Asset Location, and Cost Basis Aging into a single tabbed view.
+ *
+ * Tab order: approachable tools first (FIRE, Loan, HSA, Match, What-If),
+ * advanced tools last (Equity Comp, Tax-Equiv, Asset Location, Cost Basis, Bond Ladder).
  *
  * Note: Dividend Calendar has moved to the main Calendar page.
  */
@@ -64,35 +67,32 @@ export const InvestmentToolsPage = () => {
   return (
     <Box pt={4}>
       <Box px={6} mb={2}>
-        <Heading size="lg">Planning Tools</Heading>
+        <Heading size="lg">Calculators</Heading>
         <Text color="text.secondary" mt={1} fontSize="sm">
-          FIRE progress, equity compensation modeling, loan analysis, HSA
-          strategy, tax-equivalent yield, asset location, employer match
-          optimization, cost basis aging, bond ladder builder, and what-if scenarios.
+          FIRE progress, loan analysis, HSA strategy, employer match optimization,
+          what-if scenarios, bond ladder builder, equity compensation modeling,
+          tax-equivalent yield, asset location, and cost basis aging.
         </Text>
       </Box>
       <Tabs colorScheme="brand" variant="enclosed" px={6} index={tabIndex} onChange={handleTabChange}>
         <TabList>
+          {/* ── Approachable first ── */}
           <Tab fontSize="sm">FIRE</Tab>
-          <Tab fontSize="sm">Equity Compensation</Tab>
           <Tab fontSize="sm">Loan Modeler</Tab>
           <Tab fontSize="sm">HSA Optimizer</Tab>
+          <Tab fontSize="sm">Employer Match</Tab>
+          <Tab fontSize="sm">What-If</Tab>
+          {/* ── Advanced ── */}
+          <Tab fontSize="sm">Bond Ladder</Tab>
+          <Tab fontSize="sm">Equity Compensation</Tab>
           <Tab fontSize="sm">Tax-Equiv Yield</Tab>
           <Tab fontSize="sm">Asset Location</Tab>
-          <Tab fontSize="sm">Employer Match</Tab>
           <Tab fontSize="sm">Cost Basis</Tab>
-          <Tab fontSize="sm">Bond Ladder</Tab>
-          <Tab fontSize="sm">What-If</Tab>
         </TabList>
         <TabPanels>
           <TabPanel px={0}>
             <Suspense fallback={<TabLoader />}>
               <FireMetricsPage />
-            </Suspense>
-          </TabPanel>
-          <TabPanel px={0}>
-            <Suspense fallback={<TabLoader />}>
-              <EquityPage />
             </Suspense>
           </TabPanel>
           <TabPanel px={0}>
@@ -107,6 +107,26 @@ export const InvestmentToolsPage = () => {
           </TabPanel>
           <TabPanel px={0}>
             <Suspense fallback={<TabLoader />}>
+              <EmployerMatchTab />
+            </Suspense>
+          </TabPanel>
+          <TabPanel px={0}>
+            <Suspense fallback={<TabLoader />}>
+              <WhatIfPage />
+            </Suspense>
+          </TabPanel>
+          <TabPanel px={0}>
+            <Suspense fallback={<TabLoader />}>
+              <BondLadderPage />
+            </Suspense>
+          </TabPanel>
+          <TabPanel px={0}>
+            <Suspense fallback={<TabLoader />}>
+              <EquityPage />
+            </Suspense>
+          </TabPanel>
+          <TabPanel px={0}>
+            <Suspense fallback={<TabLoader />}>
               <TaxEquivYieldTab />
             </Suspense>
           </TabPanel>
@@ -117,22 +137,7 @@ export const InvestmentToolsPage = () => {
           </TabPanel>
           <TabPanel px={0}>
             <Suspense fallback={<TabLoader />}>
-              <EmployerMatchTab />
-            </Suspense>
-          </TabPanel>
-          <TabPanel px={0}>
-            <Suspense fallback={<TabLoader />}>
               <CostBasisAgingTab />
-            </Suspense>
-          </TabPanel>
-          <TabPanel px={0}>
-            <Suspense fallback={<TabLoader />}>
-              <BondLadderPage />
-            </Suspense>
-          </TabPanel>
-          <TabPanel px={0}>
-            <Suspense fallback={<TabLoader />}>
-              <WhatIfPage />
             </Suspense>
           </TabPanel>
         </TabPanels>
