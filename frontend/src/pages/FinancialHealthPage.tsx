@@ -27,12 +27,22 @@ const LiquidityDashboardTab = lazy(() =>
 const CreditScoreTab = lazy(() =>
   import("./CreditScoreTab").then((m) => ({ default: m.CreditScoreTab })),
 );
+const SmartInsightsPage = lazy(() => import("./SmartInsightsPage"));
 
 const TabLoader = () => (
   <Center py={12}>
     <Spinner size="lg" color="brand.500" />
   </Center>
 );
+
+const getShowRecommendations = () => {
+  try {
+    const v = localStorage.getItem("nest-egg-show-recommendations-tab");
+    return v === null ? true : v === "true";
+  } catch {
+    return true;
+  }
+};
 
 const TAB_KEY = "nest-egg-tab-financial-health";
 const getInitialTab = () => {
@@ -51,7 +61,7 @@ export const FinancialHealthPage = () => {
       <Box px={6} mb={2}>
         <Heading size="lg">Financial Checkup</Heading>
         <Text color="text.secondary" mt={1} fontSize="sm">
-          Are you on track? Savings rate, emergency fund coverage, debt-to-income ratio, and credit score.
+          Are you on track? Savings rate, emergency fund coverage, debt-to-income ratio, credit score, and personalized recommendations.
         </Text>
       </Box>
       <Tabs colorScheme="brand" variant="enclosed" px={6} index={tabIndex} onChange={handleTabChange}>
@@ -59,6 +69,7 @@ export const FinancialHealthPage = () => {
           <Tab fontSize="sm">Financial Ratios</Tab>
           <Tab fontSize="sm">Liquidity &amp; Emergency Fund</Tab>
           <Tab fontSize="sm">Credit Score</Tab>
+          {getShowRecommendations() && <Tab fontSize="sm">Recommendations</Tab>}
         </TabList>
         <TabPanels>
           <TabPanel px={0}>
@@ -76,6 +87,13 @@ export const FinancialHealthPage = () => {
               <CreditScoreTab />
             </Suspense>
           </TabPanel>
+          {getShowRecommendations() && (
+            <TabPanel px={0}>
+              <Suspense fallback={<TabLoader />}>
+                <SmartInsightsPage />
+              </Suspense>
+            </TabPanel>
+          )}
         </TabPanels>
       </Tabs>
     </Box>

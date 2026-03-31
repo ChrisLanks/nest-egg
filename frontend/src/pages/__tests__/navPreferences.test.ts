@@ -474,27 +474,26 @@ describe("NAV_SECTIONS: structure", () => {
       "/debt-payoff",
       "/education",
       "/financial-health",
-      "/financial-plan",
       "/goals",
       "/life-planning",
       "/mortgage",
       "/net-worth-timeline",
+      "/pe-performance",
       "/recurring-bills",
       "/rental-properties",
       "/reports",
       "/retirement",
       "/rules",
-      "/smart-insights",
       "/tax-center",
       "/transactions",
     ]);
   });
-  it("advanced items are /investment-tools, /pe-performance", () => {
+  it("advanced items are /investment-tools only", () => {
     const advancedPaths = NAV_SECTIONS.flatMap((s) => s.items)
       .filter((i) => i.advanced)
       .map((i) => i.path)
       .sort();
-    expect(advancedPaths).toEqual(["/investment-tools", "/pe-performance"]);
+    expect(advancedPaths).toEqual(["/investment-tools"]);
   });
   it("no spending items are advanced; all spending items are conditional (progressive disclosure)", () => {
     const spending = NAV_SECTIONS.find((s) => s.group === "Spending");

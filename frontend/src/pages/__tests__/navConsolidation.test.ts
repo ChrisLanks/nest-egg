@@ -56,11 +56,11 @@ describe("nav consolidation — planning items", () => {
     expect(planningPaths).not.toContain("/hsa");
   });
 
-  it("advanced planning items are /investment-tools and /pe-performance", () => {
+  it("advanced planning items are /investment-tools only (pe-performance moved to Analytics)", () => {
     const advancedPaths = (planningSection?.items.filter((i) => i.advanced) ?? [])
       .map((i) => i.path)
       .sort();
-    expect(advancedPaths).toEqual(["/investment-tools", "/pe-performance"]);
+    expect(advancedPaths).toEqual(["/investment-tools"]);
   });
 
   it("total planning items is 9 or fewer (was 15)", () => {
@@ -74,8 +74,8 @@ describe("nav consolidation — analytics items", () => {
   const analyticsSection = NAV_SECTIONS.find((s) => s.group === "Analytics");
   const analyticsPaths = analyticsSection?.items.map((i) => i.path) ?? [];
 
-  it("Smart Insights is in Analytics group", () => {
-    expect(analyticsPaths).toContain("/smart-insights");
+  it("PE Performance is in Analytics group (moved from Planning)", () => {
+    expect(analyticsPaths).toContain("/pe-performance");
   });
 
   it("Financial Health is in Analytics group", () => {

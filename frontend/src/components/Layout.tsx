@@ -889,15 +889,17 @@ export const Layout = () => {
       tooltip:
         "Spending trends, annual year-in-review, tax-deductible transactions, and custom reports",
     },
-    {
-      label: "Smart Insights",
-      path: "/smart-insights",
-      tooltip: "Personalized tips based on your actual data — savings opportunities, fee alerts, and more",
-    },
+
     {
       label: "Financial Checkup",
       path: "/financial-health",
       tooltip: "Are you on track? Savings rate, emergency fund coverage, debt-to-income ratio, and liquidity at a glance",
+    },
+    {
+      label: "PE Performance",
+      path: "/pe-performance",
+      tooltip:
+        "Private equity TVPI, DPI, MOIC, IRR metrics and capital call history",
     },
     {
       label: "Rental Properties",
@@ -916,17 +918,12 @@ export const Layout = () => {
         "Set savings targets — emergency fund, vacation, down payment — and track your progress",
     },
     {
-      label: "Retirement Planner",
+      label: "Retirement",
       path: "/retirement",
       tooltip:
         "Project whether you'll have enough to retire — see your savings trajectory and model different life scenarios",
     },
-    {
-      label: "My Dashboard",
-      path: "/financial-plan",
-      tooltip:
-        "Your financial health score — retirement, education, debt, insurance, and estate all in one view",
-    },
+
     // ── Unlocked by specific account types ────────────────────────────────
     {
       label: "Debt Payoff",
@@ -954,10 +951,10 @@ export const Layout = () => {
         "Estimate your tax bill, optimize across account types, track charitable giving, and plan Roth conversions",
     },
     {
-      label: "Retirement & Benefits",
+      label: "Life Planning",
       path: "/life-planning",
       tooltip:
-        "Social Security optimizer, RMD projections, pension modeling, estate & beneficiary planning, insurance audit, and variable income smoothing",
+        "Social Security strategy, RMD projections, pension modeling, estate & beneficiary planning, insurance audit, and more",
     },
     // ── Advanced ──────────────────────────────────────────────────────────
     {
@@ -967,13 +964,7 @@ export const Layout = () => {
         "FIRE progress, loan modeler, HSA optimizer, bond ladder, employer match, what-if scenarios, and more",
       advanced: true,
     },
-    {
-      label: "PE Performance",
-      path: "/pe-performance",
-      tooltip:
-        "Private equity TVPI, DPI, MOIC, IRR metrics and capital call history",
-      advanced: true,
-    },
+
   ];
 
   const filterVisible = (

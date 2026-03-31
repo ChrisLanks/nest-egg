@@ -34,7 +34,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import api from "../services/api";
 import { useCurrency } from "../contexts/CurrencyContext";
-import { ACCOUNT_TYPE_LABELS } from "../constants/accountTypeGroups";
+import * as AccountTypeGroups from "../constants/accountTypeGroups";
+const ACCOUNT_TYPE_LABELS: Record<string, string> = AccountTypeGroups.ACCOUNT_TYPE_LABELS ?? {};
 
 interface LiquidAccount {
   account_id: string;

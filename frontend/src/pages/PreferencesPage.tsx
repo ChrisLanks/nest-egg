@@ -313,6 +313,14 @@ const NAV_SECTIONS = NAV_SECTIONS_FROM_HOOK;
 function NavigationVisibilitySection() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [pendingReload, setPendingReload] = useState(false);
+  const [showRecommendationsTab, setShowRecommendationsTab] = useState<boolean>(() => {
+    try {
+      const v = localStorage.getItem("nest-egg-show-recommendations-tab");
+      return v === null ? true : v === "true";
+    } catch {
+      return true;
+    }
+  });
 
   // Account/age-aware defaults — same logic as Layout so the toggles reflect
   // the real nav state (e.g. mortgage shows as "on" when user has a mortgage)
@@ -322,7 +330,6 @@ function NavigationVisibilitySection() {
   // Must match every item with advanced: true in NAV_SECTIONS (useNavDefaults.ts)
   const ADVANCED_PATHS = [
     "/investment-tools",
-    "/pe-performance",
   ];
 
   // Single source of truth: per-item overrides from nest-egg-nav-visibility.
@@ -462,6 +469,30 @@ function NavigationVisibilitySection() {
         <Switch
           isChecked={showAdvanced}
           onChange={(e) => toggleAdvanced(e.target.checked)}
+          colorScheme="brand"
+        />
+      </HStack>
+
+      {/* Recommendations tab toggle */}
+      <HStack justify="space-between" mt={3} px={1}>
+        <Box>
+          <Text fontSize="sm" fontWeight="medium">
+            Show Recommendations tab
+          </Text>
+          <Text fontSize="xs" color="text.muted">
+            Adds a Recommendations tab to Financial Checkup with personalized
+            financial insights based on your accounts and goals.
+          </Text>
+        </Box>
+        <Switch
+          isChecked={showRecommendationsTab}
+          onChange={(e) => {
+            const next = e.target.checked;
+            setShowRecommendationsTab(next);
+            try {
+              localStorage.setItem("nest-egg-show-recommendations-tab", String(next));
+            } catch {}
+          }}
           colorScheme="brand"
         />
       </HStack>

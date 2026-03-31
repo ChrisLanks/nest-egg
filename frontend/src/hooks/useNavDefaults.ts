@@ -114,17 +114,18 @@ export const NAV_SECTIONS: NavSection[] = [
         conditional: true,
         reason: "Shown once any account is added",
       },
-      {
-        label: "Smart Insights",
-        path: "/smart-insights",
-        conditional: true,
-        reason: "Shown once any account is added",
-      },
+
       {
         label: "Financial Checkup",
         path: "/financial-health",
         conditional: true,
         reason: "Shown once any account is added",
+      },
+      {
+        label: "PE Performance",
+        path: "/pe-performance",
+        conditional: true,
+        reason: "Shown when you have private equity accounts",
       },
       {
         label: "Rental Properties",
@@ -145,17 +146,12 @@ export const NAV_SECTIONS: NavSection[] = [
         reason: "Shown once any account is added",
       },
       {
-        label: "Retirement Planner",
+        label: "Retirement",
         path: "/retirement",
         conditional: true,
         reason: "Shown once any account is added",
       },
-      {
-        label: "My Dashboard",
-        path: "/financial-plan",
-        conditional: true,
-        reason: "Shown once any account is added",
-      },
+
       {
         label: "Debt Payoff",
         path: "/debt-payoff",
@@ -182,7 +178,7 @@ export const NAV_SECTIONS: NavSection[] = [
         reason: "Shown once any account is added",
       },
       {
-        label: "Retirement & Benefits",
+        label: "Life Planning",
         path: "/life-planning",
         conditional: true,
         reason: "Shown once any account is added",
@@ -194,12 +190,7 @@ export const NAV_SECTIONS: NavSection[] = [
         advanced: true,
         reason: "Advanced — FIRE, loan modeler, HSA, bond ladder, what-if scenarios, and more",
       },
-      {
-        label: "PE Performance",
-        path: "/pe-performance",
-        advanced: true,
-        reason: "Advanced — Private equity TVPI, DPI, MOIC, IRR metrics and capital call history",
-      },
+
     ],
   },
 ];
@@ -236,13 +227,12 @@ export function buildConditionalDefaults(
     "/cash-flow": hasAnyAccounts,
     "/net-worth-timeline": hasAnyAccounts,
     "/reports": hasAnyAccounts,
-    "/smart-insights": hasAnyAccounts,
     "/financial-health": hasAnyAccounts,
+    "/pe-performance": accounts.some((a) => a.account_type === "private_equity"),
     "/rental-properties": hasRental,
     // ── Planning — goals/retirement/dashboard unlock with any account ────
     "/goals": hasAnyAccounts,
     "/retirement": hasAnyAccounts,
-    "/financial-plan": hasAnyAccounts,
     "/debt-payoff": hasDebt,
     "/mortgage": hasMortgage,
     "/education": has529,
@@ -264,16 +254,15 @@ export function getLockedNavTooltip(path: string): string | undefined {
     "/cash-flow": "Add an account to unlock",
     "/net-worth-timeline": "Add an account to unlock",
     "/reports": "Add an account to unlock",
-    "/smart-insights": "Add an account to unlock",
     "/financial-health": "Add an account to unlock",
     "/goals": "Add an account to unlock",
     "/retirement": "Add an account to unlock",
-    "/financial-plan": "Add an account to unlock",
     "/tax-center": "Add an account to unlock",
     "/life-planning": "Add an account to unlock",
     "/rules": "Add an account to unlock",
     // Unlocked by specific account types
     "/recurring-bills": "Connect a bank account to unlock",
+    "/pe-performance": "Add a private equity account to unlock PE performance metrics",
     "/rental-properties": "Add a rental property account to unlock",
     "/education": "Add a 529 account to unlock",
     "/debt-payoff": "Add a loan or credit card account to unlock",

@@ -246,7 +246,7 @@ function App() {
                       <Route path="/debt-payoff" element={<DebtPayoffPage />} />
                       <Route
                         path="/smart-insights"
-                        element={<SmartInsightsPage />}
+                        element={<Navigate to="/financial-health" replace />}
                       />
                       <Route
                         path="/roth-conversion"
@@ -258,7 +258,7 @@ function App() {
                       <Route path="/life-planning" element={<LifePlanningPage />} />
                       <Route path="/investment-tools" element={<InvestmentToolsPage />} />
                       <Route path="/financial-health" element={<FinancialHealthPage />} />
-                      <Route path="/financial-plan" element={<FinancialPlanPage />} />
+                      <Route path="/financial-plan" element={<Navigate to="/overview" replace />} />
                       <Route path="/pe-performance" element={<PePerformancePage />} />
                       <Route path="/bond-ladder" element={<BondLadderPage />} />
                       <Route path="/what-if" element={<Navigate to="/investment-tools" replace />} />

@@ -40,6 +40,7 @@ import type { LayoutItem } from "../features/dashboard/types";
 import api from "../services/api";
 import { AddAccountModal } from "../features/accounts/components/AddAccountModal";
 import { GoalContextBanner } from "../features/dashboard/GoalContextBanner";
+import { BeginnerModeBanner } from "../components/BeginnerModeBanner";
 
 const GOAL_STEPS: Record<
   string,
@@ -444,6 +445,7 @@ export const DashboardPage = () => {
         )}
       </HStack>
 
+      <BeginnerModeBanner loginCount={user?.login_count} />
       <GoalContextBanner />
 
       {goals !== undefined && (

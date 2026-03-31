@@ -690,13 +690,13 @@ describe("Nav consolidation: Calculators (formerly Planning Tools) rename", () =
 });
 
 describe("Nav consolidation: Smart Insights and Financial Health in Analytics", () => {
-  it("Smart Insights is in allAnalyticsItems in Layout", () => {
-    // Smart Insights should appear in the analytics section
+  it("PE Performance is in allAnalyticsItems in Layout (moved from Planning)", () => {
+    // PE Performance should appear in the analytics section
     const analyticsSection = layoutSrc.slice(
       layoutSrc.indexOf("allAnalyticsItems"),
       layoutSrc.indexOf("allPlanningItems")
     );
-    expect(analyticsSection).toContain("Smart Insights");
+    expect(analyticsSection).toContain("PE Performance");
   });
 
   it("Financial Checkup (formerly Financial Health) is in allAnalyticsItems in Layout", () => {
@@ -727,12 +727,12 @@ describe("Nav consolidation: NAV_SECTIONS matches Layout structure", () => {
     expect(useNavDefaultsSrc).toContain("Calculators");
   });
 
-  it("Smart Insights appears in NAV_SECTIONS Analytics group", () => {
+  it("PE Performance appears in NAV_SECTIONS Analytics group (moved from Planning)", () => {
     const analyticsGroup = useNavDefaultsSrc.slice(
       useNavDefaultsSrc.indexOf('group: "Analytics"'),
       useNavDefaultsSrc.indexOf('group: "Planning"')
     );
-    expect(analyticsGroup).toContain("Smart Insights");
+    expect(analyticsGroup).toContain("PE Performance");
   });
 
   it("Financial Checkup appears in NAV_SECTIONS Analytics group (formerly Financial Health)", () => {

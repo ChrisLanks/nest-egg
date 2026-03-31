@@ -54,10 +54,9 @@ export const LifePlanningPage = () => {
   return (
     <Box pt={4}>
       <Box px={6} mb={2}>
-        <Heading size="lg">Retirement &amp; Benefits</Heading>
+        <Heading size="lg">Life Planning</Heading>
         <Text color="text.secondary" mt={1} fontSize="sm">
-          Social Security strategy, RMD projections, pension modeling, estate planning,
-          insurance coverage audit, and variable income smoothing.
+          Social Security strategy, RMD projections, pension modeling, estate & beneficiary planning, and insurance audit.
         </Text>
       </Box>
       <Tabs colorScheme="brand" variant="enclosed" px={6} index={tabIndex} onChange={handleTabChange}>

@@ -211,9 +211,9 @@ export const SmartInsightsPage = () => {
       <VStack align="start" spacing={6}>
         {/* Header */}
         <Box>
-          <Heading size="lg">Smart Insights</Heading>
+          <Heading size="lg">Recommendations</Heading>
           <Text color="text.secondary" mt={1}>
-            Proactive recommendations based on your live account data — no
+            Personalized Recommendations based on your live account data — no
             manual input required.
           </Text>
         </Box>
