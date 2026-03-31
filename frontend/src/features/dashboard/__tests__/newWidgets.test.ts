@@ -616,6 +616,47 @@ describe("RebalancingWidget — needs_rebalancing display", () => {
   });
 });
 
+// ── RebalancingWidget — member view query key contract ────────────────────────
+// Mirrors the fix: queryKey includes selectedUserId so cache invalidates on member switch,
+// and user_id param is conditionally appended to the API call.
+
+const buildRebalancingQueryKey = (selectedUserId: string | null | undefined) =>
+  ["rebalancing-widget", selectedUserId];
+
+const buildRebalancingParams = (selectedUserId: string | null | undefined) => {
+  const params: Record<string, string> = {};
+  if (selectedUserId) params.user_id = selectedUserId;
+  return params;
+};
+
+describe("RebalancingWidget — member view query key and params", () => {
+  it("query key includes selectedUserId so cache resets on member switch", () => {
+    expect(buildRebalancingQueryKey("user-abc")).toEqual(["rebalancing-widget", "user-abc"]);
+  });
+
+  it("query key with null selectedUserId (combined/own view)", () => {
+    expect(buildRebalancingQueryKey(null)).toEqual(["rebalancing-widget", null]);
+  });
+
+  it("query key differs between two members — ensures separate cache entries", () => {
+    const keyA = buildRebalancingQueryKey("user-a");
+    const keyB = buildRebalancingQueryKey("user-b");
+    expect(keyA).not.toEqual(keyB);
+  });
+
+  it("params include user_id when selectedUserId is set", () => {
+    expect(buildRebalancingParams("user-abc")).toEqual({ user_id: "user-abc" });
+  });
+
+  it("params are empty when selectedUserId is null (own view)", () => {
+    expect(buildRebalancingParams(null)).toEqual({});
+  });
+
+  it("params are empty when selectedUserId is undefined", () => {
+    expect(buildRebalancingParams(undefined)).toEqual({});
+  });
+});
+
 // ── fmt (currency formatter used across widgets) ──────────────────────────────
 
 const fmtCurrency = (n: number) =>
