@@ -44,6 +44,10 @@ import { BillPriceAlertsWidget } from "./widgets/BillPriceAlertsWidget";
 import { MortgageRateWidget } from "./widgets/MortgageRateWidget";
 import { GettingStartedWidget } from "./widgets/GettingStartedWidget";
 import { SmartInsightsWidget } from "./widgets/SmartInsightsWidget";
+import { ContributionHeadroomWidget } from "./widgets/ContributionHeadroomWidget";
+import { WithholdingCheckWidget } from "./widgets/WithholdingCheckWidget";
+import { NetWorthAttributionWidget } from "./widgets/NetWorthAttributionWidget";
+import { RebalancingWidget } from "./widgets/RebalancingWidget";
 import type { LayoutItem, WidgetDefinition } from "./types";
 
 export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
@@ -362,6 +366,38 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
     defaultSpan: 2,
     component: SmartInsightsWidget,
   },
+  "contribution-headroom": {
+    id: "contribution-headroom",
+    title: "Contribution Room",
+    description:
+      "Remaining IRS contribution room for 401k, IRA, HSA, and 529 accounts this tax year — per household member.",
+    defaultSpan: 1,
+    component: ContributionHeadroomWidget,
+  },
+  "withholding-check": {
+    id: "withholding-check",
+    title: "Withholding Check",
+    description:
+      "Enter your salary and YTD withholding to see if you're on track to meet safe harbour and avoid an April tax bill.",
+    defaultSpan: 1,
+    component: WithholdingCheckWidget,
+  },
+  "net-worth-attribution": {
+    id: "net-worth-attribution",
+    title: "What Built Your Wealth?",
+    description:
+      "Breaks down monthly net worth changes into savings, investment contributions, and debt paydown — so you know what's actually driving growth.",
+    defaultSpan: 2,
+    component: NetWorthAttributionWidget,
+  },
+  "rebalancing": {
+    id: "rebalancing",
+    title: "Portfolio Rebalancing",
+    description:
+      "Shows drift from your target allocation and which trades would bring you back on track.",
+    defaultSpan: 1,
+    component: RebalancingWidget,
+  },
 };
 
 /**
@@ -395,6 +431,9 @@ export const ADVANCED_LAYOUT: LayoutItem[] = [
   { id: "account-balances", span: 2 },
   { id: "budgets", span: 1 },
   { id: "savings-goals", span: 1 },
+  { id: "contribution-headroom", span: 1 },
+  { id: "net-worth-attribution", span: 2 },
+  { id: "rebalancing", span: 1 },
 ];
 
 /** Default layout for users who skipped onboarding or came from an older version. */
