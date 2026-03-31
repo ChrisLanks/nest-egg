@@ -461,9 +461,9 @@ function NavigationVisibilitySection() {
             Show advanced features
           </Text>
           <Text fontSize="xs" color="text.muted">
-            Unlocks FIRE planning (Financial Independence / Retire Early), Tax Projection,
-            Roth Conversion analyzer, and more. Hidden by default to keep things simple
-            for new users — enable when you're ready to go deeper.
+            Shows the Calculators tab in Planning — includes FIRE, loan modeler, HSA
+            optimizer, bond ladder, what-if scenarios, and more. Hidden by default to
+            keep things simple for new users.
           </Text>
         </Box>
         <Switch
