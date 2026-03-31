@@ -46,7 +46,7 @@ export interface NavSection {
  *  - advanced: hidden behind the "Show advanced features" toggle in Preferences
  *
  * Day-one view (zero accounts): Overview, Calendar, Investments, Accounts only.
- * After first account: Goals, Retirement Planner, My Dashboard + spending/analytics unlock.
+ * After first account: Goals, Retirement + spending/analytics unlock.
  */
 export const NAV_SECTIONS: NavSection[] = [
   {

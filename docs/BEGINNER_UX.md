@@ -67,17 +67,20 @@ Individual items can also be toggled on/off without the master toggle.
 
 ## Navigation Structure & Naming
 
-### Why we renamed things
+### Renaming decisions
 
-| Old Name | New Name | Why |
+| Old Name | Current Name | Why |
 |---|---|---|
-| Financial Plan | My Dashboard | "Financial Plan" overlapped with Goals and Retirement. Dashboard is concrete. |
+| My Dashboard (Planning nav) | *(removed)* | Duplicated Overview. Health score available as a dashboard widget. |
+| Retirement Planner | Retirement | Shorter, clearer. |
+| Retirement & Benefits | Life Planning | Avoids confusion with Retirement Planner. Describes SS, RMDs, estate, insurance. |
+| Smart Insights (standalone nav) | Recommendations (tab in Financial Checkup) | Insights belong inside a health checkup, not as a separate destination. |
+| Financial Plan | My Dashboard | "Financial Plan" overlapped with Goals and Retirement. |
 | Planning Tools | Calculators | "Tools" is vague. "Calculators" is what they literally are. |
-| Life Planning | Retirement & Benefits | Concrete — describes SS, RMDs, pensions, insurance. |
 | Financial Health | Financial Checkup | Checkup implies actionable diagnosis, not just metrics. |
 | Categories & Labels | Spending Categories | Plain language. |
 
-### Nav groups
+### Nav groups (current)
 
 ```
 Top Level (always visible)
@@ -89,32 +92,44 @@ Spending (unlocked by any account)
 
 Analytics (unlocked by any account)
   Cash Flow · Net Worth Timeline · Reports & Trends
-  Smart Insights · Financial Checkup
+  Financial Checkup (includes Recommendations tab)
+  PE Performance (private equity accounts only)
   Rental Properties (rental account only)
 
 Planning (progressive unlock)
-  Goals → Retirement Planner → My Dashboard    ← beginner-first order
-  Debt Payoff (debt accounts) · Mortgage · Education (529)
-  Tax Center · Retirement & Benefits            ← consolidated hubs
-  Calculators (advanced) · PE Performance (advanced)
+  Goals · Retirement              ← beginner-first order
+  Debt Payoff (debt) · Mortgage · Education (529)
+  Tax Center · Life Planning      ← consolidated hubs
+  Calculators (advanced)
 ```
 
 ### Hub pages
 
-Three previously separate pages are now **consolidated hubs** with tabs:
-
 **Tax Center** (`/tax-center`)
 - Tax Projection · Tax Buckets · Charitable Giving
 
-**Retirement & Benefits** (`/life-planning`)
+**Life Planning** (`/life-planning`)
 - SS Optimizer · Variable Income · Estate & Beneficiaries
 - RMD Planner · Insurance Audit · Pension Modeler
+
+**Financial Checkup** (`/financial-health`)
+- Financial Ratios · Liquidity & Emergency Fund · Credit Score · Recommendations
 
 **Calculators** (`/investment-tools`)
 - Approachable first: FIRE · Loan Modeler · HSA Optimizer · Employer Match · What-If
 - Advanced last: Bond Ladder · Equity Compensation · Tax-Equiv Yield · Asset Location · Cost Basis
 
----
+### Simple Mode banner
+
+New users (login_count ≤ 3) see a dismissable blue banner on the Overview page:
+> "You're in Simple Mode. Advanced features unlock as you add accounts and enable them in Preferences."
+
+Rendered by `BeginnerModeBanner`, dismissal stored in `nest-egg-beginner-banner-dismissed` (localStorage).
+
+### Recommendations tab preference
+
+On by default. Users can toggle it off in Preferences > Navigation > "Show Recommendations tab".
+Stored in `nest-egg-show-recommendations-tab` (localStorage).
 
 ## Locked Nav Behavior
 
