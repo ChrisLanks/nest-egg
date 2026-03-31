@@ -410,7 +410,7 @@ class SmartInsightsService:
                 f"Highest-cost holding: {worst_label} at "
                 f"{float(worst.expense_ratio) * 100:.2f}% ER."
             ),
-            action="Review fund expense ratios and consider lower-cost index alternatives",
+            action="Review fund expense ratios (the annual % fee funds charge) and consider lower-cost index fund alternatives",
             priority="high" if weighted_er > 0.01 else "medium",
             category="investing",
             icon="📊",
@@ -566,7 +566,7 @@ class SmartInsightsService:
                             f"premiums. Consider Roth conversions, tax-loss harvesting, "
                             f"or deferring income."
                         ),
-                        action="Review income sources to stay below the IRMAA threshold",
+                        action="Review income sources to stay below the Medicare premium surcharge (IRMAA) threshold",
                         priority="high",
                         category="tax",
                         icon="🏥",

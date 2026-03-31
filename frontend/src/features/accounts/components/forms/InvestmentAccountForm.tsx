@@ -25,6 +25,7 @@ import {
   Divider,
   Switch,
   FormHelperText,
+  SimpleGrid,
 } from "@chakra-ui/react";
 import { useState } from "react";
 import { useForm, Controller, useFieldArray } from "react-hook-form";
@@ -407,6 +408,62 @@ export const InvestmentAccountForm = ({
             {errors.account_number_last4?.message}
           </FormErrorMessage>
         </FormControl>
+
+        {(watch("account_type") === ACCOUNT_TYPES.RETIREMENT_401K ||
+          watch("account_type") === ACCOUNT_TYPES.RETIREMENT_403B ||
+          watch("account_type") === ACCOUNT_TYPES.RETIREMENT_457B) && (
+          <Box mt={4} p={3} borderRadius="md" bg="bg.subtle">
+            <Text fontSize="sm" fontWeight="semibold" mb={3}>
+              Employer Match (optional)
+            </Text>
+
+            <FormControl mb={3}>
+              <FormLabel fontSize="sm">Annual Salary</FormLabel>
+              <FormHelperText fontSize="xs" mb={1}>
+                Used to calculate your match dollar value
+              </FormHelperText>
+              <NumberInput min={0}>
+                <NumberInputField
+                  {...register("annual_salary", { valueAsNumber: true })}
+                  placeholder="e.g. 80000"
+                />
+              </NumberInput>
+            </FormControl>
+
+            <SimpleGrid columns={2} spacing={3}>
+              <FormControl>
+                <FormLabel fontSize="sm">Employer Match %</FormLabel>
+                <FormHelperText fontSize="xs" mb={1}>
+                  % of your contribution matched (e.g. 50 = $0.50 per $1)
+                </FormHelperText>
+                <NumberInput min={0} max={200}>
+                  <NumberInputField
+                    {...register("employer_match_percent", {
+                      valueAsNumber: true,
+                    })}
+                    placeholder="e.g. 50"
+                  />
+                </NumberInput>
+              </FormControl>
+
+              <FormControl>
+                <FormLabel fontSize="sm">Up To % of Salary</FormLabel>
+                <FormHelperText fontSize="xs" mb={1}>
+                  Max salary % eligible for matching (e.g. 6 = up to 6% of
+                  salary)
+                </FormHelperText>
+                <NumberInput min={0} max={100}>
+                  <NumberInputField
+                    {...register("employer_match_limit_percent", {
+                      valueAsNumber: true,
+                    })}
+                    placeholder="e.g. 6"
+                  />
+                </NumberInput>
+              </FormControl>
+            </SimpleGrid>
+          </Box>
+        )}
 
         <HStack justify="flex-end" spacing={3} pt={4}>
           <Button variant="ghost" onClick={onBack}>

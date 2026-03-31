@@ -175,6 +175,10 @@ export const investmentAccountSchema = z
       .or(z.string().transform((val) => parseFloat(val)))
       .optional(), // Optional balance for accounts without holdings
     account_number_last4: z.string().max(4).optional(),
+    // Employer match fields (401k / 403b / 457b)
+    employer_match_percent: z.number().min(0).max(200).optional(),
+    employer_match_limit_percent: z.number().min(0).max(100).optional(),
+    annual_salary: z.number().min(0).optional(),
   })
   .refine(
     (data) => {
