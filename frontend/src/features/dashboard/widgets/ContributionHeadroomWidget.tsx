@@ -13,11 +13,13 @@ import {
   Progress,
   Spinner,
   Text,
+  Tooltip,
   VStack,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import { memo } from "react";
 import { Link as RouterLink } from "react-router-dom";
+import * as AccountTypeGroups from "../../../constants/accountTypeGroups";
 import { useUserView } from "../../../contexts/UserViewContext";
 import api from "../../../services/api";
 
@@ -54,6 +56,9 @@ const fmt = (n: number) =>
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(n);
+
+const ACCOUNT_TYPE_LABELS: Record<string, string> =
+  AccountTypeGroups.ACCOUNT_TYPE_LABELS ?? {};
 
 const ContributionHeadroomWidgetBase: React.FC = () => {
   useUserView(); // consumed for context consistency; API returns all household members
@@ -145,9 +150,11 @@ const ContributionHeadroomWidgetBase: React.FC = () => {
                   <Text fontSize="2xl" fontWeight="bold" color={headroomColor}>
                     {fmt(member.total_remaining_headroom)}
                   </Text>
-                  <Text fontSize="xs" color="text.muted" mb={2}>
-                    remaining
-                  </Text>
+                  <Tooltip label="How much more you can contribute to tax-advantaged accounts before hitting the IRS limit for this tax year.">
+                    <Text fontSize="xs" color="text.muted" mb={2}>
+                      remaining
+                    </Text>
+                  </Tooltip>
                   <Progress
                     value={pctUsed}
                     size="sm"
@@ -155,10 +162,22 @@ const ContributionHeadroomWidgetBase: React.FC = () => {
                     borderRadius="full"
                     mb={1}
                   />
-                  <Text fontSize="xs" color="text.secondary">
-                    {fmt(member.total_contributed_ytd)} contributed of{" "}
-                    {fmt(member.total_limit)} limit
-                  </Text>
+                  <Tooltip label="Amount contributed so far this year vs. your total IRS limit across all eligible accounts.">
+                    <Text fontSize="xs" color="text.secondary">
+                      {fmt(member.total_contributed_ytd)} contributed of{" "}
+                      {fmt(member.total_limit)} limit
+                    </Text>
+                  </Tooltip>
+                  {member.accounts.map((acct) => (
+                    <HStack key={acct.account_id} justify="space-between" mt={1}>
+                      <Text fontSize="xs" color="text.secondary">
+                        {ACCOUNT_TYPE_LABELS[acct.account_type] ?? acct.account_type}
+                      </Text>
+                      <Text fontSize="xs" color="text.muted">
+                        {fmt(acct.remaining_headroom)} left
+                      </Text>
+                    </HStack>
+                  ))}
                 </Box>
               );
             })}

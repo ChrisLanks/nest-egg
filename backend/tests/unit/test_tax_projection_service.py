@@ -307,6 +307,39 @@ class TestTaxProjectionService:
 
         svc._ytd_income.assert_called_once_with("org-456", None, 2025)
 
+    async def test_married_filing_positive_taxable_income(self):
+        """Married filing with $100k income should yield taxable_income > 0
+        and a standard deduction approximately equal to the married IRS value.
+
+        The TAX singleton always reflects the current IRS year (2024: $29,200;
+        2025: $30,000; 2026: $32,200).  We check the deduction is larger than
+        the single-filer deduction and that taxable income / tax are both > 0.
+        """
+        svc_single = await self._make_service(ytd_income=0)
+        svc_married = await self._make_service(ytd_income=0)
+
+        result_single = await svc_single.project(
+            organization_id="org-123",
+            user_id=None,
+            filing_status="single",
+            self_employment_income=100_000,
+            today=date(2025, 7, 1),
+        )
+        result_married = await svc_married.project(
+            organization_id="org-123",
+            user_id=None,
+            filing_status="married",
+            self_employment_income=100_000,
+            today=date(2025, 7, 1),
+        )
+        # Married standard deduction must be larger than single
+        assert result_married.standard_deduction > result_single.standard_deduction
+        # With $100k income the married deduction (~$29-32k) still leaves positive taxable income
+        assert result_married.taxable_income > 0
+        # Total tax must be positive (and lower than single due to wider brackets + larger deduction)
+        assert result_married.total_tax_before_credits > 0
+        assert result_married.total_tax_before_credits < result_single.total_tax_before_credits
+
     async def test_different_user_ids_produce_independent_projections(self):
         """Two different user_ids called separately should produce independent
         projections based on their own income data."""

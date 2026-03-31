@@ -13,6 +13,7 @@ import {
   CardHeader,
   Heading,
   HStack,
+  Link,
   SimpleGrid,
   Stat,
   StatLabel,
@@ -22,6 +23,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
+import { Link as RouterLink } from "react-router-dom";
 import api from "../services/api";
 import { useCurrency } from "../contexts/CurrencyContext";
 
@@ -100,6 +102,15 @@ export const EmployerMatchTab = () => {
           <AlertIcon />
           <AlertDescription fontSize="sm">
             No employer-matched accounts found. Add a 401(k) or 403(b) account with match details to use this tool.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {data && data.accounts.length > 0 && data.accounts.some((a) => a.action.includes("No employer match")) && (
+        <Alert status="info">
+          <AlertIcon />
+          <AlertDescription fontSize="sm">
+            Employer match details are set on each account. Edit a 401(k) or 403(b) account to add match percentages.
           </AlertDescription>
         </Alert>
       )}
@@ -244,7 +255,19 @@ export const EmployerMatchTab = () => {
 
                   <Alert status={matchAlertStatus(account.is_capturing_full_match)}>
                     <AlertIcon />
-                    <AlertDescription fontSize="sm">{account.action}</AlertDescription>
+                    <AlertDescription fontSize="sm">
+                      {account.action.includes("No employer match") ? (
+                        <>
+                          To enable analysis,{" "}
+                          <Link as={RouterLink} to="/accounts" color="blue.600" textDecoration="underline">
+                            edit this account
+                          </Link>{" "}
+                          and add employer match details (match %, salary cap %).
+                        </>
+                      ) : (
+                        account.action
+                      )}
+                    </AlertDescription>
                   </Alert>
                 </VStack>
               </CardBody>

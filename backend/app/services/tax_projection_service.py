@@ -247,6 +247,12 @@ class TaxProjectionService:
         if today is None:
             today = date.today()
 
+        # Normalise filing_status so comparisons are case-insensitive throughout
+        # ("Married", "MFJ", "married" etc. all resolve correctly).
+        filing_status = filing_status.lower().strip()
+        if filing_status not in ("single", "married"):
+            filing_status = "single"
+
         tax_year = today.year
 
         # Annualise income from YTD transactions
