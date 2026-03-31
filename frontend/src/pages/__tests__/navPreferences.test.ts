@@ -124,12 +124,14 @@ const isNavVisible = (
  * Uses conditionalDefaults (account/age-aware) instead of !item.conditional.
  */
 const isItemOn = (
-  item: { path: string; alwaysOn?: boolean },
+  item: { path: string; alwaysOn?: boolean; advanced?: boolean },
   overrides: Record<string, boolean>,
   conditionalDefaults: Record<string, boolean>,
 ): boolean => {
   if (item.alwaysOn) return true;
   if (item.path in overrides) return overrides[item.path];
+  // Advanced items default to off — gated by master toggle, not account data
+  if (item.advanced) return false;
   return conditionalDefaults[item.path] ?? true;
 };
 
@@ -215,6 +217,26 @@ describe("isItemOn: account-aware defaults (conditionalDefaults)", () => {
     const defaults = buildConditionalDefaults(noAccounts);
     expect(
       isItemOn({ path: "/budgets" }, { "/budgets": false }, defaults),
+    ).toBe(false);
+  });
+
+  it("advanced items default to OFF when no override exists (not in conditionalDefaults)", () => {
+    // /investment-tools is not in conditionalDefaults — must not fall through to ?? true
+    const defaults = buildConditionalDefaults(noAccounts);
+    expect(isItemOn({ path: "/investment-tools", advanced: true }, {}, defaults)).toBe(false);
+  });
+
+  it("advanced items can be turned ON via explicit override", () => {
+    const defaults = buildConditionalDefaults(noAccounts);
+    expect(
+      isItemOn({ path: "/investment-tools", advanced: true }, { "/investment-tools": true }, defaults),
+    ).toBe(true);
+  });
+
+  it("advanced item override=false stays off even with no conditionalDefaults entry", () => {
+    const defaults = buildConditionalDefaults(noAccounts);
+    expect(
+      isItemOn({ path: "/investment-tools", advanced: true }, { "/investment-tools": false }, defaults),
     ).toBe(false);
   });
 });

@@ -403,6 +403,8 @@ function NavigationVisibilitySection() {
   }): boolean => {
     if (item.alwaysOn) return true;
     if (item.path in overrides) return overrides[item.path];
+    // Advanced items default to off — they're gated by the master toggle, not accounts
+    if (item.advanced) return false;
     // Use account/age-aware defaults so e.g. mortgage shows as "on"
     // when the user actually has a mortgage account
     return conditionalDefaults[item.path] ?? true;

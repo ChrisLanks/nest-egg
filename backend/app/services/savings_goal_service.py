@@ -530,9 +530,9 @@ class SavingsGoalService:
         days_elapsed = (today - goal.start_date).days if goal.start_date else 0
         days_remaining = (goal.target_date - today).days if goal.target_date else None
 
-        # Calculate required monthly savings
+        # Calculate required monthly savings (only meaningful when still underfunded)
         monthly_required = None
-        if goal.target_date and days_remaining and days_remaining > 0:
+        if goal.target_date and days_remaining and days_remaining > 0 and remaining > 0:
             months_remaining = days_remaining / 30.44  # Average days per month
             if months_remaining > 0:
                 monthly_required = remaining / Decimal(str(months_remaining))

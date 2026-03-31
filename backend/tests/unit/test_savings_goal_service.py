@@ -949,6 +949,45 @@ class TestGoalProgress:
         assert progress is not None
         assert progress["progress_percentage"] == 0
 
+    @pytest.mark.asyncio
+    async def test_get_goal_progress_overfunded_no_negative_monthly_required(self, db, test_user):
+        """Overfunded goal (current > target) must not produce a negative monthly_required."""
+        service = SavingsGoalService()
+        goal = await service.create_goal(
+            db,
+            test_user,
+            name="Overfunded Goal",
+            target_amount=Decimal("1000.00"),
+            current_amount=Decimal("1500.00"),  # current exceeds target
+            start_date=date.today() - timedelta(days=30),
+            target_date=date.today() + timedelta(days=60),
+        )
+
+        progress = await service.get_goal_progress(db, goal.id, test_user)
+        assert progress is not None
+        # monthly_required must be None (not a negative number) when already overfunded
+        assert progress["monthly_required"] is None
+        # progress_percentage can exceed 100% but remaining_amount should be negative
+        assert progress["remaining_amount"] < 0
+
+    @pytest.mark.asyncio
+    async def test_get_goal_progress_exactly_funded_no_monthly_required(self, db, test_user):
+        """Goal exactly at target should have monthly_required=None (nothing left to save)."""
+        service = SavingsGoalService()
+        goal = await service.create_goal(
+            db,
+            test_user,
+            name="Exactly Funded",
+            target_amount=Decimal("5000.00"),
+            current_amount=Decimal("5000.00"),
+            start_date=date.today() - timedelta(days=30),
+            target_date=date.today() + timedelta(days=60),
+        )
+
+        progress = await service.get_goal_progress(db, goal.id, test_user)
+        assert progress is not None
+        assert progress["monthly_required"] is None
+
 
 @pytest.mark.unit
 class TestGetGoalsFiltering:
