@@ -17,6 +17,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { memo } from "react";
 import { Link as RouterLink } from "react-router-dom";
+import { useUserView } from "../../../contexts/UserViewContext";
 import api from "../../../services/api";
 
 interface DriftItem {
@@ -61,10 +62,14 @@ const fmtCurrency = (n: number) =>
 const fmtPct = (n: number) => `${Number(n).toFixed(1)}%`;
 
 const RebalancingWidgetBase: React.FC = () => {
+  const { selectedUserId } = useUserView();
+
   const { data, isLoading, error } = useQuery<RebalancingAnalysis>({
-    queryKey: ["rebalancing-widget"],
+    queryKey: ["rebalancing-widget", selectedUserId],
     queryFn: async () => {
-      const res = await api.get("/rebalancing/analysis");
+      const params: Record<string, string> = {};
+      if (selectedUserId) params.user_id = selectedUserId;
+      const res = await api.get("/rebalancing/analysis", { params });
       return res.data;
     },
     staleTime: 5 * 60 * 1000,

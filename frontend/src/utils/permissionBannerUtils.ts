@@ -36,8 +36,12 @@ export const ROUTE_TO_RESOURCE_TYPE: Record<string, string> = {
   "/mortgage": "report",
   "/ss-claiming": "report",
   "/tax-projection": "report",
-  "/smart-insights": "report",
-  "/investment-health": "report",
+  "/financial-health": "report",
+  "/net-worth-timeline": "report",
+  "/tax-center": "report",
+  "/life-planning": "report",
+  "/investment-tools": "report",
+  "/pe-performance": "report",
 };
 
 /** Human-friendly label for each resource type */

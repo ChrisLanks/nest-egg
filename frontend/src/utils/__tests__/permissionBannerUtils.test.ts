@@ -184,8 +184,12 @@ describe("getResourceTypeForPath", () => {
     expect(getResourceTypeForPath("/mortgage")).toBe("report");
     expect(getResourceTypeForPath("/ss-claiming")).toBe("report");
     expect(getResourceTypeForPath("/tax-projection")).toBe("report");
-    expect(getResourceTypeForPath("/smart-insights")).toBe("report");
-    expect(getResourceTypeForPath("/investment-health")).toBe("report");
+    expect(getResourceTypeForPath("/financial-health")).toBe("report");
+    expect(getResourceTypeForPath("/net-worth-timeline")).toBe("report");
+    expect(getResourceTypeForPath("/tax-center")).toBe("report");
+    expect(getResourceTypeForPath("/life-planning")).toBe("report");
+    expect(getResourceTypeForPath("/investment-tools")).toBe("report");
+    expect(getResourceTypeForPath("/pe-performance")).toBe("report");
   });
 
   it("resolves dynamic sub-routes via prefix matching", () => {
