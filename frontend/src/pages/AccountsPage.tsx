@@ -41,6 +41,9 @@ import {
   StatLabel,
   StatNumber,
   StatHelpText,
+  Input,
+  InputGroup,
+  InputLeftElement,
 } from "@chakra-ui/react";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -58,7 +61,10 @@ import {
   FiTrendingUp,
   FiTrendingDown,
   FiAlertTriangle,
+  FiSearch,
 } from "react-icons/fi";
+import * as AccountTypeGroups from "../constants/accountTypeGroups";
+const ACCOUNT_TYPE_LABELS = AccountTypeGroups.ACCOUNT_TYPE_LABELS ?? {};
 import api from "../services/api";
 import { formatAssetType } from "../utils/formatAssetType";
 import { EmptyState } from "../components/EmptyState";
@@ -164,6 +170,20 @@ export const AccountsPage = () => {
     if (!isCombinedView || !isPartialSelection) return rawAccounts;
     return rawAccounts.filter((a) => matchesFilter(a.user_id));
   }, [rawAccounts, isCombinedView, isPartialSelection, matchesFilter]);
+
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredAccounts = useMemo(() => {
+    if (!accounts) return accounts;
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return accounts;
+    return accounts.filter(
+      (a) =>
+        a.name?.toLowerCase().includes(q) ||
+        a.institution_name?.toLowerCase().includes(q) ||
+        (ACCOUNT_TYPE_LABELS[a.account_type] ?? a.account_type)?.toLowerCase().includes(q),
+    );
+  }, [accounts, searchQuery]);
 
   // Fetch household users for ownership display
   const { data: users } = useQuery({
@@ -415,9 +435,9 @@ export const AccountsPage = () => {
 
   // Group accounts by institution
   const accountsByInstitution = useMemo(() => {
-    if (!accounts) return {};
+    if (!filteredAccounts) return {};
 
-    return accounts.reduce(
+    return filteredAccounts.reduce(
       (acc, account) => {
         const institution = account.institution_name || "Other";
         if (!acc[institution]) {
@@ -428,7 +448,7 @@ export const AccountsPage = () => {
       },
       {} as Record<string, Account[]>,
     );
-  }, [accounts]);
+  }, [filteredAccounts]);
 
   // ── Account type summary (pure client-side) ──────────────────────────────
   const CASH_TYPES = new Set([
@@ -735,6 +755,26 @@ export const AccountsPage = () => {
               </Card>
             )}
           </SimpleGrid>
+        )}
+
+        {/* Search */}
+        <InputGroup maxW="sm" mb={4}>
+          <InputLeftElement><Icon as={FiSearch} color="text.muted" /></InputLeftElement>
+          <Input
+            placeholder="Search by name, institution, or type…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            bg="bg.surface"
+            size="sm"
+            borderRadius="md"
+          />
+        </InputGroup>
+
+        {/* No results message */}
+        {searchQuery && filteredAccounts?.length === 0 && (
+          <Text color="text.muted" fontSize="sm">
+            No accounts match &quot;{searchQuery}&quot;
+          </Text>
         )}
 
         {/* Accounts by Institution */}

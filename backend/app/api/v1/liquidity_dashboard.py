@@ -164,7 +164,7 @@ async def get_liquidity_dashboard(
             LiquidAccount(
                 account_id=str(acct.id),
                 account_name=acct.name,
-                account_type=str(acct.account_type),
+                account_type=acct.account_type.value,
                 balance=round(balance, 2),
                 institution=acct.institution_name,
                 is_accessible=is_accessible,

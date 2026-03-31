@@ -35,15 +35,6 @@ const TabLoader = () => (
   </Center>
 );
 
-const getShowRecommendations = () => {
-  try {
-    const v = localStorage.getItem("nest-egg-show-recommendations-tab");
-    return v === null ? true : v === "true";
-  } catch {
-    return true;
-  }
-};
-
 const TAB_KEY = "nest-egg-tab-financial-health";
 const getInitialTab = () => {
   try { return parseInt(localStorage.getItem(TAB_KEY) ?? "0", 10) || 0; } catch { return 0; }
@@ -69,7 +60,7 @@ export const FinancialHealthPage = () => {
           <Tab fontSize="sm">Financial Ratios</Tab>
           <Tab fontSize="sm">Liquidity &amp; Emergency Fund</Tab>
           <Tab fontSize="sm">Credit Score</Tab>
-          {getShowRecommendations() && <Tab fontSize="sm">Recommendations</Tab>}
+          <Tab fontSize="sm">Recommendations</Tab>
         </TabList>
         <TabPanels>
           <TabPanel px={0}>
@@ -87,13 +78,11 @@ export const FinancialHealthPage = () => {
               <CreditScoreTab />
             </Suspense>
           </TabPanel>
-          {getShowRecommendations() && (
-            <TabPanel px={0}>
+          <TabPanel px={0}>
               <Suspense fallback={<TabLoader />}>
                 <SmartInsightsPage />
               </Suspense>
             </TabPanel>
-          )}
         </TabPanels>
       </Tabs>
     </Box>
