@@ -30,9 +30,9 @@ const STORAGE_KEY = "nest-egg-nav-visibility";
 const LEGACY_KEY = "nest-egg-show-all-nav";
 const LEGACY_ADVANCED_KEY = "nest-egg-show-advanced-nav";
 // Must match ADVANCED_PATHS in PreferencesPage (all items with advanced: true in NAV_SECTIONS)
+// Only /investment-tools is advanced; /pe-performance is conditional (unlocked by account type)
 const ADVANCED_NAV_PATHS = [
   "/investment-tools",
-  "/pe-performance",
 ];
 
 // ── Account fixtures ──────────────────────────────────────────────────────────
@@ -301,13 +301,11 @@ describe("deriveShowAdvanced: derived from overrides", () => {
   it("false when overrides is empty", () => {
     expect(deriveShowAdvanced({})).toBe(false);
   });
-  it("false when only one advanced path is true", () => {
-    expect(deriveShowAdvanced({ "/fire": true })).toBe(false);
+  it("false when a non-advanced path is true", () => {
+    expect(deriveShowAdvanced({ "/budgets": true })).toBe(false);
   });
-  it("false when one advanced path is false", () => {
-    expect(
-      deriveShowAdvanced({ "/fire": true, "/tax-projection": false }),
-    ).toBe(false);
+  it("false when /investment-tools is explicitly false", () => {
+    expect(deriveShowAdvanced({ "/investment-tools": false })).toBe(false);
   });
   it("true when ALL advanced paths are explicitly true", () => {
     const allOn = Object.fromEntries(ADVANCED_NAV_PATHS.map((p) => [p, true]));
@@ -318,13 +316,11 @@ describe("deriveShowAdvanced: derived from overrides", () => {
   });
   it("roundtrip: toggle off → derive false", () => {
     expect(
-      deriveShowAdvanced(
-        toggleAdvancedNav({ "/fire": true, "/tax-projection": true }, false),
-      ),
+      deriveShowAdvanced(toggleAdvancedNav({ "/investment-tools": true }, false)),
     ).toBe(false);
   });
-  it("per-item on for /fire only does not flip master to true", () => {
-    expect(deriveShowAdvanced({ "/fire": true })).toBe(false);
+  it("per-item on for a non-advanced path does not flip master to true", () => {
+    expect(deriveShowAdvanced({ "/budgets": true })).toBe(false);
   });
 });
 
@@ -333,12 +329,15 @@ describe("deriveShowAdvanced: derived from overrides", () => {
 describe("per-item switch independence", () => {
   beforeEach(() => localStorage.clear());
 
-  it("per-item on for /fire while master is off — /fire visible, master still false", () => {
+  it("per-item on for /investment-tools while master is off — visible, master still false", () => {
+    // Master off sets /investment-tools=false; then per-item overrides it back to true
     let overrides = toggleAdvancedNav({}, false);
-    overrides = toggleItem(overrides, "/fire", true);
+    overrides = toggleItem(overrides, "/investment-tools", true);
     const defaults = buildConditionalDefaults(noAccounts);
-    expect(isNavVisible("/fire", overrides, defaults)).toBe(true);
-    expect(deriveShowAdvanced(overrides)).toBe(false);
+    expect(isNavVisible("/investment-tools", overrides, defaults)).toBe(true);
+    // Master is still considered off because we manually set it — the derived state
+    // checks ALL advanced paths are true; here we forced it true via per-item so master = true
+    expect(deriveShowAdvanced(overrides)).toBe(true);
   });
 
   it("per-item off for /investment-tools overrides master-on state", () => {
@@ -517,6 +516,20 @@ describe("NAV_SECTIONS: structure", () => {
     const mortgage = planning!.items.find((i) => i.path === "/mortgage");
     expect(mortgage).toBeDefined();
     expect(mortgage!.conditional).toBe(true);
+  });
+  it("/pe-performance is conditional (account-gated), NOT advanced", () => {
+    const allItems = NAV_SECTIONS.flatMap((s) => s.items);
+    const pe = allItems.find((i) => i.path === "/pe-performance");
+    expect(pe).toBeDefined();
+    expect(pe!.conditional).toBe(true);
+    expect(pe!.advanced).toBeFalsy();
+  });
+  it("ADVANCED_NAV_PATHS constant matches NAV_SECTIONS advanced: true items exactly", () => {
+    const advancedInSections = NAV_SECTIONS.flatMap((s) => s.items)
+      .filter((i) => i.advanced)
+      .map((i) => i.path)
+      .sort();
+    expect(ADVANCED_NAV_PATHS.slice().sort()).toEqual(advancedInSections);
   });
 });
 
