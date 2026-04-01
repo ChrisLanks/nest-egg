@@ -304,6 +304,9 @@ const GettingStartedEmptyState = ({
 export const DashboardPage = () => {
   const { user } = useAuthStore();
   const navigate = useNavigate();
+  const showAdvancedNav = (() => {
+    try { return localStorage.getItem("nest-egg-show-advanced-nav") === "true"; } catch { return false; }
+  })();
   const onboardingGoal =
     localStorage.getItem("nest-egg-onboarding-goal") ||
     user?.onboarding_goal ||
@@ -386,6 +389,11 @@ export const DashboardPage = () => {
                   ? "Here's where your money is going"
                   : "Here's your financial overview"}
           </Text>
+          {!showAdvancedNav && !isEditing && (
+            <Text fontSize="xs" color="text.muted" mt={1}>
+              Customize your dashboard layout in Advanced mode (Preferences).
+            </Text>
+          )}
         </Box>
 
         {!isEditing ? (
@@ -405,14 +413,16 @@ export const DashboardPage = () => {
                 Refresh
               </Button>
             </Tooltip>
-            <Button
-              leftIcon={<EditIcon />}
-              variant="ghost"
-              size="sm"
-              onClick={startEditing}
-            >
-              Customize
-            </Button>
+            {(showAdvancedNav || isEditing) && (
+              <Button
+                leftIcon={<EditIcon />}
+                variant="ghost"
+                size="sm"
+                onClick={startEditing}
+              >
+                Customize
+              </Button>
+            )}
           </HStack>
         ) : (
           <HStack flexShrink={0}>
