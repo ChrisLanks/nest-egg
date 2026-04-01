@@ -44,6 +44,8 @@ import {
   Input,
   InputGroup,
   InputLeftElement,
+  Center,
+  Stack,
 } from "@chakra-ui/react";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -62,6 +64,8 @@ import {
   FiTrendingDown,
   FiAlertTriangle,
   FiSearch,
+  FiBarChart2,
+  FiShield,
 } from "react-icons/fi";
 import * as AccountTypeGroups from "../constants/accountTypeGroups";
 const ACCOUNT_TYPE_LABELS = AccountTypeGroups.ACCOUNT_TYPE_LABELS ?? {};
@@ -1143,14 +1147,70 @@ export const AccountsPage = () => {
         )}
 
         {(!accounts || accounts.length === 0) && (
-          <EmptyState
-            icon={FiCreditCard}
-            title="No accounts yet"
-            description="Connect your bank accounts or add manual accounts to start tracking your finances."
-            actionLabel="Add Account"
-            onAction={() => setIsAddAccountOpen(true)}
-            showAction={true}
-          />
+          <Box w="full" py={8}>
+            <Center mb={8}>
+              <Stack align="center" spacing={3} textAlign="center" maxW="480px">
+                <Icon as={FiCreditCard} boxSize={10} color="brand.400" />
+                <Heading size="md">Add your first account</Heading>
+                <Text color="text.secondary" fontSize="sm">
+                  Nest Egg tracks all your money in one place — checking,
+                  savings, investments, retirement, and more. Add accounts
+                  manually or import a statement to get started.
+                </Text>
+                <Button
+                  colorScheme="brand"
+                  size="md"
+                  onClick={() => setIsAddAccountOpen(true)}
+                >
+                  Add Account
+                </Button>
+              </Stack>
+            </Center>
+            <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+              <Card variant="outline">
+                <CardBody>
+                  <Stack spacing={2}>
+                    <Icon as={FiCreditCard} boxSize={6} color="blue.400" />
+                    <Text fontWeight="semibold" fontSize="sm">
+                      Checking &amp; Savings
+                    </Text>
+                    <Text fontSize="xs" color="text.secondary">
+                      Link your everyday bank accounts so Nest Egg can track
+                      your cash flow and flag unusual spending.
+                    </Text>
+                  </Stack>
+                </CardBody>
+              </Card>
+              <Card variant="outline">
+                <CardBody>
+                  <Stack spacing={2}>
+                    <Icon as={FiBarChart2} boxSize={6} color="green.400" />
+                    <Text fontWeight="semibold" fontSize="sm">
+                      Investments &amp; Retirement
+                    </Text>
+                    <Text fontSize="xs" color="text.secondary">
+                      Add your 401(k), IRA, brokerage, and HSA accounts to
+                      see your full net worth and retirement readiness score.
+                    </Text>
+                  </Stack>
+                </CardBody>
+              </Card>
+              <Card variant="outline">
+                <CardBody>
+                  <Stack spacing={2}>
+                    <Icon as={FiShield} boxSize={6} color="purple.400" />
+                    <Text fontWeight="semibold" fontSize="sm">
+                      Loans &amp; Liabilities
+                    </Text>
+                    <Text fontSize="xs" color="text.secondary">
+                      Track mortgages, student loans, and credit cards to
+                      understand your debt-to-income ratio and payoff timeline.
+                    </Text>
+                  </Stack>
+                </CardBody>
+              </Card>
+            </SimpleGrid>
+          </Box>
         )}
       </VStack>
 
