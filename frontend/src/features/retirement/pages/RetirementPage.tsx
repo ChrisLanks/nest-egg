@@ -69,6 +69,7 @@ import { SocialSecurityEstimator } from "../components/SocialSecurityEstimator";
 import { WithdrawalStrategyComparison } from "../components/WithdrawalStrategyComparison";
 import HelpHint from "../../../components/HelpHint";
 import { helpContent } from "../../../constants/helpContent";
+import { SS_RETIREMENT_SHOW_AGE } from "../../../constants/ages";
 import {
   useAddLifeEvent,
   useAddLifeEventFromPreset,
@@ -118,7 +119,7 @@ export function RetirementPage() {
 
   // Derive current user's age from the shared profile cache (no extra request).
   // Social Security planning is only relevant from ~55 onwards.
-  const SS_SHOW_AGE = 55;
+  const SS_SHOW_AGE = SS_RETIREMENT_SHOW_AGE;
   const userProfile = queryClient.getQueryData<{
     birthdate?: string | null;
     birth_year?: number | null;

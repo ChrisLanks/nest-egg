@@ -17,16 +17,16 @@ class HsaOptimizationService:
         year: int,
     ) -> dict:
         """Returns remaining contribution room for the year."""
-        base_limit_attr = "LIMIT_HSA_FAMILY" if is_family_plan else "LIMIT_HSA_INDIVIDUAL"
-        base_limit = Decimal(str(getattr(RETIREMENT, base_limit_attr, 4300 if not is_family_plan else 8550)))
-        catch_up = Decimal(str(getattr(RETIREMENT, "LIMIT_HSA_CATCH_UP", 1000))) if age >= 55 else Decimal("0")
+        limits = RETIREMENT.for_year(year)
+        base_limit = Decimal(str(limits["LIMIT_HSA_FAMILY"] if is_family_plan else limits["LIMIT_HSA_INDIVIDUAL"]))
+        catch_up = Decimal(str(limits["LIMIT_HSA_CATCH_UP"])) if age >= RETIREMENT.CATCH_UP_AGE_HSA else Decimal("0")
         total_limit = base_limit + catch_up
         remaining = max(Decimal("0"), total_limit - ytd_contributions)
         return {
             "annual_limit": float(total_limit),
             "ytd_contributions": float(ytd_contributions),
             "remaining_room": float(remaining),
-            "catch_up_eligible": age >= 55,
+            "catch_up_eligible": age >= RETIREMENT.CATCH_UP_AGE_HSA,
             "catch_up_amount": float(catch_up),
             "can_contribute": remaining > 0 and age < HSA.MEDICARE_CUTOFF_AGE,
         }

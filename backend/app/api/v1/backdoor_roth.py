@@ -149,7 +149,7 @@ async def get_backdoor_roth_analysis(
         )
     bd_steps.append("Contribute $0 (non-deductible) to a Traditional IRA — file Form 8606 to record your basis.")
     limits = RETIREMENT.for_year(tax_year)
-    ira_limit = limits["LIMIT_IRA"] + (limits["LIMIT_IRA_CATCH_UP"] if current_age and current_age >= 50 else 0)
+    ira_limit = limits["LIMIT_IRA"] + (limits["LIMIT_IRA_CATCH_UP"] if current_age and current_age >= RETIREMENT.CATCH_UP_AGE_401K else 0)
     bd_steps.append(f"Immediately convert the Traditional IRA to Roth IRA (the 'backdoor'). Annual limit: ${ira_limit:,.0f}.")
     bd_steps.append("File Form 8606 Part II to report the conversion and avoid double taxation.")
 

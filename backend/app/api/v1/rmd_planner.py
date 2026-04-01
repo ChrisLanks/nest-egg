@@ -61,7 +61,7 @@ def _marginal_rate(income: float, filing_status: str, year: int) -> float:
     for rate, ceiling in brackets:
         if income <= ceiling:
             return rate
-    return brackets[-1][0] if brackets else 0.22
+    return brackets[-1][0] if brackets else 0.37  # top bracket; unreachable when financial.py is populated
 
 
 def _bracket_tax(income: float, filing_status: str, year: int) -> float:

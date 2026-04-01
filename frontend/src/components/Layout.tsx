@@ -57,6 +57,7 @@ import {
   getResourceTypeForPath,
 } from "../utils/permissionBannerUtils";
 import { ACCOUNT_TYPE_SIDEBAR_CONFIG } from "../constants/accountTypeGroups";
+import { SS_SHOW_AGE } from "../constants/ages";
 import { useNavDefaults } from "../hooks/useNavDefaults";
 import { useNotificationToast } from "../hooks/useNotificationToast";
 import { NotificationType, NotificationPriority } from "../types/notification";
@@ -623,7 +624,7 @@ export const Layout = () => {
   const hasDebt = accounts.some((a) =>
     ["credit_card", "loan", "student_loan", "mortgage"].includes(a.account_type),
   );
-  const isSsAge = userAge !== null && userAge >= 50;
+  const isSsAge = userAge !== null && userAge >= SS_SHOW_AGE;
 
   // Helper: check if a nav item is visible
   // Priority: per-item override (navOverridesState) > account-based default
