@@ -168,7 +168,7 @@ async def get_contribution_headroom(
                 )
             )
             contribs = contrib_result.scalars().all()
-            ytd = sum(_annualize(float(c.amount), c.frequency) / (12 / today.month) for c in contribs)
+            ytd = sum(_annualize(float(c.amount), c.frequency) * today.month / 12 for c in contribs)
 
             hsa_family = len(members) >= 2
             base_limit, catchup_elig, full_limit = _annual_limit(acct.account_type, age, limits, hsa_family)

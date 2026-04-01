@@ -25,6 +25,14 @@ class LoanModelingService:
     ) -> dict:
         """Returns DTI before and after new loan, plus whether it exceeds limits."""
         monthly_income = annual_gross_income / 12
+        if monthly_income <= 0:
+            return {
+                "dti_before": None,
+                "dti_after": None,
+                "exceeds_conventional": None,
+                "exceeds_fha": None,
+                "recommendation": "Cannot calculate DTI without income.",
+            }
         dti_before = existing_monthly_debt / monthly_income
         dti_after = (existing_monthly_debt + new_monthly_payment) / monthly_income
         return {

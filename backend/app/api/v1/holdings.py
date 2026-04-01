@@ -737,7 +737,7 @@ async def get_portfolio_summary(
                     TreemapNode(
                         name=cap_size,
                         value=cap_value,
-                        percent=(cap_value / domestic_stocks_value * 100),
+                        percent=(cap_value / domestic_stocks_value * 100) if domestic_stocks_value > 0 else Decimal("0"),
                         children=ticker_nodes,
                         color=cap_colors.get(cap_size, "#4299E1"),
                     )

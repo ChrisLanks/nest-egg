@@ -72,6 +72,29 @@ def test_buy_vs_lease_buy_wins():
     assert result["recommendation"] == "buy"
 
 
+def test_dti_zero_income_returns_none():
+    """DTI calculation must not divide by zero when income is 0."""
+    result = LoanModelingService.calculate_dti_impact(
+        annual_gross_income=Decimal("0"),
+        existing_monthly_debt=Decimal("500"),
+        new_monthly_payment=Decimal("300"),
+    )
+    assert result["dti_before"] is None
+    assert result["dti_after"] is None
+    assert result["exceeds_conventional"] is None
+    assert "income" in result["recommendation"].lower()
+
+
+def test_dti_negative_income_returns_none():
+    """Negative income should be treated same as zero."""
+    result = LoanModelingService.calculate_dti_impact(
+        annual_gross_income=Decimal("-1000"),
+        existing_monthly_debt=Decimal("500"),
+        new_monthly_payment=Decimal("300"),
+    )
+    assert result["dti_before"] is None
+
+
 def test_buy_vs_lease_lease_wins():
     """Lease wins when vehicle price is high and lease payment is very low."""
     result = LoanModelingService.buy_vs_lease(
