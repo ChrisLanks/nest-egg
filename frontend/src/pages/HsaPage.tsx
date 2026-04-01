@@ -165,6 +165,7 @@ export const HsaPage = () => {
   // User inputs (may be pre-filled from profile / ytd-summary)
   const [age, setAge] = useState<string>("");
   const [isFamily, setIsFamily] = useState(false);
+  const [isDomesticPartnership, setIsDomesticPartnership] = useState(false);
   const [ytdContribs, setYtdContribs] = useState<string>("");
   const [annualContrib, setAnnualContrib] = useState<string>("");
   const [annualMedical, setAnnualMedical] = useState<string>("");
@@ -454,13 +455,51 @@ export const HsaPage = () => {
               <HStack>
                 <Switch
                   isChecked={isFamily}
-                  onChange={(e) => setIsFamily(e.target.checked)}
+                  onChange={(e) => {
+                    setIsFamily(e.target.checked);
+                    if (!e.target.checked) setIsDomesticPartnership(false);
+                  }}
                   colorScheme="brand"
                 />
                 <FormLabel mb={0} fontSize="sm">Family plan</FormLabel>
               </HStack>
             </FormControl>
+            {isFamily && (
+              <FormControl maxW="260px" pt={6}>
+                <HStack>
+                  <Switch
+                    isChecked={isDomesticPartnership}
+                    onChange={(e) => setIsDomesticPartnership(e.target.checked)}
+                    colorScheme="orange"
+                  />
+                  <Tooltip
+                    label="Domestic partners are generally not IRS tax dependents. This means employer-paid DP health coverage is imputed income (taxed), and pre-tax HSA contributions for your DP's expenses may not qualify — you may owe taxes on those withdrawals."
+                    hasArrow
+                    maxW="320px"
+                  >
+                    <FormLabel mb={0} fontSize="sm" cursor="help">
+                      Domestic partnership
+                    </FormLabel>
+                  </Tooltip>
+                </HStack>
+              </FormControl>
+            )}
           </HStack>
+
+          {isDomesticPartnership && (
+            <Alert status="warning" borderRadius="md" mb={2}>
+              <AlertIcon />
+              <AlertDescription fontSize="sm">
+                <strong>Domestic Partnership Tax Loop:</strong> Unless your domestic partner qualifies
+                as your IRS tax dependent, the employer's cost for their health coverage is added to
+                your W-2 as imputed income — you pay federal, state, and FICA taxes on it. Pre-tax
+                HSA contributions covering your DP's medical expenses (not yours) are also treated as
+                taxable distributions. To avoid this: (1) check if your DP qualifies as your dependent,
+                (2) consider having each partner maintain separate self-only HDHP coverage + HSA, or
+                (3) pay DP medical expenses out-of-pocket and use your HSA only for yourself.
+              </AlertDescription>
+            </Alert>
+          )}
 
           {ageNum < 18 && (
             <Alert status="info" variant="subtle" borderRadius="md">

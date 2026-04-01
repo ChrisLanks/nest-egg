@@ -227,7 +227,7 @@ describe('toFloat', () => {
 
   it('summing two Decimal strings does NOT produce NaN', () => {
     const balances: (string | number | null)[] = ['5000.00', '3000.50'];
-    const total = balances.reduce((s, b) => s + toFloat(b), 0);
+    const total = balances.reduce((s: number, b) => s + toFloat(b), 0);
     expect(Number.isNaN(total)).toBe(false);
     expect(total).toBeCloseTo(8000.5);
   });
@@ -389,5 +389,69 @@ describe('HSA member-filter scoping', () => {
     // user_id falsy → matchesMemberFilter returns true regardless of selection
     const result = filterHsaAccountsByMember(accounts, new Set([TEST]), false);
     expect(result).toHaveLength(1);
+  });
+});
+
+// ── Domestic partnership tax loop logic ───────────────────────────────────────
+//
+// When on a family HDHP plan due to domestic partnership, the employer's cost
+// for the partner's coverage is imputed income (taxable). HSA contributions
+// covering the partner's medical expenses are also treated as taxable
+// distributions (unless the DP qualifies as an IRS tax dependent).
+
+interface DomesticPartnershipState {
+  isFamily: boolean;
+  isDomesticPartnership: boolean;
+}
+
+/**
+ * Mirrors the UI logic: isDomesticPartnership can only be true when isFamily is true.
+ * Turning off family plan also resets domestic partnership.
+ */
+function toggleFamily(
+  state: DomesticPartnershipState,
+  checked: boolean,
+): DomesticPartnershipState {
+  if (!checked) return { isFamily: false, isDomesticPartnership: false };
+  return { ...state, isFamily: true };
+}
+
+function toggleDomesticPartnership(
+  state: DomesticPartnershipState,
+  checked: boolean,
+): DomesticPartnershipState {
+  return { ...state, isDomesticPartnership: checked };
+}
+
+describe('Domestic partnership tax loop toggle logic', () => {
+  it('domestic partnership starts as false', () => {
+    const state = { isFamily: false, isDomesticPartnership: false };
+    expect(state.isDomesticPartnership).toBe(false);
+  });
+
+  it('enabling family plan does not auto-enable domestic partnership', () => {
+    const state = toggleFamily({ isFamily: false, isDomesticPartnership: false }, true);
+    expect(state.isFamily).toBe(true);
+    expect(state.isDomesticPartnership).toBe(false);
+  });
+
+  it('disabling family plan resets domestic partnership to false', () => {
+    const state = toggleFamily({ isFamily: true, isDomesticPartnership: true }, false);
+    expect(state.isFamily).toBe(false);
+    expect(state.isDomesticPartnership).toBe(false);
+  });
+
+  it('domestic partnership can be enabled when family plan is on', () => {
+    let state = toggleFamily({ isFamily: false, isDomesticPartnership: false }, true);
+    state = toggleDomesticPartnership(state, true);
+    expect(state.isFamily).toBe(true);
+    expect(state.isDomesticPartnership).toBe(true);
+  });
+
+  it('warning is shown only when isDomesticPartnership is true', () => {
+    const showWarning = (s: DomesticPartnershipState) => s.isDomesticPartnership;
+    expect(showWarning({ isFamily: false, isDomesticPartnership: false })).toBe(false);
+    expect(showWarning({ isFamily: true, isDomesticPartnership: false })).toBe(false);
+    expect(showWarning({ isFamily: true, isDomesticPartnership: true })).toBe(true);
   });
 });
