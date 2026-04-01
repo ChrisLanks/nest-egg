@@ -44,7 +44,7 @@ interface YieldHolding {
   current_balance: number;
   annual_interest_income: number;
   annual_tax_cost: number;
-  is_muni: boolean;
+  is_tax_advantaged: boolean;
 }
 
 interface TaxEquivYieldResponse {
@@ -93,8 +93,8 @@ export const TaxEquivYieldTab = () => {
   return (
     <VStack spacing={6} align="stretch">
       <Text fontSize="sm" color="text.secondary">
-        Tax-equivalent yield shows what a taxable investment would need to earn to match the
-        after-tax return of a given holding at your marginal tax rate.
+        Tax-equivalent yield shows the after-tax return of each taxable holding at your combined
+        marginal rate. Use it to compare CDs and bonds against tax-exempt alternatives (e.g. munis).
       </Text>
 
       {/* Rate controls */}
@@ -193,7 +193,7 @@ export const TaxEquivYieldTab = () => {
                   <Th isNumeric>Balance</Th>
                   <Th isNumeric>Nominal Yield</Th>
                   <Th isNumeric>
-                    <Tooltip label="What a taxable investment would need to earn to match this holding after taxes.">
+                    <Tooltip label="After-tax yield: nominal yield × (1 − your combined marginal rate). Changes when you adjust the federal or state rate above.">
                       Tax-Equiv Yield
                     </Tooltip>
                   </Th>

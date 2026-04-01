@@ -110,18 +110,19 @@ async def get_tax_equivalent_yield(
         is_tax_advantaged = acct.account_type in _TAX_EXEMPT_TYPES
 
         if is_tax_advantaged:
-            # I_BOND: exempt from state tax, federal tax deferred until redemption
-            # TEY = nominal / (1 - fed_rate) to compare against fully-taxable alternatives
-            tax_equiv = nominal / (1 - fed_rate) if fed_rate < 1.0 else nominal
+            # I_BOND: exempt from state tax, federal tax deferred until redemption.
+            # TEY = nominal / (1 - combined_rate): what a taxable bond must yield to match.
+            tax_equiv = nominal / (1 - combined_rate) if combined_rate < 1.0 else nominal
             annual_interest = balance * nominal
-            # Tax cost: only state tax is zero for I_BOND; federal deferred (show 0 current cost)
+            # Federal tax deferred (show 0 current annual tax cost for I-bonds)
             annual_tax = 0.0
         else:
-            # Taxable bonds (CD, SAVINGS, MONEY_MARKET, regular BOND)
-            # TEY = nominal yield (taxable bonds already ARE pre-tax)
-            tax_equiv = nominal
+            # Taxable bonds (CD, SAVINGS, MONEY_MARKET, regular BOND).
+            # Tax-equivalent yield = after-tax yield = nominal * (1 - combined_rate).
+            # This is what a tax-exempt bond would need to yield to match this holding.
             annual_interest = balance * nominal
             annual_tax = annual_interest * combined_rate
+            tax_equiv = nominal * (1 - combined_rate)
 
         total_value += balance
         total_interest += annual_interest
