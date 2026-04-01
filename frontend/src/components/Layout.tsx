@@ -95,6 +95,7 @@ interface NavItemProps {
 
 interface NavDropdownProps {
   label: string;
+  labelTooltip?: string;
   items: { label: string; path: string; tooltip?: string; locked?: boolean; lockedTooltip?: string }[];
   currentPath: string;
   onNavigate: (path: string) => void;
@@ -102,6 +103,7 @@ interface NavDropdownProps {
 
 const NavDropdown = ({
   label,
+  labelTooltip,
   items,
   currentPath,
   onNavigate,
@@ -123,16 +125,24 @@ const NavDropdown = ({
 
   return (
     <Box position="relative" ref={ref}>
-      <Button
-        rightIcon={<ChevronDownIcon />}
-        variant={isActive ? "solid" : "ghost"}
-        colorScheme={isActive ? "brand" : "gray"}
-        size="sm"
-        fontWeight={isActive ? "semibold" : "medium"}
-        onClick={() => setIsOpen((prev) => !prev)}
+      <Tooltip
+        label={labelTooltip}
+        placement="bottom"
+        hasArrow
+        openDelay={400}
+        isDisabled={!labelTooltip}
       >
-        {label}
-      </Button>
+        <Button
+          rightIcon={<ChevronDownIcon />}
+          variant={isActive ? "solid" : "ghost"}
+          colorScheme={isActive ? "brand" : "gray"}
+          size="sm"
+          fontWeight={isActive ? "semibold" : "medium"}
+          onClick={() => setIsOpen((prev) => !prev)}
+        >
+          {label}
+        </Button>
+      </Tooltip>
       {isOpen && (
         <Box
           position="absolute"
@@ -1283,6 +1293,7 @@ export const Layout = () => {
               {/* Spending Dropdown */}
               <NavDropdown
                 label="Spending"
+                labelTooltip="Track where your money goes — transactions, budgets, categories, and recurring bills"
                 items={spendingMenuItems}
                 currentPath={location.pathname}
                 onNavigate={navigateWithParams}
@@ -1291,6 +1302,7 @@ export const Layout = () => {
               {/* Analytics Dropdown */}
               <NavDropdown
                 label="Analytics"
+                labelTooltip="Charts and scores — net worth over time, cash flow, spending trends, and financial health"
                 items={analyticsMenuItems}
                 currentPath={location.pathname}
                 onNavigate={navigateWithParams}
@@ -1299,6 +1311,7 @@ export const Layout = () => {
               {/* Planning Dropdown */}
               <NavDropdown
                 label="Planning"
+                labelTooltip="Your financial future — goals, retirement, tax strategy, and life milestones"
                 items={planningMenuItems}
                 currentPath={location.pathname}
                 onNavigate={navigateWithParams}
