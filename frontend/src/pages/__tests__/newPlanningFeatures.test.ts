@@ -172,6 +172,23 @@ describe("RmdPlannerTab", () => {
     expect(lifePlanningsSrc).toContain("RmdPlannerTab");
     expect(lifePlanningsSrc).toContain("RMD Planner");
   });
+
+  it("has filing status selector that affects tax estimate only", () => {
+    expect(rmdSrc).toContain("filingStatus");
+    expect(rmdSrc).toContain("filing_status");
+    // Tooltip explains filing status affects tax, not RMD
+    expect(rmdSrc).toContain("RMD amounts are the same regardless of filing status");
+  });
+
+  it("does not send unused federal_rate_pct to backend", () => {
+    expect(rmdSrc).not.toContain("federal_rate_pct");
+    expect(rmdSrc).not.toContain("federalRate");
+  });
+
+  it("has tooltips on table column headers", () => {
+    expect(rmdSrc).toContain("ChakraTooltip");
+    expect(rmdSrc).toContain("Uniform Lifetime Table");
+  });
 });
 
 // ── Feature 5: Beneficiary Audit ─────────────────────────────────────────────

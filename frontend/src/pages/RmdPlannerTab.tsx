@@ -11,9 +11,7 @@ import {
   Card,
   CardBody,
   FormControl,
-  FormHelperText,
   FormLabel,
-  HStack,
   NumberInput,
   NumberInputField,
   Select,
@@ -28,6 +26,7 @@ import {
   Text,
   Th,
   Thead,
+  Tooltip as ChakraTooltip,
   Tr,
   VStack,
 } from "@chakra-ui/react";
@@ -86,19 +85,17 @@ export const RmdPlannerTab = () => {
   const [growthRate, setGrowthRate] = useState(6);
   const [filingStatus, setFilingStatus] = useState("single");
   const [otherIncome, setOtherIncome] = useState(50000);
-  const [federalRate, setFederalRate] = useState(22);
 
   const params = new URLSearchParams({
     projection_years: "20",
     growth_rate: String(growthRate / 100),
     filing_status: filingStatus,
     other_annual_income: String(otherIncome),
-    federal_rate_pct: String(federalRate),
   });
   if (selectedUserId) params.set("user_id", selectedUserId);
 
   const { data, isLoading, error } = useQuery<RmdPlannerResponse>({
-    queryKey: ["rmd-planner", growthRate, filingStatus, otherIncome, federalRate, selectedUserId],
+    queryKey: ["rmd-planner", growthRate, filingStatus, otherIncome, selectedUserId],
     queryFn: () => api.get(`/rmd/rmd-planner?${params}`).then((r) => r.data),
   });
 
@@ -120,9 +117,11 @@ export const RmdPlannerTab = () => {
       {/* Controls */}
       <Card>
         <CardBody>
-          <SimpleGrid columns={{ base: 1, md: 4 }} spacing={4}>
+          <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
             <FormControl>
-              <FormLabel fontSize="sm">Portfolio Growth Rate (%)</FormLabel>
+              <ChakraTooltip label="Assumed annual return on your pre-tax retirement accounts before RMDs are taken. Affects projected account balances and future RMD amounts." hasArrow placement="top">
+                <FormLabel fontSize="sm" cursor="default">Portfolio Growth Rate (%)</FormLabel>
+              </ChakraTooltip>
               <NumberInput
                 value={growthRate}
                 min={0}
@@ -135,14 +134,18 @@ export const RmdPlannerTab = () => {
               </NumberInput>
             </FormControl>
             <FormControl>
-              <FormLabel fontSize="sm">Filing Status</FormLabel>
+              <ChakraTooltip label="Used to estimate the tax owed on your RMDs using IRS tax brackets. Note: RMD amounts are the same regardless of filing status — only the tax estimate changes." hasArrow placement="top">
+                <FormLabel fontSize="sm" cursor="default">Filing Status</FormLabel>
+              </ChakraTooltip>
               <Select size="sm" value={filingStatus} onChange={(e) => setFilingStatus(e.target.value)}>
                 <option value="single">Single</option>
                 <option value="married">Married Filing Jointly</option>
               </Select>
             </FormControl>
             <FormControl>
-              <FormLabel fontSize="sm">Other Annual Income ($)</FormLabel>
+              <ChakraTooltip label="Non-RMD income (Social Security, pension, wages, etc.) in the RMD year. Used with your filing status to calculate the marginal tax rate on your RMDs." hasArrow placement="top">
+                <FormLabel fontSize="sm" cursor="default">Other Annual Income ($)</FormLabel>
+              </ChakraTooltip>
               <NumberInput
                 value={otherIncome}
                 min={0}
@@ -152,22 +155,6 @@ export const RmdPlannerTab = () => {
               >
                 <NumberInputField />
               </NumberInput>
-            </FormControl>
-            <FormControl>
-              <FormLabel fontSize="sm">Federal Tax Rate (%)</FormLabel>
-              <NumberInput
-                value={federalRate}
-                min={0}
-                max={50}
-                step={1}
-                onChange={(_, v) => !isNaN(v) && setFederalRate(v)}
-                size="sm"
-              >
-                <NumberInputField />
-              </NumberInput>
-              <FormHelperText fontSize="xs">
-                Estimated from income — adjust as needed.
-              </FormHelperText>
             </FormControl>
           </SimpleGrid>
         </CardBody>
@@ -268,9 +255,15 @@ export const RmdPlannerTab = () => {
                 <Tr>
                   <Th>Year</Th>
                   <Th>Age</Th>
-                  <Th isNumeric>Annual RMD</Th>
-                  <Th isNumeric>Est. Tax</Th>
-                  <Th isNumeric>Eff. Rate</Th>
+                  <ChakraTooltip label="Required Minimum Distribution — account balance ÷ IRS Uniform Lifetime Table factor. Does not change with filing status." hasArrow placement="top">
+                    <Th isNumeric cursor="default">Annual RMD</Th>
+                  </ChakraTooltip>
+                  <ChakraTooltip label="Estimated tax on the RMD based on your filing status and other income using IRS marginal brackets. Changes when filing status changes." hasArrow placement="top">
+                    <Th isNumeric cursor="default">Est. Tax</Th>
+                  </ChakraTooltip>
+                  <ChakraTooltip label="Marginal tax rate applied to the RMD portion of your income." hasArrow placement="top">
+                    <Th isNumeric cursor="default">Eff. Rate</Th>
+                  </ChakraTooltip>
                 </Tr>
               </Thead>
               <Tbody>
