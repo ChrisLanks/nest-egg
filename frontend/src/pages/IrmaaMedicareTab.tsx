@@ -90,7 +90,6 @@ export const IrmaaMedicareTab = () => {
   const [magi, setMagi] = useState<number>(120000);
   const [filingStatus, setFilingStatus] = useState("single");
   const [growthRate, setGrowthRate] = useState(3);
-  const [enabled, setEnabled] = useState(false);
 
   const params = new URLSearchParams({
     current_magi: String(magi),
@@ -102,7 +101,7 @@ export const IrmaaMedicareTab = () => {
   const { data, isLoading, error } = useQuery<IrmaaResponse>({
     queryKey: ["irmaa-projection", magi, filingStatus, growthRate],
     queryFn: () => api.get(`/tax/irmaa-projection?${params}`).then((r) => r.data),
-    enabled,
+    enabled: magi > 0,
   });
 
   const chartData =
@@ -131,7 +130,7 @@ export const IrmaaMedicareTab = () => {
                 onChange={(_, v) => !isNaN(v) && setMagi(v)}
                 size="sm"
               >
-                <NumberInputField onBlur={() => setEnabled(true)} />
+                <NumberInputField />
               </NumberInput>
             </FormControl>
             <FormControl>
@@ -139,7 +138,7 @@ export const IrmaaMedicareTab = () => {
               <Select
                 size="sm"
                 value={filingStatus}
-                onChange={(e) => { setFilingStatus(e.target.value); setEnabled(true); }}
+                onChange={(e) => setFilingStatus(e.target.value)}
               >
                 <option value="single">Single</option>
                 <option value="married">Married Filing Jointly</option>
@@ -155,15 +154,10 @@ export const IrmaaMedicareTab = () => {
                 onChange={(_, v) => !isNaN(v) && setGrowthRate(v)}
                 size="sm"
               >
-                <NumberInputField onBlur={() => setEnabled(true)} />
+                <NumberInputField />
               </NumberInput>
             </FormControl>
           </SimpleGrid>
-          {!enabled && (
-            <Text fontSize="xs" color="text.secondary" mt={2}>
-              Enter your MAGI above to calculate.
-            </Text>
-          )}
         </CardBody>
       </Card>
 
@@ -215,7 +209,7 @@ export const IrmaaMedicareTab = () => {
                 <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                 <XAxis dataKey="year" tick={{ fontSize: 11 }} />
                 <YAxis tickFormatter={(v) => `$${v}`} tick={{ fontSize: 11 }} width={48} />
-                <Tooltip formatter={(v: number) => [`$${v.toFixed(0)}/mo`, ""]} />
+                <Tooltip formatter={(v: number | undefined) => v != null ? [`$${v.toFixed(0)}/mo`, ""] : ["—", ""]} />
                 <Legend />
                 <Bar dataKey="base" stackId="a" fill="#3182CE" name="Base Premium" />
                 <Bar dataKey="irmaa" stackId="a" fill="#E53E3E" name="IRMAA Surcharge" />
