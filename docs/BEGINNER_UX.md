@@ -225,6 +225,42 @@ Advanced items checked against `showAdvancedNav` toggle (`nest-egg-show-advanced
 - `dashboardSimpleMode.test.ts` — 7 tests covering Customize button visibility and hint text
 - `userMenuPreferencesBadge.test.ts` — 6 tests covering Setup badge show/hide by login count
 - `pageSubtitles.test.ts` — 14 tests covering CashFlow subtitle/tooltips, Preferences advanced description, Rules page copy
+- `retirementBeginnerUX.test.ts` — 21 tests covering ScenarioPanel helper text (M), RetirementPage intro banner (N), success rate badge (O)
+
+---
+
+## Retirement — Beginner UX
+
+The Retirement page is the most technically complex page in the app. Three targeted improvements reduce first-visit overwhelm:
+
+### M — ScenarioPanel Return Assumptions helper text
+
+A plain-English guidance block appears directly under the "Return Assumptions" heading:
+> "Not sure what to enter? The defaults (7% pre-retirement, 5% post-retirement, 15% volatility) are reasonable starting points based on historical stock market averages. You can always adjust later."
+
+Tooltips on Pre-Retirement Return and Volatility sliders also explain _why_ the defaults are what they are (e.g., 7% accounts for inflation and fees; 15% is typical for a stock-heavy portfolio).
+
+### N — RetirementPage intro banner
+
+A dismissable blue info banner appears at the top of the page the first time a user visits. It explains:
+- What Monte Carlo simulation is (1,000 random-market runs)
+- What the success rate means (how often money lasts to planning age)
+- That 80%+ is generally considered solid
+- That defaults are reasonable starting points
+
+Dismissal stored in `nest-egg-retirement-intro-dismissed` (localStorage).
+
+### O — Success rate "Is this good?" badge
+
+A color-coded `<Badge>` appears next to the success rate percentage in the Simulation Summary box:
+
+| Success rate | Badge color | Label |
+|---|---|---|
+| ≥ 80% | green | Good |
+| 60–79% | yellow | Moderate |
+| < 60% | red | Needs attention |
+
+Each badge has a tooltip explaining the threshold in plain language.
 
 ---
 

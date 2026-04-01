@@ -413,10 +413,13 @@ export function ScenarioPanel({
         <Text fontSize="sm" fontWeight="semibold" color={labelColor} pt={2}>
           Return Assumptions
         </Text>
+        <Text fontSize="xs" color="text.muted">
+          Not sure what to enter? The defaults (7% pre-retirement, 5% post-retirement, 15% volatility) are reasonable starting points based on historical stock market averages. You can always adjust later.
+        </Text>
 
         <FormControl>
           <HStack justify="space-between">
-            <Tooltip label="Expected average annual return on investments before you retire (S&P 500 averages ~10%)">
+            <Tooltip label="Expected average annual growth of your investments before you retire. The S&P 500 has averaged ~10% historically, but 7% is commonly used to account for inflation and fees. The default is a reasonable middle ground.">
               <FormLabel fontSize="sm" mb={0} color={labelColor} cursor="help">
                 Pre-Retirement Return
               </FormLabel>
@@ -470,7 +473,7 @@ export function ScenarioPanel({
 
         <FormControl>
           <HStack justify="space-between">
-            <Tooltip label="How much returns swing year to year — higher means more uncertainty in outcomes">
+            <Tooltip label="How much your investment returns swing year to year. 15% is typical for a stock-heavy portfolio. Higher = more uncertainty in your forecast. Leave the default unless you have mostly bonds (lower) or concentrated stocks (higher).">
               <FormLabel fontSize="sm" mb={0} color={labelColor} cursor="help">
                 Volatility
               </FormLabel>

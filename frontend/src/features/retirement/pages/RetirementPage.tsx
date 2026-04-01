@@ -157,6 +157,12 @@ export function RetirementPage() {
   // Track whether settings changed since last simulation
   const [settingsDirty, setSettingsDirty] = useState(false);
 
+  // Beginner intro banner dismiss state
+  const RETIRE_INTRO_KEY = "nest-egg-retirement-intro-dismissed";
+  const [introBannerDismissed, setIntroBannerDismissed] = useState(() => {
+    try { return localStorage.getItem(RETIRE_INTRO_KEY) === "true"; } catch { return false; }
+  });
+
   // Derive effective userId for fetching scenarios:
   // - Non-combined view (Self / Other user): use the global selectedUserId
   // - Combined view: fetch all org scenarios (no user filter) and filter client-side
@@ -1234,6 +1240,31 @@ export function RetirementPage() {
             </AlertDescription>
           </Alert>
         )}
+        {/* Beginner guidance banner — shown until dismissed */}
+        {!introBannerDismissed && (
+          <Alert status="info" borderRadius="lg" variant="left-accent">
+            <AlertIcon />
+            <Box flex="1">
+              <AlertTitle fontSize="sm">How this works</AlertTitle>
+              <AlertDescription fontSize="sm">
+                This planner runs 1,000 simulations of your retirement using random market variations — a technique called Monte Carlo analysis. The <strong>success rate</strong> tells you how often your money lasts to your planning age. A rate of 80% or higher is generally considered solid. The defaults are reasonable starting points; adjust sliders to explore different scenarios.
+              </AlertDescription>
+            </Box>
+            <Button
+              size="xs"
+              variant="ghost"
+              ml={2}
+              alignSelf="flex-start"
+              onClick={() => {
+                try { localStorage.setItem(RETIRE_INTRO_KEY, "true"); } catch { /* noop */ }
+                setIntroBannerDismissed(true);
+              }}
+              aria-label="Dismiss retirement intro"
+            >
+              ✕
+            </Button>
+          </Alert>
+        )}
         {/* Multi-member banner — clarify household vs individual plans */}
         {isCombinedView && selectedIds.size > 1 && (
           <Alert status="info" borderRadius="lg" variant="subtle">
@@ -1758,9 +1789,37 @@ export function RetirementPage() {
                         Success Rate
                       </Text>
                     </Tooltip>
-                    <Text fontWeight="bold">
-                      {results.success_rate.toFixed(1)}%
-                    </Text>
+                    <HStack spacing={2}>
+                      <Text fontWeight="bold">
+                        {results.success_rate.toFixed(1)}%
+                      </Text>
+                      <Tooltip
+                        label={
+                          results.success_rate >= 80
+                            ? "80%+ is generally considered a solid retirement plan"
+                            : results.success_rate >= 60
+                            ? "60–79% — consider increasing savings or adjusting spending"
+                            : "Below 60% — your plan may need significant changes to be sustainable"
+                        }
+                      >
+                        <Badge
+                          colorScheme={
+                            results.success_rate >= 80
+                              ? "green"
+                              : results.success_rate >= 60
+                              ? "yellow"
+                              : "red"
+                          }
+                          cursor="help"
+                        >
+                          {results.success_rate >= 80
+                            ? "Good"
+                            : results.success_rate >= 60
+                            ? "Moderate"
+                            : "Needs attention"}
+                        </Badge>
+                      </Tooltip>
+                    </HStack>
                   </HStack>
                   {results.median_portfolio_at_retirement && (
                     <HStack justify="space-between">
