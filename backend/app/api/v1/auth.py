@@ -425,6 +425,11 @@ async def login(
         _background_tasks.add(_task)
         _task.add_done_callback(_background_tasks.discard)
 
+        # Trigger net worth snapshot capture if last snapshot is older than 24h (non-blocking).
+        _snap_task = asyncio.create_task(_maybe_capture_snapshot_on_login(user.organization_id))
+        _background_tasks.add(_snap_task)
+        _snap_task.add_done_callback(_background_tasks.discard)
+
         logger.info("Generating tokens")
 
         # Generate tokens and create response (refresh token set as httpOnly cookie)
@@ -516,6 +521,64 @@ async def _maybe_refresh_prices_on_login(organization_id) -> None:
     except Exception as exc:
         # Never crash the login response due to a background refresh failure
         logger.warning("login_price_refresh failed (non-critical): %s", exc)
+
+
+async def _maybe_capture_snapshot_on_login(organization_id) -> None:
+    """
+    Background task: dispatch a net worth snapshot Celery task if the most
+    recent snapshot for this org is older than 24 hours.
+
+    Uses a small random jitter (0–300 s) so that a burst of logins from the
+    same household doesn't fan out into simultaneous snapshot captures.
+    Silently swallows errors so it never affects the login response.
+    """
+    import random
+
+    from sqlalchemy import desc
+
+    from app.models.net_worth_snapshot import NetWorthSnapshot
+    from app.workers.tasks.snapshot_tasks import capture_org_portfolio_snapshot
+
+    STALE_AFTER_HOURS = 24
+    MAX_JITTER_SECONDS = 300
+
+    try:
+        async with AsyncSessionLocal() as db:
+            cutoff = utc_now() - timedelta(hours=STALE_AFTER_HOURS)
+            result = await db.execute(
+                select(NetWorthSnapshot.snapshot_date)
+                .where(
+                    NetWorthSnapshot.organization_id == organization_id,
+                    NetWorthSnapshot.user_id.is_(None),
+                )
+                .order_by(desc(NetWorthSnapshot.snapshot_date))
+                .limit(1)
+            )
+            latest_date = result.scalar_one_or_none()
+
+        # snapshot_date is a plain date; compare against cutoff date to avoid tz issues
+        if latest_date is not None:
+            if latest_date >= cutoff.date():
+                logger.debug(
+                    "login_snapshot_check: org=%s snapshot is fresh (%s), skipping",
+                    organization_id,
+                    latest_date,
+                )
+                return
+
+        jitter = random.randint(0, MAX_JITTER_SECONDS)
+        logger.info(
+            "login_snapshot_check: org=%s snapshot stale/missing, scheduling capture with %ds jitter",
+            organization_id,
+            jitter,
+        )
+        capture_org_portfolio_snapshot.apply_async(
+            args=[str(organization_id)],
+            countdown=jitter,
+        )
+    except Exception as exc:
+        # Never crash the login response due to a background snapshot failure
+        logger.warning("login_snapshot_check failed (non-critical): %s", exc)
 
 
 async def _verify_and_consume_backup_code(

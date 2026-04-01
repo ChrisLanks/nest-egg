@@ -2523,6 +2523,98 @@ class TestMaybeRefreshPricesOnLogin:
 
 
 # ---------------------------------------------------------------------------
+# _maybe_capture_snapshot_on_login
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestMaybeCaptureSnapshotOnLogin:
+    """Test the background net worth snapshot capture triggered on login."""
+
+    @pytest.mark.asyncio
+    async def test_skips_when_snapshot_is_fresh(self):
+        """Should return early when most recent snapshot is within 24 hours."""
+        from datetime import date
+
+        from app.api.v1.auth import _maybe_capture_snapshot_on_login
+
+        today = date.today()
+        mock_db = AsyncMock()
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = today
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        with patch("app.api.v1.auth.AsyncSessionLocal") as mock_session:
+            mock_session.return_value.__aenter__ = AsyncMock(return_value=mock_db)
+            mock_session.return_value.__aexit__ = AsyncMock(return_value=False)
+            with patch(
+                "app.workers.tasks.snapshot_tasks.capture_org_portfolio_snapshot"
+            ) as mock_task:
+                await _maybe_capture_snapshot_on_login(uuid4())
+
+        mock_task.apply_async.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_dispatches_when_snapshot_is_stale(self):
+        """Should dispatch a Celery task when last snapshot is older than 24 hours."""
+        from datetime import date, timedelta
+
+        from app.api.v1.auth import _maybe_capture_snapshot_on_login
+
+        stale_date = date.today() - timedelta(days=3)
+        mock_db = AsyncMock()
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = stale_date
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        with patch("app.api.v1.auth.AsyncSessionLocal") as mock_session:
+            mock_session.return_value.__aenter__ = AsyncMock(return_value=mock_db)
+            mock_session.return_value.__aexit__ = AsyncMock(return_value=False)
+            with patch(
+                "app.workers.tasks.snapshot_tasks.capture_org_portfolio_snapshot"
+            ) as mock_task:
+                org_id = uuid4()
+                await _maybe_capture_snapshot_on_login(org_id)
+
+        mock_task.apply_async.assert_called_once()
+        call_kwargs = mock_task.apply_async.call_args
+        assert call_kwargs.kwargs["args"] == [str(org_id)]
+        assert 0 <= call_kwargs.kwargs["countdown"] <= 300
+
+    @pytest.mark.asyncio
+    async def test_dispatches_when_no_snapshot_exists(self):
+        """Should dispatch a Celery task when no snapshot exists at all."""
+        from app.api.v1.auth import _maybe_capture_snapshot_on_login
+
+        mock_db = AsyncMock()
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = None  # no snapshot
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        with patch("app.api.v1.auth.AsyncSessionLocal") as mock_session:
+            mock_session.return_value.__aenter__ = AsyncMock(return_value=mock_db)
+            mock_session.return_value.__aexit__ = AsyncMock(return_value=False)
+            with patch(
+                "app.workers.tasks.snapshot_tasks.capture_org_portfolio_snapshot"
+            ) as mock_task:
+                await _maybe_capture_snapshot_on_login(uuid4())
+
+        mock_task.apply_async.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_handles_exception_silently(self):
+        """Should swallow exceptions so login is never affected."""
+        from app.api.v1.auth import _maybe_capture_snapshot_on_login
+
+        with patch("app.api.v1.auth.AsyncSessionLocal") as mock_session:
+            mock_session.return_value.__aenter__ = AsyncMock(side_effect=RuntimeError("DB down"))
+            mock_session.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            # Should not raise
+            await _maybe_capture_snapshot_on_login(uuid4())
+
+
+# ---------------------------------------------------------------------------
 # _verify_and_consume_backup_code
 # ---------------------------------------------------------------------------
 
