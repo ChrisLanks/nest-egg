@@ -901,12 +901,14 @@ export const Layout = () => {
       path: "/pe-performance",
       tooltip:
         "Private equity TVPI, DPI, MOIC, IRR metrics and capital call history",
+      advanced: true,
     },
     {
       label: "Rental Properties",
       path: "/rental-properties",
       tooltip:
         "Track rental income and expenses, and see your net operating income per property",
+      advanced: true,
     },
   ];
 
