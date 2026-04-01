@@ -198,6 +198,24 @@ describe("FinancialRatiosTab", () => {
     expect(financialHealthPageSrc).toContain("FinancialRatiosTab");
     expect(financialHealthPageSrc).toContain("Financial Ratios");
   });
+
+  it("auto-populates income and spending from dashboard summary on load", () => {
+    // useEffect watches estimatedIncome/estimatedSpending and sets fields if not user-edited
+    expect(financialRatiosSrc).toContain("useEffect");
+    expect(financialRatiosSrc).toContain("incomeUserEdited");
+    expect(financialRatiosSrc).toContain("spendingUserEdited");
+    expect(financialRatiosSrc).toContain("setMonthlyIncome(Math.round(estimatedIncome))");
+    expect(financialRatiosSrc).toContain("setMonthlySpending(Math.round(estimatedSpending))");
+  });
+
+  it("marks fields as user-edited on manual change to prevent auto-overwrite", () => {
+    expect(financialRatiosSrc).toContain("setIncomeUserEdited(true)");
+    expect(financialRatiosSrc).toContain("setSpendingUserEdited(true)");
+  });
+
+  it("shows pre-filled hint when auto-populated from transactions", () => {
+    expect(financialRatiosSrc).toContain("Pre-filled from your recent transactions");
+  });
 });
 
 // ── Feature 5: Employer Match ─────────────────────────────────────────────────

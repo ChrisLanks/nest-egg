@@ -27,7 +27,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import api from "../services/api";
 import { useCurrency } from "../contexts/CurrencyContext";
 
@@ -92,19 +92,16 @@ const fmtCompact = (v: number) =>
     maximumFractionDigits: 1,
   }).format(v);
 
-const fmtRound = (v: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(Math.round(v));
 
 export const FinancialRatiosTab = () => {
   const { formatCurrency } = useCurrency();
   const [monthlyIncome, setMonthlyIncome] = useState<number | undefined>(undefined);
   const [monthlySpending, setMonthlySpending] = useState<number | undefined>(undefined);
+  // Track whether the user has manually edited the fields so we don't overwrite edits
+  const [incomeUserEdited, setIncomeUserEdited] = useState(false);
+  const [spendingUserEdited, setSpendingUserEdited] = useState(false);
 
-  // Fetch dashboard summary for auto-population hints
+  // Fetch dashboard summary for auto-population
   const { data: summary } = useQuery<DashboardSummary>({
     queryKey: ["dashboard-summary-for-ratios"],
     queryFn: () => api.get("/dashboard/summary").then((r) => r.data),
@@ -117,6 +114,19 @@ export const FinancialRatiosTab = () => {
   const estimatedSpending = summary?.monthly_spending && summary.monthly_spending > 0
     ? summary.monthly_spending
     : undefined;
+
+  // Auto-populate fields from summary data when it first loads, unless user has edited
+  useEffect(() => {
+    if (estimatedIncome && !incomeUserEdited && monthlyIncome === undefined) {
+      setMonthlyIncome(Math.round(estimatedIncome));
+    }
+  }, [estimatedIncome, incomeUserEdited]);
+
+  useEffect(() => {
+    if (estimatedSpending && !spendingUserEdited && monthlySpending === undefined) {
+      setMonthlySpending(Math.round(estimatedSpending));
+    }
+  }, [estimatedSpending, spendingUserEdited]);
 
   const params = new URLSearchParams();
   if (monthlyIncome !== undefined) params.set("monthly_income", String(monthlyIncome));
@@ -142,28 +152,16 @@ export const FinancialRatiosTab = () => {
               <NumberInput
                 value={monthlyIncome ?? ""}
                 min={0}
-                onChange={(_, v) => setMonthlyIncome(isNaN(v) ? undefined : v)}
+                onChange={(_, v) => { setIncomeUserEdited(true); setMonthlyIncome(isNaN(v) ? undefined : v); }}
                 size="sm"
               >
                 <NumberInputField
-                  placeholder={
-                    estimatedIncome
-                      ? `~${fmtRound(estimatedIncome)} (recent avg)`
-                      : "e.g. 8000"
-                  }
+                  placeholder="e.g. 8000"
                 />
               </NumberInput>
-              {estimatedIncome && monthlyIncome === undefined && (
-                <FormHelperText fontSize="xs">
-                  Recent average: {fmtRound(estimatedIncome)}{" "}
-                  <Button
-                    size="xs"
-                    variant="link"
-                    colorScheme="blue"
-                    onClick={() => setMonthlyIncome(Math.round(estimatedIncome))}
-                  >
-                    Use this
-                  </Button>
+              {estimatedIncome && !incomeUserEdited && (
+                <FormHelperText fontSize="xs" color="text.secondary">
+                  Pre-filled from your recent transactions — edit to override
                 </FormHelperText>
               )}
             </FormControl>
@@ -175,28 +173,16 @@ export const FinancialRatiosTab = () => {
               <NumberInput
                 value={monthlySpending ?? ""}
                 min={0}
-                onChange={(_, v) => setMonthlySpending(isNaN(v) ? undefined : v)}
+                onChange={(_, v) => { setSpendingUserEdited(true); setMonthlySpending(isNaN(v) ? undefined : v); }}
                 size="sm"
               >
                 <NumberInputField
-                  placeholder={
-                    estimatedSpending
-                      ? `~${fmtRound(estimatedSpending)} (recent avg)`
-                      : "e.g. 5000"
-                  }
+                  placeholder="e.g. 5000"
                 />
               </NumberInput>
-              {estimatedSpending && monthlySpending === undefined && (
-                <FormHelperText fontSize="xs">
-                  Recent average: {fmtRound(estimatedSpending)}{" "}
-                  <Button
-                    size="xs"
-                    variant="link"
-                    colorScheme="blue"
-                    onClick={() => setMonthlySpending(Math.round(estimatedSpending))}
-                  >
-                    Use this
-                  </Button>
+              {estimatedSpending && !spendingUserEdited && (
+                <FormHelperText fontSize="xs" color="text.secondary">
+                  Pre-filled from your recent transactions — edit to override
                 </FormHelperText>
               )}
             </FormControl>
@@ -217,23 +203,6 @@ export const FinancialRatiosTab = () => {
           <AlertIcon />
           <AlertDescription fontSize="sm">
             Enter your income/spending above for a complete analysis.
-            {(estimatedIncome || estimatedSpending) && (
-              <>{" "}Estimates from your recent transactions are shown as hints.{" "}
-                {estimatedIncome && monthlyIncome === undefined && estimatedSpending && monthlySpending === undefined && (
-                  <Button
-                    size="xs"
-                    variant="link"
-                    colorScheme="blue"
-                    onClick={() => {
-                      if (estimatedIncome) setMonthlyIncome(Math.round(estimatedIncome));
-                      if (estimatedSpending) setMonthlySpending(Math.round(estimatedSpending));
-                    }}
-                  >
-                    Use both estimates
-                  </Button>
-                )}
-              </>
-            )}
           </AlertDescription>
         </Alert>
       )}
