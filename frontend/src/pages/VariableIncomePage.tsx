@@ -414,7 +414,7 @@ export const VariableIncomePage = () => {
                 <Stat>
                   <StatLabel>
                     This Month
-                    <InfoTip label="Gross income recognized in the current calendar month." />
+                    <InfoTip label="Gross income recognized in the current calendar month from positive transactions. $0 early in the month is normal if income hasn't been deposited or synced yet." />
                   </StatLabel>
                   <Skeleton isLoaded={!isLoading}>
                     <StatNumber fontSize="lg">
@@ -423,6 +423,9 @@ export const VariableIncomePage = () => {
                   </Skeleton>
                   <StatHelpText>
                     {effectiveSettings.incomeLabelName ? `label: ${effectiveSettings.incomeLabelName}` : "all income"}
+                    {hasData && stats!.thisMonthIncome === 0 && (
+                      <Text as="span" color="text.secondary" fontSize="xs" ml={1}>(month in progress)</Text>
+                    )}
                   </StatHelpText>
                 </Stat>
               </CardBody>

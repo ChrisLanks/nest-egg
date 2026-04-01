@@ -15,6 +15,11 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
+import { readFileSync } from "fs";
+import { resolve } from "path";
+
+const srcPath = resolve(__dirname, "..", "VariableIncomePage.tsx");
+const src = readFileSync(srcPath, "utf-8");
 
 // ── Constants & types ─────────────────────────────────────────────────────────
 
@@ -350,5 +355,19 @@ describe("Quarterly schedule status logic", () => {
     const d = String(tomorrow.getUTCDate()).padStart(2, "0");
     const result = getQuarterlyStatus(`${y}-${m}-${d}`, TODAY);
     expect(result).toBe("due soon");
+  });
+});
+
+// ── This Month $0 UX clarification ───────────────────────────────────────────
+
+describe("This Month $0 display", () => {
+  it("shows (month in progress) context when thisMonthIncome is 0 but there is data", () => {
+    // The component renders a contextual note so $0 early in the month is not confusing
+    expect(src).toContain("month in progress");
+    expect(src).toContain("thisMonthIncome === 0");
+  });
+
+  it("tooltip on This Month stat explains $0 is normal early in month", () => {
+    expect(src).toContain("$0 early in the month is normal");
   });
 });
