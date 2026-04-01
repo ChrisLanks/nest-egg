@@ -105,8 +105,8 @@ async def calculator_prefill(
             )
         )
         for acct in result.scalars().all():
-            if hasattr(acct, 'employer_match_pct') and acct.employer_match_pct:
-                employer_match += float(acct.employer_match_pct)
+            if acct.employer_match_percent:
+                employer_match += float(acct.employer_match_percent)
 
         return {
             "calculator": "contribution_headroom",
