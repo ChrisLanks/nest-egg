@@ -47,9 +47,17 @@ async def get_rmd_projection(
 async def get_roth_headroom(
     current_income: float = Query(...),
     filing_status: str = Query("single"),
+    target_bracket_rate: float = Query(
+        default=0.22,
+        ge=0.0,
+        le=0.50,
+        description="Target bracket rate to optimize for (e.g. 0.22 for the 22% bracket). "
+        "Defaults to 0.22.",
+    ),
     current_user: User = Depends(get_current_user),
 ):
     return TaxBucketService.get_roth_conversion_headroom(
         Decimal(str(current_income)),
         filing_status,
+        target_bracket_rate=Decimal(str(target_bracket_rate)),
     )

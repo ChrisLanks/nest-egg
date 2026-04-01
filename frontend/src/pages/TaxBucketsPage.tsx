@@ -126,9 +126,10 @@ async function fetchRmdProjection(
 async function fetchRothHeadroom(
   currentIncome: number,
   filingStatus: string,
+  targetBracketRate: number,
 ): Promise<RothHeadroom> {
   const res = await api.get(
-    `/tax-buckets/roth-headroom?current_income=${currentIncome}&filing_status=${filingStatus}`,
+    `/tax-buckets/roth-headroom?current_income=${currentIncome}&filing_status=${filingStatus}&target_bracket_rate=${targetBracketRate}`,
   );
   return res.data;
 }
@@ -150,6 +151,10 @@ export const TaxBucketsPage = () => {
   const [filingStatus, setFilingStatus] = useLocalStorage<"single" | "married">(
     "tax-buckets-filing",
     "single",
+  );
+  const [targetBracket, setTargetBracket] = useLocalStorage(
+    "tax-buckets-target-bracket",
+    "0.22",
   );
   const [showRmdTable, setShowRmdTable] = useState(false);
 
@@ -178,9 +183,10 @@ export const TaxBucketsPage = () => {
 
   // Roth headroom query
   const incomeNum = parseFloat(currentIncome) || 0;
+  const targetBracketNum = parseFloat(targetBracket) || 0.22;
   const { data: rothHeadroom, isLoading: rothLoading } = useQuery({
-    queryKey: ["roth-headroom", incomeNum, filingStatus],
-    queryFn: () => fetchRothHeadroom(incomeNum, filingStatus),
+    queryKey: ["roth-headroom", incomeNum, filingStatus, targetBracketNum],
+    queryFn: () => fetchRothHeadroom(incomeNum, filingStatus, targetBracketNum),
     enabled: incomeNum > 0,
     placeholderData: (prev) => prev,
   });
@@ -440,18 +446,18 @@ export const TaxBucketsPage = () => {
             <Box w="full">
               <Heading size="md" mb={3}>
                 Roth Conversion Headroom
-                <InfoTip label="Shows how much you can convert from pre-tax to Roth while staying within the 22% federal bracket. Converting in lower-income years reduces future RMDs and long-term tax exposure." />
+                <InfoTip label="Shows how much you can convert from pre-tax to Roth while staying within your chosen target bracket. Converting in lower-income years reduces future RMDs and long-term tax exposure." />
               </Heading>
               <Card variant="outline" w="full">
                 <CardHeader pb={0}>
                   <Heading size="sm">Your Situation</Heading>
                 </CardHeader>
                 <CardBody>
-                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} mb={4}>
+                  <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} mb={4}>
                     <FormControl>
                       <FormLabel fontSize="xs">
                         Current Taxable Income
-                        <InfoTip label="Your estimated taxable income for this year (after deductions). Used to calculate how much room remains in the 22% bracket before the next bracket begins." />
+                        <InfoTip label="Your estimated taxable income for this year (after deductions). Used to calculate how much room remains before the target bracket ceiling." />
                       </FormLabel>
                       <InputGroup size="sm">
                         <InputLeftAddon>$</InputLeftAddon>
@@ -476,6 +482,24 @@ export const TaxBucketsPage = () => {
                         <option value="married">Married Filing Jointly</option>
                       </Select>
                     </FormControl>
+                    <FormControl>
+                      <FormLabel fontSize="xs">
+                        Target Bracket
+                        <InfoTip label="The maximum tax bracket you're willing to fill with Roth conversions. 22% is the default sweet spot — above it, conversions become more expensive. Higher brackets may still make sense if you expect higher rates in retirement." />
+                      </FormLabel>
+                      <Select
+                        size="sm"
+                        value={targetBracket}
+                        onChange={(e) => setTargetBracket(e.target.value)}
+                      >
+                        <option value="0.10">10%</option>
+                        <option value="0.12">12%</option>
+                        <option value="0.22">22% (default)</option>
+                        <option value="0.24">24%</option>
+                        <option value="0.32">32%</option>
+                        <option value="0.35">35%</option>
+                      </Select>
+                    </FormControl>
                   </SimpleGrid>
 
                   {rothLoading && (
@@ -490,14 +514,14 @@ export const TaxBucketsPage = () => {
                       <HStack justify="space-between" w="full">
                         <Text color="text.secondary">
                           Target Bracket
-                          <InfoTip label="The bracket ceiling we optimize for. Converting up to this ceiling keeps your marginal rate at 22% or below." />
+                          <InfoTip label="The bracket ceiling we optimize for. Converting up to this ceiling keeps your marginal rate at or below the target." />
                         </Text>
                         <Text fontWeight="semibold">
                           {fmtPct(rothHeadroom.target_bracket)}
                         </Text>
                       </HStack>
                       <HStack justify="space-between" w="full">
-                        <Text color="text.secondary">22% Bracket Ceiling</Text>
+                        <Text color="text.secondary">{fmtPct(rothHeadroom.target_bracket)} Bracket Ceiling</Text>
                         <Text>{fmt(rothHeadroom.bracket_ceiling)}</Text>
                       </HStack>
                       <HStack justify="space-between" w="full">
@@ -528,15 +552,15 @@ export const TaxBucketsPage = () => {
                           <strong>
                             {fmt(rothHeadroom.conversion_headroom)}
                           </strong>{" "}
-                          to Roth this year and stay within the 22% bracket.
+                          to Roth this year and stay within the {fmtPct(rothHeadroom.target_bracket)} bracket.
                           This reduces your future RMD liability.
                         </Alert>
                       )}
                       {rothHeadroom.conversion_headroom === 0 && (
                         <Alert status="info" borderRadius="md" fontSize="sm">
                           <AlertIcon />
-                          Your income already exceeds the 22% bracket ceiling.
-                          Any Roth conversion will be taxed above 22%.
+                          Your income already exceeds the {fmtPct(rothHeadroom.target_bracket)} bracket ceiling.
+                          Any Roth conversion will be taxed above {fmtPct(rothHeadroom.target_bracket)}.
                         </Alert>
                       )}
                     </VStack>
