@@ -324,9 +324,14 @@ export const RulesPage = () => {
         <HStack justify="space-between" align="start">
           <Box>
             <Heading size="lg">Rules</Heading>
-            <Text color="text.secondary" mt={2}>
-              Manage automation rules for transaction categorization.{" "}
-              {rules?.length || 0} rule(s) total.
+            <Text color="text.secondary" mt={1} fontSize="sm">
+              Save time by auto-categorizing transactions — for example, anything from
+              "Starbucks" automatically goes to Dining, and anything from "Employer"
+              gets tagged as Income. You set the rule once, and every future matching
+              transaction is categorized for you.
+            </Text>
+            <Text color="text.muted" mt={1} fontSize="xs">
+              {rules?.length || 0} rule{rules?.length !== 1 ? "s" : ""} configured
             </Text>
           </Box>
           <HStack>

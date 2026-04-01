@@ -454,9 +454,10 @@ function NavigationVisibilitySection() {
             Show advanced features
           </Text>
           <Text fontSize="xs" color="text.muted">
-            Shows the Calculators tab in Planning — includes FIRE, loan modeler, HSA
-            optimizer, bond ladder, what-if scenarios, and more. Hidden by default to
-            keep things simple for new users.
+            Unlocks advanced tabs hidden by default: Calculators (FIRE, loan modeler,
+            HSA optimizer, bond ladder), PE Performance, Rental Properties (Analytics),
+            and Charitable Giving (Tax Center). Start without these — you can enable
+            them individually or all at once here.
           </Text>
         </Box>
         <Switch

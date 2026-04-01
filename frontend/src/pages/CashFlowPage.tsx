@@ -638,6 +638,9 @@ export const CashFlowPage = () => {
     <Box pt={4}>
       <Box px={6} mb={2}>
         <Heading size="lg">Cash Flow</Heading>
+        <Text color="text.secondary" mt={1} fontSize="sm">
+          Money in vs. money out — see what you earned, what you spent, and where your balance is headed over the next 90 days.
+        </Text>
       </Box>
       <Tabs
         index={tabIndex}
@@ -647,8 +650,12 @@ export const CashFlowPage = () => {
         isLazy
       >
         <TabList px={6} borderBottomWidth="1px" borderColor="border.subtle">
-          <Tab fontSize="sm" fontWeight="medium">Overview</Tab>
-          <Tab fontSize="sm" fontWeight="medium">Forecast</Tab>
+          <Tooltip label="Income vs. spending breakdown — see your total money in vs. money out by week or month" hasArrow placement="bottom" openDelay={300}>
+            <Tab fontSize="sm" fontWeight="medium">Overview</Tab>
+          </Tooltip>
+          <Tooltip label="30/60/90-day balance projection — see where your checking account balance is headed based on recent trends" hasArrow placement="bottom" openDelay={300}>
+            <Tab fontSize="sm" fontWeight="medium">Forecast</Tab>
+          </Tooltip>
         </TabList>
         <TabPanels>
           <TabPanel p={0}>
