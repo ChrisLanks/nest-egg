@@ -63,7 +63,7 @@ def _irmaa_tier(magi: float, brackets: list, married: bool, married_brackets: li
 
 @router.get("/irmaa-projection", response_model=IrmaaProjectionResponse)
 async def get_irmaa_projection(
-    current_magi: float = Query(..., description="Current Modified Adjusted Gross Income"),
+    current_magi: float = Query(..., ge=0, le=10_000_000, description="Current Modified Adjusted Gross Income"),
     filing_status: str = Query(default="single", description="single or married"),
     income_growth_rate: float = Query(default=0.03, ge=0.0, le=0.20),
     projection_years: int = Query(default=15, ge=1, le=40),

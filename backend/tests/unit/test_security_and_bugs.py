@@ -6,6 +6,8 @@ Covers:
 2. Contribution headroom annualization formula correctness
 3. Treemap percent guard (domestic_stocks_value = 0)
 4. Tax-equiv yield combined_rate guard
+5. Input validation bounds (tax_buckets, hsa, irmaa endpoints)
+6. Background task org scope (holdings price fetch)
 """
 
 from decimal import Decimal
@@ -132,3 +134,70 @@ class TestTaxEquivYieldGuard:
 
     def test_rate_above_1_falls_back_to_nominal(self):
         assert self._tey(1000, 1.5) == 1000
+
+
+# ── Input validation bounds ───────────────────────────────────────────────────
+
+class TestInputValidationBounds:
+    """Verify Query param bounds exist on financial endpoints.
+    Tests read the source to confirm ge=/le= are present — guards against
+    accidentally removing bounds when refactoring signatures."""
+
+    def _read_source(self, rel_path: str) -> str:
+        import os
+        base = os.path.dirname(__file__)
+        path = os.path.normpath(os.path.join(base, "../../app/api/v1", rel_path))
+        with open(path) as f:
+            return f.read()
+
+    def test_tax_buckets_rmd_balance_has_bounds(self):
+        src = self._read_source("tax_buckets.py")
+        assert "ge=0" in src
+        assert "le=50_000_000" in src or "le=50000000" in src
+
+    def test_tax_buckets_age_has_bounds(self):
+        src = self._read_source("tax_buckets.py")
+        assert "le=120" in src
+
+    def test_tax_buckets_growth_rate_has_bounds(self):
+        src = self._read_source("tax_buckets.py")
+        assert "le=1.0" in src or "le=1)" in src
+
+    def test_hsa_age_has_bounds(self):
+        src = self._read_source("hsa.py")
+        assert "ge=0, le=120" in src
+
+    def test_hsa_projection_years_has_bounds(self):
+        src = self._read_source("hsa.py")
+        assert "ge=1, le=50" in src
+
+    def test_irmaa_magi_has_bounds(self):
+        src = self._read_source("irmaa_projection.py")
+        assert "ge=0" in src and "le=10_000_000" in src or "le=10000000" in src
+
+
+# ── Background task org scope ─────────────────────────────────────────────────
+
+class TestBackgroundTaskOrgScope:
+    """_fetch_price_for_holding must scope the UPDATE to the holding's org."""
+
+    def test_signature_accepts_organization_id(self):
+        import inspect
+        from app.api.v1.holdings import _fetch_price_for_holding
+        sig = inspect.signature(_fetch_price_for_holding)
+        assert "organization_id" in sig.parameters, (
+            "_fetch_price_for_holding must accept organization_id to scope the UPDATE"
+        )
+
+
+# ── IDOR: holdings Roth conversion user query scoped to org ──────────────────
+
+class TestIDORUserQueryOrgScope:
+    """User lookup in the Roth conversion endpoint must filter by org_id."""
+
+    def test_roth_conversion_user_query_includes_org_filter(self):
+        import inspect
+        from app.api.v1 import holdings
+        src = inspect.getsource(holdings)
+        # The fix added organization_id to the User query in get_roth_conversion_analysis
+        assert "User.organization_id == current_user.organization_id" in src

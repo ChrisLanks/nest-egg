@@ -1306,7 +1306,9 @@ async def create_holding(
     )
 
     # Immediately fetch current price in background (non-blocking)
-    _task = _asyncio.create_task(_fetch_price_for_holding(holding.id, holding.ticker))
+    _task = _asyncio.create_task(
+        _fetch_price_for_holding(holding.id, holding.ticker, current_user.organization_id)
+    )
     _background_tasks.add(_task)
     _task.add_done_callback(_background_tasks.discard)
 
@@ -1317,7 +1319,7 @@ async def create_holding(
 _background_tasks: set[_asyncio.Task] = set()
 
 
-async def _fetch_price_for_holding(holding_id, ticker: str) -> None:
+async def _fetch_price_for_holding(holding_id, ticker: str, organization_id) -> None:
     """
     Background task: fetch and store the current price for a newly created holding.
     Silently swallows errors so it never affects the create response.
@@ -1329,7 +1331,7 @@ async def _fetch_price_for_holding(holding_id, ticker: str) -> None:
         async with AsyncSessionLocal() as db:
             await db.execute(
                 sa_update(Holding)
-                .where(Holding.id == holding_id)
+                .where(Holding.id == holding_id, Holding.organization_id == organization_id)
                 .values(
                     current_price_per_share=quote.price,
                     price_as_of=datetime.now(timezone.utc),
@@ -2064,7 +2066,9 @@ async def get_roth_analysis(
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
         accounts = await get_user_accounts(db, user_id, current_user.organization_id)
-        user_result = await db.execute(select(User).where(User.id == user_id))
+        user_result = await db.execute(
+            select(User).where(User.id == user_id, User.organization_id == current_user.organization_id)
+        )
         target_user = user_result.scalar_one_or_none()
     else:
         accounts = await get_all_household_accounts(db, current_user.organization_id)

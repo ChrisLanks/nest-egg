@@ -64,9 +64,9 @@ class HsaReceiptUpdate(BaseModel):
 )
 async def get_contribution_headroom(
     is_family: bool = Query(False, description="True if enrolled in a family HDHP plan"),
-    age: int = Query(..., description="Account holder age"),
-    year: Optional[int] = Query(None, description="Tax year (defaults to current year)"),
-    ytd_contributions: float = Query(0.0, description="Year-to-date contributions (USD)"),
+    age: int = Query(..., ge=0, le=120, description="Account holder age"),
+    year: Optional[int] = Query(None, ge=2000, le=2100, description="Tax year (defaults to current year)"),
+    ytd_contributions: float = Query(0.0, ge=0, le=100_000, description="Year-to-date contributions (USD)"),
     current_user: User = Depends(get_current_user),
 ):
     """Returns remaining HSA contribution room for the year."""
@@ -88,11 +88,11 @@ async def get_contribution_headroom(
     ),
 )
 async def get_hsa_projection(
-    years: int = Query(20, description="Projection horizon (years)"),
-    annual_contribution: float = Query(..., description="Annual HSA contribution (USD)"),
-    annual_medical: float = Query(..., description="Annual medical expenses (USD)"),
-    current_balance: float = Query(0.0, description="Current HSA balance (USD)"),
-    investment_return: Optional[float] = Query(None, description="Annual investment return (default 6%)"),
+    years: int = Query(20, ge=1, le=50, description="Projection horizon (years)"),
+    annual_contribution: float = Query(..., ge=0, le=100_000, description="Annual HSA contribution (USD)"),
+    annual_medical: float = Query(..., ge=0, le=1_000_000, description="Annual medical expenses (USD)"),
+    current_balance: float = Query(0.0, ge=0, le=10_000_000, description="Current HSA balance (USD)"),
+    investment_return: Optional[float] = Query(None, ge=0, le=1.0, description="Annual investment return (default 6%)"),
     current_user: User = Depends(get_current_user),
 ):
     """Projects HSA invest vs spend strategy over the given horizon."""

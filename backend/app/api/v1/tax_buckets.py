@@ -31,9 +31,9 @@ async def get_bucket_summary(
 
 @router.get("/rmd-projection")
 async def get_rmd_projection(
-    pre_tax_balance: float = Query(...),
-    current_age: int = Query(...),
-    growth_rate: float = Query(0.06),
+    pre_tax_balance: float = Query(..., ge=0, le=50_000_000),
+    current_age: int = Query(..., ge=0, le=120),
+    growth_rate: float = Query(0.06, ge=0, le=1.0),
     current_user: User = Depends(get_current_user),
 ):
     return TaxBucketService.project_rmd_schedule(
@@ -45,7 +45,7 @@ async def get_rmd_projection(
 
 @router.get("/roth-headroom")
 async def get_roth_headroom(
-    current_income: float = Query(...),
+    current_income: float = Query(..., ge=0, le=10_000_000),
     filing_status: str = Query("single"),
     target_bracket_rate: float = Query(
         default=0.22,
