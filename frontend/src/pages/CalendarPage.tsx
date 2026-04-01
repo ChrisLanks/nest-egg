@@ -293,6 +293,9 @@ export const CalendarPage: React.FC = () => {
     <Container maxW="container.xl" py={8}>
       <VStack spacing={6} align="stretch">
         <Heading size="lg">Financial Calendar</Heading>
+        <Text color="text.secondary" mt={-4} fontSize="sm">
+          Upcoming bills, pay dates, and financial deadlines — so nothing catches you off guard.
+        </Text>
 
         {financialCalendarLoading ? (
           <Center py={12}>
