@@ -52,13 +52,15 @@ A few require a specific account type:
 
 ## Advanced Features — Opt-In Only
 
-Two pages are hidden behind an explicit **"Show advanced features"** toggle
+Four items are hidden behind an explicit **"Show advanced features"** toggle
 in Preferences → Navigation:
 
 | Path | What it contains |
 |---|---|
 | `/investment-tools` | FIRE, Loan Modeler, HSA Optimizer, Employer Match, What-If, Bond Ladder, Equity Comp, Tax-Equiv Yield, Asset Location, Cost Basis |
 | `/pe-performance` | Private equity TVPI, DPI, MOIC, IRR, capital call history |
+| `/rental-properties` | Rental income/expense tracking, net operating income per property |
+| Tax Center → Charitable Giving tab | Donation tracking and taxable income reduction |
 
 These are gated separately from the account-based progressive disclosure.
 Individual items can also be toggled on/off without the master toggle.
@@ -126,6 +128,45 @@ New users (login_count ≤ 3) see a dismissable blue banner on the Overview page
 
 Rendered by `BeginnerModeBanner`, dismissal stored in `nest-egg-beginner-banner-dismissed` (localStorage).
 
+### Post-onboarding "what's next" banner
+
+Once a user has ≥1 account and fewer than 5 logins, a dismissable green banner appears
+on the Dashboard with 3 next-step quick-links:
+- Set a goal → `/goals`
+- See your tax projection → `/tax-center`
+- Check your net worth → `/net-worth`
+
+Rendered by `PostOnboardingBanner`. Dismissal stored in `nest-egg-post-onboarding-banner-dismissed`.
+Hides automatically at login 5 (user is now experienced).
+
+### Accounts page empty state
+
+When no accounts exist, the Accounts page shows a rich 3-card explanatory grid:
+- **Checking & Savings** — explains cash flow tracking
+- **Investments & Retirement** — explains 401(k), IRA, net worth
+- **Loans & Liabilities** — explains DTI, mortgage, payoff timeline
+
+The primary "Add Account" CTA appears above the cards for users who don't need the explanation.
+
+### Dashboard: Customize hidden in Simple Mode
+
+The "Customize" (Edit Layout) button is hidden when `showAdvancedNav = false`.
+A muted hint text tells beginners: "Customize your dashboard layout in Advanced mode (Preferences)."
+The Refresh button is always visible — it's universally useful.
+
+### User menu Preferences badge
+
+For users with ≤ 5 logins, the "My Preferences" item in the user menu shows a
+"Setup" badge (blue, subtle) and a subtitle: "Simple / Advanced mode, display".
+This guides new users to the toggle they need to unlock advanced features.
+
+### Nav dropdown label tooltips
+
+The three dropdown labels have hover tooltips (openDelay=400):
+- **Spending** — "Track where your money goes — transactions, budgets, categories, and recurring bills"
+- **Analytics** — "Charts and scores — net worth over time, cash flow, spending trends, and financial health"
+- **Planning** — "Your financial future — goals, retirement, tax strategy, and life milestones"
+
 ### Recommendations tab preference
 
 On by default. Users can toggle it off in Preferences > Navigation > "Show Recommendations tab".
@@ -157,15 +198,12 @@ Central source of truth:
 
 ### `Layout.tsx`
 
-Reads `buildConditionalDefaults` output and applies it via `filterVisible`:
-```typescript
-const isNavVisible = (path: string): boolean => {
-  if (path in navOverridesState) return navOverridesState[path];
-  return conditionalDefaults[path] ?? true;
-};
-```
+Reads `buildConditionalDefaults` output and applies it via `filterVisible`.
+Items are returned as `{ ...item, locked: true, lockedTooltip }` when `getNavState` returns `"locked"`
+and `showLockedNav = true` (default). The `NavDropdown` renders locked items at 45% opacity
+with a `LockIcon` prefix and a tooltip explaining the unlock condition.
 
-Advanced items also checked against `showAdvancedNav` toggle.
+Advanced items checked against `showAdvancedNav` toggle (`nest-egg-show-advanced-nav` localStorage key).
 
 ### `PreferencesPage.tsx`
 
@@ -179,6 +217,14 @@ Advanced items also checked against `showAdvancedNav` toggle.
 - `navPreferences.test.ts` — 61 tests covering isItemOn, isNavVisible, toggleAdvanced, reset, NAV_SECTIONS structure
 - `navConsolidation.test.ts` — 28 tests covering hub paths, conditionalDefaults, filterVisible
 - `navVisibility.test.ts` — 62 tests covering buildConditionalDefaults, account gating, override priority
+- `lockedNavIndicator.test.ts` — 13 tests covering getLockedNavTooltip, filterVisible locked/visible/hidden states, advanced gating, user override precedence
+- `taxCenterTooltips.test.ts` — 17 tests covering tab tooltip coverage, plain-language rules, tab-index offset for hidden Charitable Giving tab
+- `accountsEmptyState.test.ts` — 11 tests covering empty state render condition and 3-card content
+- `postOnboardingBanner.test.ts` — 15 tests covering show/hide conditions and next-step nav targets
+- `navDropdownTooltips.test.ts` — 6 tests covering Spending/Analytics/Planning label tooltip content
+- `dashboardSimpleMode.test.ts` — 7 tests covering Customize button visibility and hint text
+- `userMenuPreferencesBadge.test.ts` — 6 tests covering Setup badge show/hide by login count
+- `pageSubtitles.test.ts` — 14 tests covering CashFlow subtitle/tooltips, Preferences advanced description, Rules page copy
 
 ---
 
