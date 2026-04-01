@@ -169,7 +169,7 @@ class RecurringDetectionService:
             ]
             avg_gap = sum(gaps) / len(gaps)
             gap_variance = sum(abs(gap - avg_gap) for gap in gaps) / len(gaps)
-            date_consistency = max(0, 1.0 - (gap_variance / avg_gap))
+            date_consistency = max(0, 1.0 - (gap_variance / avg_gap)) if avg_gap > 0 else 1.0
 
             # Calculate confidence score
             confidence_score = RecurringDetectionService._calculate_confidence_score(

@@ -257,7 +257,7 @@ class SmartInsightsService:
             )
         )
         total = Decimal(str(result.scalar() or 0))
-        return total / months
+        return total / months if months > 0 else Decimal("0")
 
     async def _annual_income_estimate(self, account_ids: list[UUID]) -> Decimal:
         """Sum of positive (income) transactions over the past 12 months."""

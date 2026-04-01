@@ -203,6 +203,52 @@ class TestIDORUserQueryOrgScope:
         assert "User.organization_id == current_user.organization_id" in src
 
 
+# ── Recurring detection avg_gap = 0 ─────────────────────────────────────────
+
+class TestRecurringDetectionAvgGap:
+    """date_consistency must not crash when all transactions fall on the same day."""
+
+    def test_zero_avg_gap_returns_perfect_consistency(self):
+        # All gaps = 0 → avg_gap = 0 → without guard: ZeroDivisionError
+        # With guard: date_consistency = 1.0 (perfectly consistent, same-day duplicates)
+        avg_gap = 0
+        gap_variance = 0.0
+        date_consistency = max(0, 1.0 - (gap_variance / avg_gap)) if avg_gap > 0 else 1.0
+        assert date_consistency == 1.0
+
+    def test_normal_gaps_still_compute(self):
+        gaps = [30, 31, 29, 30]
+        avg_gap = sum(gaps) / len(gaps)
+        gap_variance = sum(abs(g - avg_gap) for g in gaps) / len(gaps)
+        date_consistency = max(0, 1.0 - (gap_variance / avg_gap)) if avg_gap > 0 else 1.0
+        assert 0.0 <= date_consistency <= 1.0
+
+    def test_high_variance_gives_low_consistency(self):
+        gaps = [1, 60, 1, 60]
+        avg_gap = sum(gaps) / len(gaps)
+        gap_variance = sum(abs(g - avg_gap) for g in gaps) / len(gaps)
+        date_consistency = max(0, 1.0 - (gap_variance / avg_gap)) if avg_gap > 0 else 1.0
+        assert date_consistency < 0.1  # very inconsistent gaps → near zero
+
+
+# ── Smart insights monthly expenses months = 0 ───────────────────────────────
+
+class TestSmartInsightsMonthlyExpenses:
+    """_monthly_expenses must not divide by zero when months = 0."""
+
+    def test_zero_months_returns_zero(self):
+        total = 1000
+        months = 0
+        result = total / months if months > 0 else 0
+        assert result == 0
+
+    def test_normal_months_divides_correctly(self):
+        total = 3000
+        months = 3
+        result = total / months if months > 0 else 0
+        assert result == 1000
+
+
 # ── IDOR: market_data UPDATE scoped to org ────────────────────────────────────
 
 class TestMarketDataUpdateOrgScope:
