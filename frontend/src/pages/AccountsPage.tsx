@@ -175,14 +175,17 @@ export const AccountsPage = () => {
 
   const filteredAccounts = useMemo(() => {
     if (!accounts) return accounts;
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return accounts;
-    return accounts.filter(
-      (a) =>
-        a.name?.toLowerCase().includes(q) ||
-        a.institution_name?.toLowerCase().includes(q) ||
-        (ACCOUNT_TYPE_LABELS[a.account_type] ?? a.account_type)?.toLowerCase().includes(q),
-    );
+    const terms = searchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    if (terms.length === 0) return accounts;
+    return accounts.filter((a) => {
+      const haystack = [
+        a.name ?? "",
+        a.institution_name ?? "",
+        ACCOUNT_TYPE_LABELS[a.account_type] ?? "",
+        a.account_type ?? "",
+      ].join(" ").toLowerCase();
+      return terms.every((term) => haystack.includes(term));
+    });
   }, [accounts, searchQuery]);
 
   // Fetch household users for ownership display
