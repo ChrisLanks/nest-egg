@@ -443,6 +443,10 @@ async def create_manual_account(
         equity_value=account_data.equity_value,
         # Valuation adjustment (property + vehicle)
         valuation_adjustment_pct=account_data.valuation_adjustment_pct,
+        # Employer match fields (401k / 403b / 457b)
+        employer_match_percent=account_data.employer_match_percent,
+        employer_match_limit_percent=account_data.employer_match_limit_percent,
+        annual_salary=account_data.annual_salary,
     )
 
     db.add(account)
@@ -651,6 +655,14 @@ async def update_account(
     # Valuation adjustment
     if account_data.valuation_adjustment_pct is not None:
         account.valuation_adjustment_pct = account_data.valuation_adjustment_pct
+
+    # Employer match fields (401k / 403b / 457b)
+    if account_data.employer_match_percent is not None:
+        account.employer_match_percent = account_data.employer_match_percent
+    if account_data.employer_match_limit_percent is not None:
+        account.employer_match_limit_percent = account_data.employer_match_limit_percent
+    if account_data.annual_salary is not None:
+        account.annual_salary = account_data.annual_salary
 
     await db.commit()
     await db.refresh(account)

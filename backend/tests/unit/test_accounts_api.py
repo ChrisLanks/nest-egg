@@ -711,6 +711,35 @@ class TestCreateManualAccount:
             # Should have committed twice: once for account, once for holdings
             assert mock_db.commit.call_count == 2
 
+    @pytest.mark.asyncio
+    async def test_creates_401k_with_employer_match(self, mock_db, mock_user):
+        """Should persist employer match fields when creating a 401k manual account."""
+        account_data = ManualAccountCreate(
+            name="My 401k",
+            account_type=AccountType.RETIREMENT_401K,
+            account_source=AccountSource.MANUAL,
+            institution="Fidelity",
+            account_number_last4="9999",
+            balance=Decimal("50000.00"),
+            annual_salary=Decimal("100000.00"),
+            employer_match_percent=Decimal("50"),
+            employer_match_limit_percent=Decimal("6"),
+        )
+
+        with patch(
+            "app.api.v1.accounts.deduplication_service.calculate_manual_account_hash",
+            return_value="hash",
+        ):
+            result = await create_manual_account(
+                account_data=account_data,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+        assert result.employer_match_percent == Decimal("50")
+        assert result.employer_match_limit_percent == Decimal("6")
+        assert result.annual_salary == Decimal("100000.00")
+
 
 @pytest.mark.unit
 class TestBulkUpdateVisibility:
@@ -1065,6 +1094,32 @@ class TestUpdateAccount:
                 )
 
             assert exc_info.value.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_updates_employer_match_fields(self, mock_db, mock_user, mock_account):
+        """Should update employer match fields on a 401k account."""
+        mock_account.account_type = AccountType.RETIREMENT_401K
+        mock_account.employer_match_percent = None
+        mock_account.employer_match_limit_percent = None
+        mock_account.annual_salary = None
+
+        update_data = AccountUpdate(
+            employer_match_percent=Decimal("50"),
+            employer_match_limit_percent=Decimal("6"),
+            annual_salary=Decimal("120000.00"),
+        )
+
+        result = await update_account(
+            account_data=update_data,
+            account=mock_account,
+            current_user=mock_user,
+            db=mock_db,
+        )
+
+        assert result.employer_match_percent == Decimal("50")
+        assert result.employer_match_limit_percent == Decimal("6")
+        assert result.annual_salary == Decimal("120000.00")
+        assert mock_db.commit.called
 
 
 @pytest.mark.unit
