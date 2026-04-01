@@ -76,6 +76,8 @@ interface BackdoorRothResponse {
   direct_roth_eligible: boolean | null;
   user_magi_estimate: number | null;
   tax_year: number;
+  phaseout_lower: number;
+  phaseout_upper: number;
 }
 
 const fmt = (v: number) =>
@@ -149,10 +151,14 @@ export const BackdoorRothTab = () => {
       {data && (
         <>
           {/* Summary cards */}
-          <SimpleGrid columns={{ base: 2, md: 3 }} spacing={4}>
+          <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4}>
             <Stat>
               <StatLabel fontSize="xs">IRA Contribution Headroom</StatLabel>
               <StatNumber fontSize="lg">{fmt(data.ira_contribution_headroom)}</StatNumber>
+            </Stat>
+            <Stat>
+              <StatLabel fontSize="xs">Roth Phase-Out Range</StatLabel>
+              <StatNumber fontSize="md">{fmt(data.phaseout_lower)}–{fmt(data.phaseout_upper)}</StatNumber>
             </Stat>
             <Stat>
               <StatLabel fontSize="xs">Total IRA Pre-Tax Balance</StatLabel>
@@ -165,13 +171,20 @@ export const BackdoorRothTab = () => {
           </SimpleGrid>
 
           {/* Direct Roth eligibility */}
-          {data.direct_roth_eligible !== null && (
+          {data.direct_roth_eligible !== null ? (
             <Alert status={data.direct_roth_eligible ? "success" : "info"}>
               <AlertIcon />
               <AlertDescription fontSize="sm">
                 {data.direct_roth_eligible
-                  ? "Your income is below the Roth IRA phase-out threshold — you can contribute directly."
-                  : "Your income exceeds the Roth IRA phase-out threshold. Use the backdoor strategy below."}
+                  ? `Your income is below the ${fmt(data.phaseout_lower)} phase-out threshold — you can contribute directly to a Roth IRA.`
+                  : `Your income exceeds the ${fmt(data.phaseout_upper)} phase-out limit. Use the backdoor strategy below.`}
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <Alert status="info" variant="subtle">
+              <AlertIcon />
+              <AlertDescription fontSize="sm">
+                Direct Roth IRA contributions phase out between {fmt(data.phaseout_lower)} and {fmt(data.phaseout_upper)} for {filingStatus === "married" ? "married filing jointly" : "single"} filers. Enter your MAGI above to check eligibility.
               </AlertDescription>
             </Alert>
           )}

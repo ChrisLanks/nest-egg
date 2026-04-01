@@ -63,6 +63,8 @@ class BackdoorRothResponse(BaseModel):
     direct_roth_eligible: Optional[bool]
     user_magi_estimate: Optional[float]
     tax_year: int
+    phaseout_lower: float
+    phaseout_upper: float
     data_source: Optional[dict] = None  # DataSourceMeta — static/cached/live indicator
 
 
@@ -181,9 +183,9 @@ async def get_backdoor_roth_analysis(
             mega_steps.append(f"You currently have ${total_mega:,.0f} in after-tax 401(k) funds available to convert.")
 
     # Direct Roth eligibility
+    lo, hi = _roth_phaseout(filing_status, tax_year)
     direct_roth_eligible = None
     if estimated_magi is not None:
-        lo, hi = _roth_phaseout(filing_status, tax_year)
         direct_roth_eligible = estimated_magi < lo
 
     return BackdoorRothResponse(
@@ -205,4 +207,6 @@ async def get_backdoor_roth_analysis(
         direct_roth_eligible=direct_roth_eligible,
         user_magi_estimate=estimated_magi,
         tax_year=tax_year,
+        phaseout_lower=float(lo),
+        phaseout_upper=float(hi),
     )
