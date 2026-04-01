@@ -302,7 +302,7 @@ async def refresh_holding_price(
         # Update holding
         await db.execute(
             update(Holding)
-            .where(Holding.id == holding_id)
+            .where(Holding.id == holding_id, Holding.organization_id == current_user.organization_id)
             .values(
                 current_price_per_share=quote.price,
                 price_as_of=utc_now(),

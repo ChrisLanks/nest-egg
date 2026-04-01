@@ -201,3 +201,18 @@ class TestIDORUserQueryOrgScope:
         src = inspect.getsource(holdings)
         # The fix added organization_id to the User query in get_roth_conversion_analysis
         assert "User.organization_id == current_user.organization_id" in src
+
+
+# ── IDOR: market_data UPDATE scoped to org ────────────────────────────────────
+
+class TestMarketDataUpdateOrgScope:
+    """Holding UPDATE in market_data refresh endpoint must include org_id filter."""
+
+    def test_holding_update_includes_org_filter(self):
+        import inspect
+        from app.api.v1 import market_data
+        src = inspect.getsource(market_data)
+        # Both the SELECT and the UPDATE must scope to organization_id
+        assert src.count("Holding.organization_id == current_user.organization_id") >= 2, (
+            "market_data must scope BOTH the SELECT and UPDATE to organization_id"
+        )
