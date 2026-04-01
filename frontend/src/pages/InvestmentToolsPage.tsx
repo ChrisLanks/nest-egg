@@ -22,6 +22,7 @@ import {
   TabPanels,
   Tabs,
   Text,
+  Tooltip,
 } from "@chakra-ui/react";
 import { lazy, Suspense, useState } from "react";
 
@@ -77,17 +78,37 @@ export const InvestmentToolsPage = () => {
       <Tabs colorScheme="brand" variant="enclosed" px={6} index={tabIndex} onChange={handleTabChange}>
         <TabList>
           {/* ── Approachable first ── */}
-          <Tab fontSize="sm">FIRE</Tab>
-          <Tab fontSize="sm">Loan Modeler</Tab>
-          <Tab fontSize="sm">HSA Optimizer</Tab>
-          <Tab fontSize="sm">Employer Match</Tab>
-          <Tab fontSize="sm">What-If</Tab>
+          <Tooltip label="Financial Independence / Retire Early — see how close you are to your FIRE number and projected retirement date based on your savings rate and portfolio." placement="bottom" hasArrow>
+            <Tab fontSize="sm">FIRE</Tab>
+          </Tooltip>
+          <Tooltip label="Compare loans side-by-side: fixed vs variable rate, different terms, extra payments, and total interest paid." placement="bottom" hasArrow>
+            <Tab fontSize="sm">Loan Modeler</Tab>
+          </Tooltip>
+          <Tooltip label="Model HSA triple-tax-advantage: invest vs spend, project growth to retirement, and see your cumulative tax savings." placement="bottom" hasArrow>
+            <Tab fontSize="sm">HSA Optimizer</Tab>
+          </Tooltip>
+          <Tooltip label="See if you are capturing your full employer 401k match and how much you may be leaving on the table." placement="bottom" hasArrow>
+            <Tab fontSize="sm">Employer Match</Tab>
+          </Tooltip>
+          <Tooltip label="Run hypothetical scenarios — what if you increased savings, paid off debt early, or changed your allocation?" placement="bottom" hasArrow>
+            <Tab fontSize="sm">What-If</Tab>
+          </Tooltip>
           {/* ── Advanced ── */}
-          <Tab fontSize="sm">Bond Ladder</Tab>
-          <Tab fontSize="sm">Equity Compensation</Tab>
-          <Tab fontSize="sm">Tax-Equiv Yield</Tab>
-          <Tab fontSize="sm">Asset Location</Tab>
-          <Tab fontSize="sm">Cost Basis</Tab>
+          <Tooltip label="Build a bond ladder — staggered maturities to generate predictable income while reducing reinvestment risk." placement="bottom" hasArrow>
+            <Tab fontSize="sm">Bond Ladder</Tab>
+          </Tooltip>
+          <Tooltip label="Model stock options and RSUs — vesting schedules, exercise strategies, and tax impact under different scenarios." placement="bottom" hasArrow>
+            <Tab fontSize="sm">Equity Compensation</Tab>
+          </Tooltip>
+          <Tooltip label="Calculate the taxable yield a muni bond needs to match after accounting for your federal and state tax rate." placement="bottom" hasArrow>
+            <Tab fontSize="sm">Tax-Equiv Yield</Tab>
+          </Tooltip>
+          <Tooltip label="Optimize which accounts hold which asset classes to minimize your overall tax drag." placement="bottom" hasArrow>
+            <Tab fontSize="sm">Asset Location</Tab>
+          </Tooltip>
+          <Tooltip label="Review unrealized gains and losses by lot age — identify tax-loss harvesting candidates and avoid wash sales." placement="bottom" hasArrow>
+            <Tab fontSize="sm">Cost Basis</Tab>
+          </Tooltip>
         </TabList>
         <TabPanels>
           <TabPanel px={0}>

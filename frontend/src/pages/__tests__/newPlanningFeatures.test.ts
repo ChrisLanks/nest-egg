@@ -341,6 +341,19 @@ describe("Hub page tab counts", () => {
     expect(tabMatches.length).toBeGreaterThanOrEqual(5);
   });
 
+  it("InvestmentToolsPage wraps each tab in a Tooltip", () => {
+    expect(investmentToolsSrc).toContain("Tooltip");
+    const tooltipMatches = investmentToolsSrc.match(/<Tooltip/g) ?? [];
+    expect(tooltipMatches.length).toBeGreaterThanOrEqual(10);
+  });
+
+  it("InvestmentToolsPage tab tooltips describe each calculator", () => {
+    expect(investmentToolsSrc).toContain("Financial Independence");
+    expect(investmentToolsSrc).toContain("muni bond");
+    expect(investmentToolsSrc).toContain("HSA triple-tax");
+    expect(investmentToolsSrc).toContain("tax-loss harvesting");
+  });
+
   it("NetWorthTimelinePage has Historical and Forecast tabs", () => {
     expect(netWorthTimelineSrc).toContain("Historical");
     expect(netWorthTimelineSrc).toContain("Forecast");
