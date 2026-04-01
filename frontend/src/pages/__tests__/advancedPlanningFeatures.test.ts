@@ -199,6 +199,12 @@ describe("FinancialRatiosTab", () => {
     expect(financialHealthPageSrc).toContain("Financial Ratios");
   });
 
+  it("has tooltips on monthly income and spending inputs", () => {
+    expect(financialRatiosSrc).toContain("Tooltip");
+    expect(financialRatiosSrc).toContain("gross monthly income");
+    expect(financialRatiosSrc).toContain("monthly essential");
+  });
+
   it("auto-populates income and spending from dashboard summary on load", () => {
     // useEffect watches estimatedIncome/estimatedSpending and sets fields if not user-edited
     expect(financialRatiosSrc).toContain("useEffect");
@@ -371,6 +377,13 @@ describe("LiquidityDashboardTab", () => {
     expect(financialHealthPageSrc).toContain("LiquidityDashboardTab");
     expect(financialHealthPageSrc).toContain("Liquidity");
   });
+
+  it("has tooltips on stat labels and spending input", () => {
+    expect(liquidityDashboardSrc).toContain("Tooltip");
+    expect(liquidityDashboardSrc).toContain("Immediately Accessible");
+    expect(liquidityDashboardSrc).toContain("Total Liquid");
+    expect(liquidityDashboardSrc).toContain("Monthly Spending Used");
+  });
 });
 
 // ── Feature 9: Net Worth Percentile ───────────────────────────────────────────
@@ -444,6 +457,20 @@ describe("FinancialHealthPage", () => {
   it("has 2 Tab elements", () => {
     const tabMatches = financialHealthPageSrc.match(/<Tab\s/g) ?? [];
     expect(tabMatches.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("wraps each tab in a Tooltip", () => {
+    expect(financialHealthPageSrc).toContain("Tooltip");
+    // All four tabs should have tooltip wrappers
+    const tooltipMatches = financialHealthPageSrc.match(/<Tooltip/g) ?? [];
+    expect(tooltipMatches.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("includes descriptive tooltip text for each tab", () => {
+    expect(financialHealthPageSrc).toContain("savings rate");
+    expect(financialHealthPageSrc).toContain("emergency fund");
+    expect(financialHealthPageSrc).toContain("credit score");
+    expect(financialHealthPageSrc).toContain("recommendations");
   });
 });
 

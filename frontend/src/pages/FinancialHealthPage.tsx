@@ -15,6 +15,7 @@ import {
   TabPanels,
   Tabs,
   Text,
+  Tooltip,
 } from "@chakra-ui/react";
 import { lazy, Suspense, useState } from "react";
 
@@ -57,10 +58,18 @@ export const FinancialHealthPage = () => {
       </Box>
       <Tabs colorScheme="brand" variant="enclosed" px={6} index={tabIndex} onChange={handleTabChange}>
         <TabList>
-          <Tab fontSize="sm">Financial Ratios</Tab>
-          <Tab fontSize="sm">Liquidity &amp; Emergency Fund</Tab>
-          <Tab fontSize="sm">Credit Score</Tab>
-          <Tab fontSize="sm">Recommendations</Tab>
+          <Tooltip label="Key financial health ratios: savings rate, debt-to-income, housing cost ratio, and net worth. Enter your monthly income and spending for a full score." placement="bottom" hasArrow>
+            <Tab fontSize="sm">Financial Ratios</Tab>
+          </Tooltip>
+          <Tooltip label="How many months of expenses your liquid accounts cover. See your emergency fund runway broken down by account." placement="bottom" hasArrow>
+            <Tab fontSize="sm">Liquidity &amp; Emergency Fund</Tab>
+          </Tooltip>
+          <Tooltip label="Your credit score history and the factors that influence it." placement="bottom" hasArrow>
+            <Tab fontSize="sm">Credit Score</Tab>
+          </Tooltip>
+          <Tooltip label="Personalized recommendations based on your financial data — savings opportunities, debt priorities, and account gaps." placement="bottom" hasArrow>
+            <Tab fontSize="sm">Recommendations</Tab>
+          </Tooltip>
         </TabList>
         <TabPanels>
           <TabPanel px={0}>

@@ -27,6 +27,7 @@ import {
   Text,
   Th,
   Thead,
+  Tooltip,
   Tr,
   VStack,
 } from "@chakra-ui/react";
@@ -120,7 +121,9 @@ export const LiquidityDashboardTab = () => {
         <CardBody>
           <FormControl maxW="300px">
             <FormLabel fontSize="sm">
-              Monthly Spending ($)
+              <Tooltip label="Your average monthly essential spending. Used to calculate how many months your liquid assets would cover. Leave blank to auto-estimate from your transaction history." hasArrow placement="top">
+                <Text as="span">Monthly Spending ($)</Text>
+              </Tooltip>
               <Text as="span" color="text.secondary" fontSize="xs" ml={1}>— optional override</Text>
             </FormLabel>
             <NumberInput
@@ -193,24 +196,32 @@ export const LiquidityDashboardTab = () => {
           {/* Key stats */}
           <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4}>
             <Stat>
-              <StatLabel fontSize="xs">Immediately Accessible</StatLabel>
+              <Tooltip label="Cash in checking, savings, and money market accounts you can access within 1–2 business days without penalties." hasArrow placement="top">
+                <StatLabel fontSize="xs" cursor="default">Immediately Accessible</StatLabel>
+              </Tooltip>
               <StatNumber fontSize="lg" color="green.500">{fmtCompact(data.immediately_accessible)}</StatNumber>
             </Stat>
             <Stat>
-              <StatLabel fontSize="xs">Total Liquid</StatLabel>
+              <Tooltip label="All liquid assets including brokerage accounts and short-term investments that could be converted to cash within ~1 week." hasArrow placement="top">
+                <StatLabel fontSize="xs" cursor="default">Total Liquid</StatLabel>
+              </Tooltip>
               <StatNumber fontSize="lg">{fmtCompact(data.total_liquid)}</StatNumber>
             </Stat>
             <Stat>
-              <StatLabel fontSize="xs">Monthly Spending Used</StatLabel>
+              <Tooltip label="The monthly spending figure used to calculate months of coverage. Based on your input or auto-estimated from transaction history." hasArrow placement="top">
+                <StatLabel fontSize="xs" cursor="default">Monthly Spending Used</StatLabel>
+              </Tooltip>
               <StatNumber fontSize="lg">{fmt(data.monthly_spending_used)}</StatNumber>
               {data.spending_is_estimated && (
                 <StatHelpText fontSize="xs">Estimated</StatHelpText>
               )}
             </Stat>
             <Stat>
-              <StatLabel fontSize="xs">
-                {data.coverage_gap > 0 ? "Coverage Gap" : "Surplus"}
-              </StatLabel>
+              <Tooltip label={data.coverage_gap > 0 ? `Amount needed to reach your ${data.target_months}-month emergency fund target.` : `Amount above your ${data.target_months}-month emergency fund target.`} hasArrow placement="top">
+                <StatLabel fontSize="xs" cursor="default">
+                  {data.coverage_gap > 0 ? "Coverage Gap" : "Surplus"}
+                </StatLabel>
+              </Tooltip>
               <StatNumber fontSize="lg" color={data.coverage_gap > 0 ? "red.500" : "green.500"}>
                 {fmtCompact(Math.abs(data.coverage_gap))}
               </StatNumber>

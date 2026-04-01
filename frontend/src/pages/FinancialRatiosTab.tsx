@@ -18,6 +18,7 @@ import {
   HStack,
   NumberInput,
   NumberInputField,
+  Tooltip,
   Progress,
   SimpleGrid,
   Stat,
@@ -146,7 +147,9 @@ export const FinancialRatiosTab = () => {
           <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
             <FormControl>
               <FormLabel fontSize="sm">
-                Monthly Income ($){" "}
+                <Tooltip label="Your total gross monthly income from all sources. Used to calculate savings rate, debt-to-income ratio, and housing cost ratio." hasArrow placement="top">
+                  <Text as="span">Monthly Income ($){" "}</Text>
+                </Tooltip>
                 <Text as="span" color="text.secondary" fontSize="xs">— optional</Text>
               </FormLabel>
               <NumberInput
@@ -167,7 +170,9 @@ export const FinancialRatiosTab = () => {
             </FormControl>
             <FormControl>
               <FormLabel fontSize="sm">
-                Monthly Spending ($){" "}
+                <Tooltip label="Your total monthly essential and discretionary spending (excluding loan principal payments). Used to calculate savings rate and emergency fund coverage." hasArrow placement="top">
+                  <Text as="span">Monthly Spending ($){" "}</Text>
+                </Tooltip>
                 <Text as="span" color="text.secondary" fontSize="xs">— optional</Text>
               </FormLabel>
               <NumberInput
