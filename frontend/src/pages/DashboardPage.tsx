@@ -41,6 +41,7 @@ import api from "../services/api";
 import { AddAccountModal } from "../features/accounts/components/AddAccountModal";
 import { GoalContextBanner } from "../features/dashboard/GoalContextBanner";
 import { BeginnerModeBanner } from "../components/BeginnerModeBanner";
+import { PostOnboardingBanner } from "../components/PostOnboardingBanner";
 
 const GOAL_STEPS: Record<
   string,
@@ -447,6 +448,10 @@ export const DashboardPage = () => {
 
       <BeginnerModeBanner loginCount={user?.login_count} />
       <GoalContextBanner />
+      <PostOnboardingBanner
+        accountCount={accounts?.length ?? 0}
+        loginCount={user?.login_count}
+      />
 
       {goals !== undefined && (
         <GoalsWidget goals={goals} onNavigate={navigate} />
