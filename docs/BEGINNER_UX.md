@@ -226,6 +226,7 @@ Advanced items checked against `showAdvancedNav` toggle (`nest-egg-show-advanced
 - `userMenuPreferencesBadge.test.ts` — 6 tests covering Setup badge show/hide by login count
 - `pageSubtitles.test.ts` — 14 tests covering CashFlow subtitle/tooltips, Preferences advanced description, Rules page copy
 - `retirementBeginnerUX.test.ts` — 21 tests covering ScenarioPanel helper text (M), RetirementPage intro banner (N), success rate badge (O)
+- `beginnerJargonFixes.test.ts` — 17 tests covering Transactions Pending tooltip + empty state (P), BudgetCard rollover tooltip + overage label (Q), SmartInsights rewording + category tooltips (R)
 
 ---
 
@@ -261,6 +262,39 @@ A color-coded `<Badge>` appears next to the success rate percentage in the Simul
 | < 60% | red | Needs attention |
 
 Each badge has a tooltip explaining the threshold in plain language.
+
+---
+
+## Jargon & Empty State Fixes
+
+### P — Transactions: "Pending" explained + smart empty state
+
+The orange "Pending" badge on transaction rows now has a tooltip:
+> "This transaction has been initiated but not yet fully processed by your bank. Pending transactions may still be adjusted or cancelled."
+
+The empty state now distinguishes three cases:
+- Search query active → "Try adjusting your search query."
+- No accounts → "Connect your accounts to start tracking transactions." + Go to Accounts CTA
+- Accounts exist but filters returned nothing → "No transactions match your current filters. Try expanding the date range or clearing your filters."
+
+### Q — BudgetCard: overage amount + rollover explanation
+
+**Over budget label** now shows the dollar amount: "Over budget by $200" instead of just "Over budget".
+
+**Rollover line** is wrapped in a Tooltip:
+> "Unused budget from the previous period carried forward into this one — it increases your available budget for this period."
+
+### R — Smart Insights: clearer empty state + category tooltips
+
+**"All clear!" empty state** replaced with:
+> "Looking good — no action items right now."
+> "Insights appear automatically when our analysis detects an opportunity — like a high-fee fund, a savings gap, or a tax move."
+
+**Category filter pills** (Cash, Investing, Tax, Retirement) now have `openDelay=400` tooltips:
+- **Cash** — "Liquid savings, emergency fund coverage, and cash management"
+- **Investing** — "Portfolio allocation, fees, diversification, and investment gaps"
+- **Tax** — "Tax optimization opportunities, deductions, and tax-efficient strategies"
+- **Retirement** — "Retirement readiness, contribution gaps, and long-term savings pace"
 
 ---
 

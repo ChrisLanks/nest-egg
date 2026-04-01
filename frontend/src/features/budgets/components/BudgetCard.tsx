@@ -291,7 +291,9 @@ export default function BudgetCard({
           {/* Remaining amount */}
           <HStack justify="space-between">
             <Text fontSize="sm" color={spending?.remaining != null && spending.remaining < 0 ? "finance.negative" : "text.secondary"}>
-              {spending?.remaining != null && spending.remaining < 0 ? "Over budget" : "Remaining"}
+              {spending?.remaining != null && spending.remaining < 0
+                ? `Over budget by ${formatCurrency(Math.abs(spending.remaining))}`
+                : "Remaining"}
             </Text>
             {spendingLoading ? (
               <Skeleton height="16px" width="80px" />
@@ -314,9 +316,11 @@ export default function BudgetCard({
 
           {/* Rollover info */}
           {spending && spending.rollover_amount != null && spending.rollover_amount > 0 && (
-            <Text fontSize="xs" color="text.muted">
-              + {formatCurrency(spending.rollover_amount)} rollover from last period
-            </Text>
+            <Tooltip label="Unused budget from the previous period carried forward into this one — it increases your available budget for this period.">
+              <Text fontSize="xs" color="text.muted" cursor="help" display="inline-block">
+                + {formatCurrency(spending.rollover_amount)} rollover from last period
+              </Text>
+            </Tooltip>
           )}
 
           {/* Period dates */}

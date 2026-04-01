@@ -305,7 +305,11 @@ const TransactionDesktopRow = memo(
       {showStatusColumn && (
         <Td>
           <HStack spacing={2}>
-            {txn.is_pending && <Badge colorScheme="orange">Pending</Badge>}
+            {txn.is_pending && (
+              <Tooltip label="This transaction has been initiated but not yet fully processed by your bank. Pending transactions may still be adjusted or cancelled.">
+                <Badge colorScheme="orange" cursor="help">Pending</Badge>
+              </Tooltip>
+            )}
             {txn.is_transfer && <Badge colorScheme="purple">Transfer</Badge>}
             {txn.flagged_for_review && <Badge colorScheme="red">Flagged</Badge>}
           </HStack>
@@ -2180,11 +2184,13 @@ export const TransactionsPage = () => {
             description={
               debouncedSearchQuery
                 ? "Try adjusting your search query."
-                : "Connect your accounts to start tracking transactions."
+                : accounts.length === 0
+                ? "Connect your accounts to start tracking transactions."
+                : "No transactions match your current filters. Try expanding the date range or clearing your filters."
             }
-            actionLabel={!debouncedSearchQuery ? "Go to Accounts" : undefined}
+            actionLabel={!debouncedSearchQuery && accounts.length === 0 ? "Go to Accounts" : undefined}
             onAction={() => navigate("/accounts")}
-            showAction={!debouncedSearchQuery}
+            showAction={!debouncedSearchQuery && accounts.length === 0}
           />
         )}
 

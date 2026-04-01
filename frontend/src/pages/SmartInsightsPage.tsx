@@ -59,6 +59,13 @@ const categoryLabel: Record<string, string> = {
   retirement: "Retirement",
 };
 
+const categoryTooltip: Record<string, string> = {
+  cash: "Liquid savings, emergency fund coverage, and cash management",
+  investing: "Portfolio allocation, fees, diversification, and investment gaps",
+  tax: "Tax optimization opportunities, deductions, and tax-efficient strategies",
+  retirement: "Retirement readiness, contribution gaps, and long-term savings pace",
+};
+
 const categoryColor: Record<string, string> = {
   cash: "teal",
   investing: "purple",
@@ -240,19 +247,21 @@ export const SmartInsightsPage = () => {
 
             {activeCategories.map((cat) => (
               <WrapItem key={cat}>
-                <Badge
-                  colorScheme={categoryColor[cat]}
-                  px={3}
-                  py={1}
-                  borderRadius="full"
-                  fontSize="xs"
-                  cursor="pointer"
-                  variant={selectedCategory === cat ? "solid" : "subtle"}
-                  onClick={() => handlePillClick(cat)}
-                  data-testid={`pill-${cat}`}
-                >
-                  {categoryLabel[cat]} · {grouped[cat].length}
-                </Badge>
+                <Tooltip label={categoryTooltip[cat]} openDelay={400}>
+                  <Badge
+                    colorScheme={categoryColor[cat]}
+                    px={3}
+                    py={1}
+                    borderRadius="full"
+                    fontSize="xs"
+                    cursor="pointer"
+                    variant={selectedCategory === cat ? "solid" : "subtle"}
+                    onClick={() => handlePillClick(cat)}
+                    data-testid={`pill-${cat}`}
+                  >
+                    {categoryLabel[cat]} · {grouped[cat].length}
+                  </Badge>
+                </Tooltip>
               </WrapItem>
             ))}
           </Wrap>
@@ -294,10 +303,9 @@ export const SmartInsightsPage = () => {
           <Alert status="success" borderRadius="lg">
             <AlertIcon />
             <VStack align="start" spacing={0}>
-              <Text fontWeight="semibold">All clear!</Text>
+              <Text fontWeight="semibold">Looking good — no action items right now.</Text>
               <Text fontSize="sm">
-                No action items right now. Add more accounts and transactions to
-                unlock additional insights.
+                Insights appear automatically when our analysis detects an opportunity — like a high-fee fund, a savings gap, or a tax move. Add more accounts or transactions to unlock additional recommendations.
               </Text>
             </VStack>
           </Alert>
