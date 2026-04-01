@@ -199,6 +199,7 @@ const UserMenu = ({
   onNavigate,
   onLogout,
   isMultiMemberHousehold,
+  loginCount,
 }: {
   user: {
     first_name?: string;
@@ -209,6 +210,7 @@ const UserMenu = ({
   onNavigate: (path: string) => void;
   onLogout: () => void;
   isMultiMemberHousehold: boolean;
+  loginCount?: number;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -225,17 +227,25 @@ const UserMenu = ({
   }, [isOpen]);
 
   const menuItems = [
-    { label: "Household Settings", icon: <FiUsers />, path: "/household" },
+    { label: "Household Settings", icon: <FiUsers />, path: "/household", badge: undefined as string | undefined, subtitle: undefined as string | undefined },
     ...(isMultiMemberHousehold
       ? [
           {
             label: "My Permissions",
             icon: <FiSettings />,
             path: "/permissions",
+            badge: undefined as string | undefined,
+            subtitle: undefined as string | undefined,
           },
         ]
       : []),
-    { label: "My Preferences", icon: <FiSettings />, path: "/preferences" },
+    {
+      label: "My Preferences",
+      icon: <FiSettings />,
+      path: "/preferences",
+      badge: (loginCount ?? 0) <= 5 ? "Setup" : undefined,
+      subtitle: "Simple / Advanced mode, display",
+    },
   ];
 
   return (
@@ -297,7 +307,19 @@ const UserMenu = ({
             >
               <HStack spacing={2}>
                 {item.icon}
-                <Text>{item.label}</Text>
+                <VStack align="start" spacing={0} flex={1}>
+                  <HStack spacing={2} w="full">
+                    <Text>{item.label}</Text>
+                    {item.badge && (
+                      <Badge colorScheme="brand" variant="subtle" fontSize="xs" ml="auto">
+                        {item.badge}
+                      </Badge>
+                    )}
+                  </HStack>
+                  {item.subtitle && (
+                    <Text fontSize="xs" color="text.muted">{item.subtitle}</Text>
+                  )}
+                </VStack>
               </HStack>
             </Box>
           ))}
@@ -1354,6 +1376,7 @@ export const Layout = () => {
               onNavigate={navigateWithParams}
               onLogout={handleLogout}
               isMultiMemberHousehold={(members?.length ?? 0) >= 2}
+              loginCount={user?.login_count}
             />
           </HStack>
         </HStack>
