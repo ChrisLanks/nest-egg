@@ -23,6 +23,7 @@ import {
   AddIcon,
   ChevronDownIcon,
   ChevronRightIcon,
+  LockIcon,
   WarningIcon,
 } from "@chakra-ui/icons";
 import { FiSettings, FiLogOut, FiUsers } from "react-icons/fi";
@@ -58,7 +59,7 @@ import {
 } from "../utils/permissionBannerUtils";
 import { ACCOUNT_TYPE_SIDEBAR_CONFIG } from "../constants/accountTypeGroups";
 import { SS_SHOW_AGE } from "../constants/ages";
-import { useNavDefaults } from "../hooks/useNavDefaults";
+import { useNavDefaults, getLockedNavTooltip } from "../hooks/useNavDefaults";
 import { useNotificationToast } from "../hooks/useNotificationToast";
 import { NotificationType, NotificationPriority } from "../types/notification";
 
@@ -94,7 +95,7 @@ interface NavItemProps {
 
 interface NavDropdownProps {
   label: string;
-  items: { label: string; path: string; tooltip?: string }[];
+  items: { label: string; path: string; tooltip?: string; locked?: boolean; lockedTooltip?: string }[];
   currentPath: string;
   onNavigate: (path: string) => void;
 }
@@ -149,27 +150,31 @@ const NavDropdown = ({
           {items.map((item) => (
             <Tooltip
               key={item.path}
-              label={item.tooltip}
-              isDisabled={!item.tooltip}
+              label={item.locked ? (item.lockedTooltip ?? "Add an account to unlock") : item.tooltip}
+              isDisabled={!item.tooltip && !item.locked}
               placement="right"
               hasArrow
             >
               <Box
                 px={3}
                 py={2}
-                cursor="pointer"
+                cursor={item.locked ? "default" : "pointer"}
                 fontWeight={currentPath === item.path ? "semibold" : "normal"}
                 bg={currentPath === item.path ? "brand.subtle" : "transparent"}
-                _hover={{
+                opacity={item.locked ? 0.45 : 1}
+                _hover={item.locked ? undefined : {
                   bg: currentPath === item.path ? "brand.subtle" : "bg.subtle",
                 }}
                 fontSize="sm"
-                onClick={() => {
+                onClick={item.locked ? undefined : () => {
                   onNavigate(item.path);
                   setIsOpen(false);
                 }}
               >
-                {item.label}
+                <HStack spacing={1}>
+                  {item.locked && <LockIcon boxSize="10px" color="text.muted" flexShrink={0} />}
+                  <Text as="span">{item.label}</Text>
+                </HStack>
               </Box>
             </Tooltip>
           ))}
@@ -599,7 +604,7 @@ export const Layout = () => {
   };
 
   // ── Nav visibility: centralized defaults from useNavDefaults hook ──
-  const { accounts, accountsLoading, userAge, conditionalDefaults } =
+  const { accounts, accountsLoading, userAge, conditionalDefaults, getNavState, showLockedNav } =
     useNavDefaults(selectedUserId, memberEffectiveUserId, isPartialMemberSelection, matchesMemberFilter);
 
   // Derived flags still needed for feature-discovery toasts
@@ -977,17 +982,33 @@ export const Layout = () => {
       tooltip?: string;
       advanced?: boolean;
     }[],
-  ): { label: string; path: string; tooltip?: string }[] =>
-    items.filter((item) => {
-      if (!isNavVisible(item.path)) return false;
-      // Advanced items are hidden by default unless:
-      // (a) the master advanced-nav switch is on, OR
-      // (b) the user has an explicit per-item override enabling it
+  ): { label: string; path: string; tooltip?: string; locked?: boolean; lockedTooltip?: string }[] => {
+    const result: { label: string; path: string; tooltip?: string; locked?: boolean; lockedTooltip?: string }[] = [];
+    for (const item of items) {
+      // Advanced items always hidden unless advanced mode is on or explicitly overridden
       if (item.advanced && !showAdvancedNav && !(item.path in navOverridesState && navOverridesState[item.path])) {
-        return false;
+        continue;
       }
-      return true;
-    });
+      const navState = getNavState(item.path);
+      // Per-item user override takes precedence: if the user explicitly enabled or disabled
+      // this path, respect that (isNavVisible already handles this via navOverridesState)
+      if (item.path in navOverridesState) {
+        if (navOverridesState[item.path]) {
+          result.push(item);
+        }
+        // explicitly disabled — skip
+        continue;
+      }
+      if (navState === "visible") {
+        result.push(item);
+      } else if (navState === "locked" && showLockedNav) {
+        // Show dimmed with lock icon and hint tooltip
+        result.push({ ...item, locked: true, lockedTooltip: getLockedNavTooltip(item.path) });
+      }
+      // "hidden" state: skip entirely
+    }
+    return result;
+  };
 
   const spendingMenuItems = filterVisible(allSpendingItems);
   const analyticsMenuItems = filterVisible(allAnalyticsItems);

@@ -327,7 +327,8 @@ describe("CalendarPage", () => {
 
 describe("Hub page tab counts", () => {
   it("TaxCenterPage has 6 tabs", () => {
-    const tabMatches = taxCenterSrc.match(/<Tab\s/g) ?? [];
+    // TaxCenterPage uses TooltipTab components instead of bare <Tab>
+    const tabMatches = taxCenterSrc.match(/<TooltipTab\s/g) ?? taxCenterSrc.match(/<Tab\s/g) ?? [];
     expect(tabMatches.length).toBeGreaterThanOrEqual(6);
   });
 
