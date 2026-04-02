@@ -41,7 +41,7 @@ A few require a specific account type:
 | `/cash-flow`, `/net-worth-timeline`, `/reports` | Any account |
 | `/smart-insights`, `/financial-health` | Any account |
 | `/goals`, `/retirement`, `/financial-plan` | Any account |
-| `/tax-center`, `/life-planning` | Any account |
+| `/tax-center`, `/estate-insurance` | Any account |
 | `/recurring-bills` | Linked (Plaid) bank account |
 | `/rental-properties` | Rental property account |
 | `/debt-payoff` | Credit card, loan, or mortgage account |
@@ -53,7 +53,7 @@ A few require a specific account type:
 ## Advanced Features — Opt-In Only
 
 Four items are hidden behind an explicit **"Show advanced features"** toggle
-in Preferences → Navigation:
+in Preferences → Navigation (also accessible via the Simple/Advanced toggle button in the nav header):
 
 | Path | What it contains |
 |---|---|
@@ -75,10 +75,11 @@ Individual items can also be toggled on/off without the master toggle.
 |---|---|---|
 | My Dashboard (Planning nav) | *(removed)* | Duplicated Overview. Health score available as a dashboard widget. |
 | Retirement Planner | Retirement | Shorter, clearer. |
-| Retirement & Benefits | Life Planning | Avoids confusion with Retirement Planner. Describes SS, RMDs, estate, insurance. |
+| Retirement & Benefits | Life Planning | Avoids confusion with Retirement Planner. Described SS, RMDs, estate, insurance. |
+| Life Planning | Estate & Insurance | Narrowed scope — SS, RMDs, Pension, and Variable Income moved to the new Retirement & Income hub. |
 | Smart Insights (standalone nav) | Recommendations (tab in Financial Checkup) | Insights belong inside a health checkup, not as a separate destination. |
 | Financial Plan | My Dashboard | "Financial Plan" overlapped with Goals and Retirement. |
-| Planning Tools | Calculators | "Tools" is vague. "Calculators" is what they literally are. |
+| Calculators | Planning Tools | "Tools" is vague; reversed back — "Planning Tools" is what they literally are. |
 | Financial Health | Financial Checkup | Checkup implies actionable diagnosis, not just metrics. |
 | Categories & Labels | Spending Categories | Plain language. |
 
@@ -99,25 +100,28 @@ Analytics (unlocked by any account)
   Rental Properties (rental account only)
 
 Planning (progressive unlock)
-  Goals · Retirement              ← beginner-first order
+  Goals · Retirement & Income     ← beginner-first order
   Debt Payoff (debt) · Mortgage · Education (529)
-  Tax Center · Life Planning      ← consolidated hubs
-  Calculators (advanced)
+  Tax Center · Estate & Insurance ← consolidated hubs
+  Planning Tools (advanced)
 ```
 
 ### Hub pages
 
 **Tax Center** (`/tax-center`)
-- Tax Projection · Tax Buckets · Charitable Giving
+- Tax Projection · Tax Buckets · Charitable Giving · Roth Conversion
 
-**Life Planning** (`/life-planning`)
-- SS Optimizer · Variable Income · Estate & Beneficiaries
-- RMD Planner · Insurance Audit · Pension Modeler
+**Retirement & Income** (`/retirement`)
+- Retirement Planner · SS Optimizer · RMD Planner · Pension Modeler · Variable Income
+
+**Estate & Insurance** (`/estate-insurance`)
+- Estate & Beneficiaries · Insurance Audit
+- `/life-planning` and `/estate` redirect here
 
 **Financial Checkup** (`/financial-health`)
 - Financial Ratios · Liquidity & Emergency Fund · Credit Score · Recommendations
 
-**Calculators** (`/investment-tools`)
+**Planning Tools** (`/investment-tools`)
 - Approachable first: FIRE · Loan Modeler · HSA Optimizer · Employer Match · What-If
 - Advanced last: Bond Ladder · Equity Compensation · Tax-Equiv Yield · Asset Location · Cost Basis
 
@@ -127,6 +131,10 @@ New users (login_count ≤ 3) see a dismissable blue banner on the Overview page
 > "You're in Simple Mode. Advanced features unlock as you add accounts and enable them in Preferences."
 
 Rendered by `BeginnerModeBanner`, dismissal stored in `nest-egg-beginner-banner-dismissed` (localStorage).
+
+### Simple/Advanced toggle in nav header
+
+A **Simple / Advanced** toggle button is present in the nav header, near the notification bell. This is a shortcut to the same toggle in Preferences → Navigation — it lets any user flip modes without navigating to Preferences. The button label reflects the current mode ("Simple" or "Advanced").
 
 ### Post-onboarding "what's next" banner
 

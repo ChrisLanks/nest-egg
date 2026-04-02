@@ -627,7 +627,9 @@ the active household view (individual member vs combined). Pages live under
 - **Tooltips**: Plain-English explanations on every stat card, form input, result metric, and amortization table column header
 - **Persistent Inputs**: Refinance rate, term, closing costs, and extra payment are remembered across page refreshes via localStorage
 
-### Social Security Optimizer (`/ss-claiming`)
+### Social Security Optimizer (`/retirement` — SS Optimizer tab)
+
+> Previously at `/ss-claiming`; that route now redirects to `/retirement`.
 
 - **Age 62–70 Comparison**: Monthly benefit, annual benefit, and lifetime total for every integer claiming age
 - **Three Longevity Scenarios**: Pessimistic (die at 78), base (die at 85), optimistic (die at 92) — optimal age identified for each
@@ -799,13 +801,19 @@ Five consolidated hub pages group related tools under **Planning** in the nav:
 
 ### Tax Center (`/tax-center`)
 
-Six tabs: Tax Projection, Tax Buckets (three-bucket strategy), Charitable Giving, Medicare & IRMAA, Roth Conversion Wizard, Contribution Headroom.
+Six tabs: Tax Projection, Tax Buckets (three-bucket strategy), Charitable Giving, Medicare & IRMAA, Roth Conversion (consolidated from the former standalone `/roth-conversion`), Contribution Headroom.
 
-### Life Planning (`/life-planning`)
+### Retirement & Income (`/retirement`)
 
-Six tabs: SS Optimizer, Variable Income, Estate & Beneficiaries, RMD Planner, Insurance Audit, Pension Modeler.
+Five tabs: Retirement Planner, SS Optimizer, RMD Planner, Pension Modeler, Variable Income.
+Routes `/ss-claiming` and `/variable-income` redirect here.
 
-### Investment Tools (`/investment-tools`)
+### Estate & Insurance (`/estate-insurance`)
+
+Two tabs: Estate & Beneficiaries, Insurance Audit.
+Routes `/life-planning` and `/estate` redirect here.
+
+### Planning Tools (`/investment-tools`)
 
 Eight tabs: FIRE metrics, Equity Compensation, Loan Modeler, HSA Optimizer, Tax-Equivalent Yield, Asset Location, Employer Match, Cost Basis Aging.
 Note: Dividend Calendar moved to the main Calendar page as a toggleable event category.
@@ -893,7 +901,7 @@ Two tabs: Financial Ratios (DTI, savings rate, housing ratio, current ratio), Li
 
 ### Tab Persistence
 
-All five hub pages (Tax Center, Life Planning, Investment Tools, Financial Health, Net Worth Timeline) remember the last active tab across page refreshes using `localStorage`. Keys are `nest-egg-tab-{slug}`. Falls back to tab 0 gracefully when localStorage is unavailable.
+All hub pages (Tax Center, Retirement & Income, Estate & Insurance, Planning Tools, Financial Health, Net Worth Timeline) remember the last active tab across page refreshes using `localStorage`. Keys are `nest-egg-tab-{slug}`. Falls back to tab 0 gracefully when localStorage is unavailable.
 
 ### Insurance Audit Dismissal
 
@@ -980,10 +988,13 @@ The navigation has been fully restructured for clarity and to eliminate overlap.
 #### Renamed sections
 - **Investments → Portfolio** — top-level nav button renamed so it's unambiguous (portfolio view of holdings, not planning calculators). Route `/investments` unchanged; `/portfolio` redirects there.
 - **Investment Tools → Planning Tools** — the advanced planning hub renamed to reflect that it contains calculators (FIRE, loan modeler, HSA optimizer, etc.), not a second portfolio view.
+- **Life Planning → Estate & Insurance** — narrowed scope; SS, RMDs, Pension, and Variable Income moved to the Retirement & Income hub. Route `/life-planning` redirects to `/estate-insurance`.
+- **Roth Conversion** (standalone) consolidated as a tab in Tax Center. Route `/roth-conversion` redirects to `/tax-center`.
 
 #### Reorganized sections
 - **Analytics** now includes **Smart Insights** and **Financial Health** — both are read-only, auto-computed from account data, so they belong alongside Trends and Reports rather than Planning.
-- **Planning** is now strictly interactive goal-setting and scenario modeling: Goals → Retirement → Education → Debt Payoff → Mortgage → Tax Center → Life Planning → Planning Tools (advanced)
+- **Planning** is now strictly interactive goal-setting and scenario modeling: Goals → Retirement & Income → Education → Debt Payoff → Mortgage → Tax Center → Estate & Insurance → Planning Tools (advanced)
+- **Retirement & Income** (`/retirement`) is a new hub consolidating the Retirement Planner with SS Optimizer, RMD Planner, Pension Modeler, and Variable Income. Routes `/ss-claiming` and `/variable-income` redirect there.
 - **HSA Planner** removed as a standalone nav entry — lives inside Planning Tools; `/hsa` redirects there.
 - All tooltips updated to be descriptive and list sub-features.
 
@@ -991,7 +1002,8 @@ The navigation has been fully restructured for clarity and to eliminate overlap.
 - **Retirement page** now shows an info banner when the view switcher has multiple members selected, explaining that retirement plans are per-person and prompting the user to select a single member.
 
 #### Nav Preferences (Preferences page)
-- `useNavDefaults.ts` NAV_SECTIONS updated to match: Smart Insights and Financial Health moved to the Analytics group, Planning Tools replaces Investment Tools in the Planning group.
+- `useNavDefaults.ts` NAV_SECTIONS updated to match: Smart Insights and Financial Health moved to the Analytics group, Planning Tools replaces Investment Tools in the Planning group, Retirement & Income hub added, Estate & Insurance replaces Life Planning.
+- A **Simple / Advanced** toggle button in the nav header (near the notification bell) provides a quick-access shortcut to the same toggle in Preferences → Navigation.
 - The Preferences "Display" tab reflects the correct groupings so users can hide/show items from the right section.
 
 ### Recharts Explicit Heights
