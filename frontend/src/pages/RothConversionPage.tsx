@@ -209,6 +209,7 @@ export const RothConversionPage = () => {
   const [expectedReturn, setExpectedReturn] = useState(saved.expectedReturn);
   const [yearsToProject, setYearsToProject] = useState(saved.yearsToProject);
   const [respectIrmaa, setRespectIrmaa] = useState<boolean>(saved.respectIrmaa);
+  const [assumedFutureRate, setAssumedFutureRate] = useState<string>("");
 
   const persist = useCallback(
     (
@@ -239,6 +240,7 @@ export const RothConversionPage = () => {
   const incomeNum = parseFloat(currentIncome) || 0;
   const returnNum = parseFloat(expectedReturn) || 7;
   const yearsNum = parseInt(yearsToProject) || 20;
+  const futureRateNum = assumedFutureRate ? parseFloat(assumedFutureRate) / 100 : undefined;
 
   const { data, isLoading, isError } = useQuery<RothConversionResponse>({
     queryKey: [
@@ -249,6 +251,7 @@ export const RothConversionPage = () => {
       returnNum,
       yearsNum,
       respectIrmaa,
+      futureRateNum,
     ],
     queryFn: () =>
       smartInsightsApi.getRothConversion({
@@ -258,6 +261,7 @@ export const RothConversionPage = () => {
         expected_return: returnNum / 100,
         years_to_project: yearsNum,
         respect_irmaa: respectIrmaa,
+        assumed_future_rate: futureRateNum,
       }),
     enabled: incomeNum > 0,
     placeholderData: (prev) => prev,
@@ -395,6 +399,23 @@ export const RothConversionPage = () => {
                     Cap conversions to avoid Medicare surcharges
                   </Text>
                 </HStack>
+              </FormControl>
+
+              <FormControl>
+                <Tooltip label="Your assumed future marginal tax rate in retirement — used to estimate long-term tax savings. Leave blank to use your current-year bracket as the best guess." hasArrow placement="top">
+                  <FormLabel fontSize="sm" cursor="help" textDecoration="underline dotted" display="inline-block">
+                    Future Tax Rate (%) <Text as="span" color="text.secondary" fontSize="xs">— optional override</Text>
+                  </FormLabel>
+                </Tooltip>
+                <NumberInput
+                  value={assumedFutureRate}
+                  onChange={(v) => setAssumedFutureRate(v)}
+                  min={0}
+                  max={60}
+                  step={1}
+                >
+                  <NumberInputField placeholder={`Default: current bracket`} />
+                </NumberInput>
               </FormControl>
             </SimpleGrid>
           </CardBody>

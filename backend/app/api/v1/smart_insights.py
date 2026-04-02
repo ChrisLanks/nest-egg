@@ -279,6 +279,7 @@ async def get_roth_conversion(
     expected_return: float = Query(0.07, ge=0.0, le=0.20),
     years_to_project: int = Query(20, ge=1, le=40),
     respect_irmaa: bool = Query(True, description="Cap conversions to avoid IRMAA tier crossings."),
+    assumed_future_rate: Optional[float] = Query(None, ge=0.0, le=1.0, description="Override assumed future marginal tax rate for savings estimate (0.0–1.0). Leave blank to use current-year rate."),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> RothConversionResponse:
@@ -310,6 +311,7 @@ async def get_roth_conversion(
         expected_return=expected_return,
         years_to_project=years_to_project,
         respect_irmaa=respect_irmaa,
+        assumed_future_rate=assumed_future_rate,
     )
 
     svc = RothConversionService()

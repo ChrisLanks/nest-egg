@@ -159,6 +159,13 @@ class RothConversionInput:
     None = use the bracket the user is currently in as the cap.
     """
 
+    assumed_future_rate: Optional[float] = None
+    """
+    Override the assumed future marginal rate for tax savings estimation.
+    None = use year-0 marginal rate (best-guess from user's current income).
+    Allows the user to model e.g. "I expect to be in the 32% bracket in retirement."
+    """
+
     respect_irmaa: bool = True
     """When True, cap conversions to avoid crossing IRMAA tier boundaries."""
 
@@ -322,7 +329,9 @@ class RothConversionService:
         # Tax savings estimate: Roth withdrawals are tax-free;
         # traditional withdrawals at the user's actual marginal rate
         year0_rate = _marginal_rate(taxable_0, year0_brackets)
-        future_marginal = max(year0_rate, float(TAX.FEDERAL_MARGINAL_RATE))
+        # Use user-provided future rate if given; otherwise best-guess from year-0 income.
+        # (No longer floors at 22% to avoid misleading low-income users.)
+        future_marginal = inp.assumed_future_rate if inp.assumed_future_rate is not None else year0_rate
         converted_after_growth = total_converted * (
             (1 + inp.expected_return) ** (inp.years_to_project / 2)
         )

@@ -82,6 +82,7 @@ export interface RothConversionParams {
   expected_return?: number;
   years_to_project?: number;
   respect_irmaa?: boolean;
+  assumed_future_rate?: number;
 }
 
 // ── Fund Fees ─────────────────────────────────────────────────────────────

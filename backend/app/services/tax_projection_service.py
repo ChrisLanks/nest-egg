@@ -255,8 +255,11 @@ class TaxProjectionService:
 
         tax_year = today.year
 
-        # Annualise income from YTD transactions
-        ytd_income = await self._ytd_income(organization_id, user_id, tax_year)
+        # Annualise income from YTD transactions.
+        # For married filing jointly, always aggregate the full household (org-level)
+        # so both spouses' income is included regardless of which user is selected.
+        income_user_id = None if filing_status == "married" else user_id
+        ytd_income = await self._ytd_income(organization_id, income_user_id, tax_year)
         days_elapsed = (today - date(tax_year, 1, 1)).days + 1
         import calendar
         days_in_year = 366 if calendar.isleap(tax_year) else 365
