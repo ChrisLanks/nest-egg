@@ -36,6 +36,20 @@ interface TaxInsightsData {
 const priorityColor = (priority: string): string =>
   priority === "action" ? "orange" : "blue";
 
+const categoryColor = (category: string): string => {
+  const map: Record<string, string> = {
+    dependent: "pink",
+    rental: "purple",
+    capital_gains: "teal",
+    deduction: "green",
+    rmd: "red",
+    roth_conversion: "cyan",
+    social_security: "yellow",
+    medicare: "blue",
+  };
+  return map[category] ?? "gray";
+};
+
 const TaxInsightsWidgetBase: React.FC = () => {
   const { data, isLoading, isError } = useQuery<TaxInsightsData>({
     queryKey: ["tax-insights-widget"],
@@ -103,9 +117,9 @@ const TaxInsightsWidgetBase: React.FC = () => {
         </HStack>
 
         <VStack align="stretch" spacing={3}>
-          {displayed.map((insight) => (
+          {displayed.map((insight, idx) => (
             <Box
-              key={insight.category}
+              key={`${insight.category}-${idx}`}
               p={2}
               borderRadius="md"
               bg={insight.priority === "action" ? "orange.50" : "gray.50"}
@@ -114,6 +128,13 @@ const TaxInsightsWidgetBase: React.FC = () => {
               }}
             >
               <HStack spacing={2} mb={1}>
+                <Badge
+                  colorScheme={categoryColor(insight.category)}
+                  fontSize="2xs"
+                  variant="subtle"
+                >
+                  {insight.category.replace(/_/g, " ")}
+                </Badge>
                 <Badge
                   colorScheme={priorityColor(insight.priority)}
                   fontSize="2xs"
