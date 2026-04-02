@@ -45,6 +45,8 @@ import {
   useBreakpointValue,
   Alert,
   AlertIcon,
+  Tooltip,
+  FormHelperText,
 } from "@chakra-ui/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, useState } from "react";
@@ -653,6 +655,12 @@ function CustomReportsTab() {
                   <option value="account">Account</option>
                   <option value="time">Time Period</option>
                 </Select>
+                <FormHelperText fontSize="xs">
+                  {groupBy === "category" && "Totals rolled up by spending category (e.g. Food, Rent, Entertainment)."}
+                  {groupBy === "merchant" && "Totals per store or payee — see exactly where your money is going."}
+                  {groupBy === "account" && "Breakdown by account — useful when you have multiple cards or bank accounts."}
+                  {groupBy === "time" && "Totals by week, month, or year — spot trends over time."}
+                </FormHelperText>
               </FormControl>
 
               <FormControl isRequired>
@@ -706,10 +714,18 @@ export default function ReportsPage() {
       </Box>
       <Tabs colorScheme="brand" variant="enclosed" px={6} index={tabIndex} onChange={handleTabChange}>
         <TabList>
-          <Tab fontSize="sm">Trends</Tab>
-          <Tab fontSize="sm">Year in Review</Tab>
-          <Tab fontSize="sm">Tax Deductible</Tab>
-          <Tab fontSize="sm">Custom Reports</Tab>
+          <Tooltip label="How your spending and income have changed over time — compare months or years side by side" openDelay={400} placement="bottom">
+            <Tab fontSize="sm">Trends</Tab>
+          </Tooltip>
+          <Tooltip label="A full-year summary: top merchants, biggest expense categories, and income vs. spending for the calendar year" openDelay={400} placement="bottom">
+            <Tab fontSize="sm">Year in Review</Tab>
+          </Tooltip>
+          <Tooltip label="All transactions marked as tax-deductible — useful for end-of-year filing or tracking donations and business expenses" openDelay={400} placement="bottom">
+            <Tab fontSize="sm">Tax Deductible</Tab>
+          </Tooltip>
+          <Tooltip label="Build your own charts and tables — pick a date range, group by category or merchant, and save reports to reuse" openDelay={400} placement="bottom">
+            <Tab fontSize="sm">Custom Reports</Tab>
+          </Tooltip>
         </TabList>
         <TabPanels>
           <TabPanel px={0}>

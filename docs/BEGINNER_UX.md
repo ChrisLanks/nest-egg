@@ -229,6 +229,7 @@ Advanced items checked against `showAdvancedNav` toggle (`nest-egg-show-advanced
 - `beginnerJargonFixes.test.ts` — 17 tests covering Transactions Pending tooltip + empty state (P), BudgetCard rollover tooltip + overage label (Q), SmartInsights rewording + category tooltips (R)
 - `beginnerDefinitions.test.ts` — 19 tests covering Net Worth/Assets/Liabilities tooltips (S), FinancialRatios score scale + entry prompt (T), DebtPayoff strategy badge labels (U)
 - `beginnerClarity.test.ts` — 18 tests covering Categories subtitle (V), Investments subtitle + expense ratio (W), AccountDetail tax treatment explanations (X), TaxProjection acronym expansions (Y)
+- `beginnerReportsRecurring.test.ts` — 16 tests covering ReportsPage tab tooltips (Z1), Group By helper text (Z2), RecurringTransactions plain-English subtitle + empty state (Z3)
 
 ---
 

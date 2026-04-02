@@ -563,7 +563,7 @@ export default function RecurringTransactionsPage() {
           <VStack align="start" spacing={1}>
             <Heading size="lg">Recurring Transactions & Subscriptions</Heading>
             <Text color="text.secondary">
-              Auto-detected patterns and subscription charges
+              Bills and subscriptions that repeat on a schedule — Netflix, rent, utilities, and similar charges detected automatically from your transaction history.
             </Text>
           </VStack>
           <HStack spacing={2}>
@@ -622,11 +622,11 @@ export default function RecurringTransactionsPage() {
               icon={FiRepeat}
               title={
                 isOtherUserView
-                  ? "This user has no recurring patterns detected yet"
-                  : "No recurring patterns detected yet"
+                  ? "No recurring transactions found for this user"
+                  : "No recurring transactions found yet"
               }
-              description="Automatically detect subscription payments, bills, and other recurring transactions in your history — or add one manually."
-              actionLabel="Detect Patterns Now"
+              description="Click below to scan your transaction history for bills, subscriptions, and charges that repeat on a regular schedule — or add one manually."
+              actionLabel="Scan for Recurring Charges"
               onAction={() => detectMutation.mutate()}
               showAction={canEdit}
             />
