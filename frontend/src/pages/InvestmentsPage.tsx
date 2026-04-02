@@ -756,6 +756,9 @@ export const InvestmentsPage = () => {
       <Container maxW="container.lg" py={8}>
         <VStack spacing={6} align="stretch">
           <Heading size="lg">Investments</Heading>
+          <Text color="text.secondary" mt={1} fontSize="sm">
+            Your portfolio at a glance — total value, growth, how your money is split, and the hidden annual fees (expense ratios) each fund charges.
+          </Text>
           <Card>
             <CardBody>
               <VStack spacing={6} py={6}>
@@ -767,7 +770,7 @@ export const InvestmentsPage = () => {
                   </Heading>
                   <Text color="text.secondary" textAlign="center" maxW="md">
                     {onboardingGoal === "investments"
-                      ? "You said you want to understand your investments — connect a brokerage, 401(k), or IRA to see your portfolio, expense ratios, and how your money is split."
+                      ? "You said you want to understand your investments — connect a brokerage, 401(k), or IRA to see your portfolio, how your money is split, and the annual fees each fund quietly charges (expense ratios)."
                       : "Connect a brokerage, 401(k), or IRA to see your complete investment picture in one place."}
                   </Text>
                 </VStack>

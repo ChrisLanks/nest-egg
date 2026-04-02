@@ -244,7 +244,7 @@ export const TaxProjectionPage = () => {
               <FormControl>
                 <FormLabel fontSize="xs">
                   State
-                  <InfoTip label="Select your state to include a state income tax estimate alongside the federal estimate. Uses simplified effective rates at ~$75k AGI. No-income-tax states (FL, TX, WA, etc.) show $0." />
+                  <InfoTip label="Select your state to include a state income tax estimate alongside the federal estimate. Uses simplified effective rates at ~$75k AGI (Adjusted Gross Income — your total income minus certain deductions). No-income-tax states (FL, TX, WA, etc.) show $0." />
                 </FormLabel>
                 <Select
                   size="sm"
@@ -418,7 +418,7 @@ export const TaxProjectionPage = () => {
                     <HStack justify="space-between" w="full">
                       <Text color="text.secondary">
                         Ordinary Income
-                        <InfoTip label="Your projected annual W-2 or salaried income, annualized from your year-to-date transactions." />
+                        <InfoTip label="Your projected annual salary or wages (W-2 income — the form your employer sends at year-end showing what you earned and what was withheld), annualized from your year-to-date transactions." />
                       </Text>
                       <Text fontWeight="semibold">
                         {fmt(data.ordinary_income)}
@@ -652,7 +652,7 @@ export const TaxProjectionPage = () => {
             <HStack justify="space-between">
               <Heading size="sm">
                 W-4 Withholding Check
-                <InfoTip label="For W-2 employees: enter your salary and year-to-date federal tax withheld to see if you're on track. If you're under-withheld, we'll show the extra amount to add on your W-4 Line 4(c)." />
+                <InfoTip label="For salaried employees (W-2 workers): enter your salary and year-to-date federal tax withheld to see if you're on track. W-4 is the form you file with your employer to set how much tax to withhold from each paycheck. If you're under-withheld, we'll show the extra amount to add on W-4 Line 4(c)." />
               </Heading>
               <Icon as={showW4 ? FiChevronUp : FiChevronDown} />
             </HStack>

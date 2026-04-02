@@ -1239,6 +1239,13 @@ export const AccountDetailPage = () => {
                       <option value="tax_free">Tax-Free (HSA/529)</option>
                     </Select>
                   </Tooltip>
+                  <Text fontSize="xs" color="text.muted" mt={1}>
+                    {account.tax_treatment === "pre_tax" && "Traditional — contributions were tax-deductible; withdrawals in retirement are taxed as income. (401k, Traditional IRA)"}
+                    {account.tax_treatment === "roth" && "Roth — contributions were after-tax; qualified withdrawals in retirement are completely tax-free. (Roth IRA, Roth 401k)"}
+                    {account.tax_treatment === "taxable" && "Taxable — no special tax treatment. Gains are taxed each year. (Brokerage, checking, savings)"}
+                    {account.tax_treatment === "tax_free" && "Tax-free growth — contributions may be tax-deductible and withdrawals for qualified expenses are tax-free. (HSA, 529)"}
+                    {!account.tax_treatment && "Affects how this account is counted in your tax projections and retirement planning."}
+                  </Text>
                   {account.account_source === "mx" &&
                     !account.tax_treatment && (
                       <Text fontSize="xs" color="orange.500" mt={1}>

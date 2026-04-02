@@ -440,8 +440,7 @@ const CategoriesTab = () => {
         <Box>
           <Heading size="lg">Categories</Heading>
           <Text color="text.secondary" mt={2}>
-            Manage custom categories with hierarchical organization (max 2
-            levels). Separate from labels.
+            Group transactions by topic — like "Groceries" or "Rent". You can nest sub-categories under a parent (e.g. Food → Dining Out). Categories are different from labels, which are free-form tags you can add to any transaction.
           </Text>
         </Box>
         <Button
