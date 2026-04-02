@@ -757,7 +757,9 @@ export const InvestmentsPage = () => {
         <VStack spacing={6} align="stretch">
           <Heading size="lg">Investments</Heading>
           <Text color="text.secondary" mt={1} fontSize="sm">
-            Your portfolio at a glance — total value, growth, how your money is split, and the hidden annual fees (expense ratios) each fund charges.
+            {localStorage.getItem("nest-egg-show-advanced-nav") === "true"
+              ? "Portfolio overview — value, allocation, gain/loss, and expense ratios."
+              : "Your portfolio at a glance — total value, growth, how your money is split, and the hidden annual fees (expense ratios) each fund charges."}
           </Text>
           <Card>
             <CardBody>

@@ -563,7 +563,9 @@ export default function RecurringTransactionsPage() {
           <VStack align="start" spacing={1}>
             <Heading size="lg">Recurring Transactions & Subscriptions</Heading>
             <Text color="text.secondary">
-              Bills and subscriptions that repeat on a schedule — Netflix, rent, utilities, and similar charges detected automatically from your transaction history.
+              {localStorage.getItem("nest-egg-show-advanced-nav") === "true"
+                ? "Recurring charges and subscriptions detected from your transaction history."
+                : "Bills and subscriptions that repeat on a schedule — Netflix, rent, utilities, and similar charges detected automatically from your transaction history."}
             </Text>
           </VStack>
           <HStack spacing={2}>

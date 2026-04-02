@@ -122,7 +122,9 @@ export const CashFlowForecastPage = () => {
       <Box pt={4} px={6}>
         <Heading size="lg" mb={1}>Cash Flow Forecast</Heading>
         <Text color="text.secondary" mb={3} fontSize="sm">
-          Will you run low on cash? See your projected checking account balance over the next 30, 60, and 90 days based on your bills and income.
+          {localStorage.getItem("nest-egg-show-advanced-nav") === "true"
+            ? "30/60/90-day projected account balance based on recurring transactions."
+            : "Will you run low on cash? See your projected checking account balance over the next 30, 60, and 90 days based on your bills and income."}
         </Text>
         <Alert status="info" borderRadius="md">
           <AlertIcon />
@@ -149,7 +151,9 @@ export const CashFlowForecastPage = () => {
           <Box>
             <Heading size="lg">Cash Flow Forecast</Heading>
             <Text color="text.secondary" mt={1} fontSize="sm">
-              Will you run low on cash? See your projected checking account balance over the next 30, 60, and 90 days based on your bills and income.
+              {localStorage.getItem("nest-egg-show-advanced-nav") === "true"
+                ? "30/60/90-day projected account balance based on recurring transactions."
+                : "Will you run low on cash? See your projected checking account balance over the next 30, 60, and 90 days based on your bills and income."}
             </Text>
           </Box>
           <ButtonGroup size="sm" isAttached variant="outline">

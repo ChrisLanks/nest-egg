@@ -185,6 +185,8 @@ export default function BudgetsPage() {
   const filteredEmpty =
     activeBudgets.length === 0 && inactiveBudgets.length === 0;
 
+  const isAdvanced = localStorage.getItem("nest-egg-show-advanced-nav") === "true";
+
   return (
     <Container maxW="container.xl" py={8}>
       <VStack align="stretch" spacing={6}>
@@ -196,7 +198,9 @@ export default function BudgetsPage() {
               <HelpHint hint={helpContent.budgets.period} />
             </Heading>
             <Text color="text.secondary">
-              Spending limits by category — alerts you before you overspend. Budgets reset each period (monthly by default). Unused amounts don't carry over unless you turn on rollover for that budget.
+              {isAdvanced
+                ? "Spending limits by category."
+                : "Spending limits by category — alerts you before you overspend. Budgets reset each period (monthly by default). Unused amounts don't carry over unless you turn on rollover for that budget."}
             </Text>
           </VStack>
           <Tooltip

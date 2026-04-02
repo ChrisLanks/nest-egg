@@ -440,7 +440,9 @@ const CategoriesTab = () => {
         <Box>
           <Heading size="lg">Categories</Heading>
           <Text color="text.secondary" mt={2}>
-            Group transactions by topic — like "Groceries" or "Rent". You can nest sub-categories under a parent (e.g. Food → Dining Out). Categories are different from labels, which are free-form tags you can add to any transaction.
+            {localStorage.getItem("nest-egg-show-advanced-nav") === "true"
+              ? "Organize transactions by category and sub-category. Separate from labels."
+              : "Group transactions by topic — like \"Groceries\" or \"Rent\". You can nest sub-categories under a parent (e.g. Food → Dining Out). Categories are different from labels, which are free-form tags you can add to any transaction."}
           </Text>
         </Box>
         <Button

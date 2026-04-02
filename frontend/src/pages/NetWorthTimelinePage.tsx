@@ -256,7 +256,9 @@ export default function NetWorthTimelinePage() {
       <Box px={6} pt={4} mb={2}>
         <Heading size="lg">Net Worth Timeline</Heading>
         <Text color="text.secondary" mt={1} fontSize="sm">
-          Historical breakdown and future forecast of your net worth. Net Worth = Assets (what you own) − Liabilities (what you owe). We record a daily snapshot so you can track progress over time.
+          {localStorage.getItem("nest-egg-show-advanced-nav") === "true"
+            ? "Historical and forecast breakdown of assets, liabilities, and net worth."
+            : "Historical breakdown and future forecast of your net worth. Net Worth = Assets (what you own) − Liabilities (what you owe). We record a daily snapshot so you can track progress over time."}
         </Text>
       </Box>
       <Tabs colorScheme="brand" variant="enclosed" px={6} index={tabIndex} onChange={handleTabChange}>
