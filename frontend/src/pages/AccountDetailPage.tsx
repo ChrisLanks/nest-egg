@@ -2281,7 +2281,7 @@ export const AccountDetailPage = () => {
                 <>
                   <HStack spacing={4} align="end" wrap="wrap">
                     <FormControl maxW="160px">
-                      <FormLabel fontSize="sm">
+                      <FormLabel fontSize="sm" display="flex" alignItems="center">
                         Employer Match (%)
                         <HelpHint hint={helpContent.accounts.employerMatch} />
                       </FormLabel>

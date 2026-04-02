@@ -70,9 +70,7 @@ export const InvestmentToolsPage = () => {
       <Box px={6} mb={2}>
         <Heading size="lg">Calculators</Heading>
         <Text color="text.secondary" mt={1} fontSize="sm">
-          FIRE progress, loan analysis, HSA strategy, employer match optimization,
-          what-if scenarios, bond ladder builder, equity compensation modeling,
-          tax-equivalent yield, asset location, and cost basis aging.
+          Model what-if scenarios, check if you're on track to retire early, optimize your HSA and employer match, and run advanced analysis on loans, bonds, equity compensation, and taxes — all based on your actual account data.
         </Text>
       </Box>
       <Tabs colorScheme="brand" variant="enclosed" px={6} index={tabIndex} onChange={handleTabChange}>

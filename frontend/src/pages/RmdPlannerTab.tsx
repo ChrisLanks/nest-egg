@@ -249,36 +249,46 @@ export const RmdPlannerTab = () => {
           )}
 
           {/* Projection table */}
-          <Box overflowX="auto">
-            <Table size="sm" variant="simple">
-              <Thead>
-                <Tr>
-                  <Th>Year</Th>
-                  <Th>Age</Th>
-                  <ChakraTooltip label="Required Minimum Distribution — account balance ÷ IRS Uniform Lifetime Table factor. Does not change with filing status." hasArrow placement="top">
-                    <Th isNumeric cursor="default">Annual RMD</Th>
-                  </ChakraTooltip>
-                  <ChakraTooltip label="Estimated tax on the RMD based on your filing status and other income using IRS marginal brackets. Changes when filing status changes." hasArrow placement="top">
-                    <Th isNumeric cursor="default">Est. Tax</Th>
-                  </ChakraTooltip>
-                  <ChakraTooltip label="Marginal tax rate applied to the RMD portion of your income." hasArrow placement="top">
-                    <Th isNumeric cursor="default">Eff. Rate</Th>
-                  </ChakraTooltip>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {data.projection.filter((pt) => pt.total_rmd > 0).slice(0, 20).map((pt) => (
-                  <Tr key={pt.year}>
-                    <Td>{pt.year}</Td>
-                    <Td>{pt.age}</Td>
-                    <Td isNumeric>{fmt(pt.total_rmd)}</Td>
-                    <Td isNumeric color="red.500">{fmt(pt.estimated_tax_on_rmd)}</Td>
-                    <Td isNumeric>{(pt.effective_rate_on_rmd * 100).toFixed(1)}%</Td>
+          {data.projection.filter((pt) => pt.total_rmd > 0).length === 0 ? (
+            <Alert status="info" variant="subtle">
+              <AlertIcon />
+              <AlertDescription fontSize="sm">
+                No RMDs fall within the {data.projection.length}-year projection window. RMDs begin at age {data.rmd_start_age}
+                {data.current_age ? ` — ${data.years_until_rmd} year${data.years_until_rmd !== 1 ? "s" : ""} away` : ""}. Increase "Years to Project" above to see future RMD amounts.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <Box overflowX="auto">
+              <Table size="sm" variant="simple">
+                <Thead>
+                  <Tr>
+                    <Th>Year</Th>
+                    <Th>Age</Th>
+                    <ChakraTooltip label="Required Minimum Distribution — account balance ÷ IRS Uniform Lifetime Table factor. Does not change with filing status." hasArrow placement="top">
+                      <Th isNumeric cursor="default">Annual RMD</Th>
+                    </ChakraTooltip>
+                    <ChakraTooltip label="Estimated tax on the RMD based on your filing status and other income using IRS marginal brackets. Changes when filing status changes." hasArrow placement="top">
+                      <Th isNumeric cursor="default">Est. Tax</Th>
+                    </ChakraTooltip>
+                    <ChakraTooltip label="Marginal tax rate applied to the RMD portion of your income." hasArrow placement="top">
+                      <Th isNumeric cursor="default">Eff. Rate</Th>
+                    </ChakraTooltip>
                   </Tr>
-                ))}
-              </Tbody>
-            </Table>
-          </Box>
+                </Thead>
+                <Tbody>
+                  {data.projection.filter((pt) => pt.total_rmd > 0).slice(0, 20).map((pt) => (
+                    <Tr key={pt.year}>
+                      <Td>{pt.year}</Td>
+                      <Td>{pt.age}</Td>
+                      <Td isNumeric>{fmt(pt.total_rmd)}</Td>
+                      <Td isNumeric color="red.500">{fmt(pt.estimated_tax_on_rmd)}</Td>
+                      <Td isNumeric>{(pt.effective_rate_on_rmd * 100).toFixed(1)}%</Td>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+            </Box>
+          )}
         </>
       )}
     </VStack>

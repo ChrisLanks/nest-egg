@@ -155,6 +155,7 @@ def _build_item(
     user_name = getattr(account, "_user_name", None) or "Unknown"
 
     # Action string
+    has_match_config = match_pct is not None or match_limit_pct is not None
     if is_capturing_full_match is True:
         action = "Full match captured \u2713"
     elif is_capturing_full_match is False and required_employee_pct is not None:
@@ -164,6 +165,9 @@ def _build_item(
             f"Verify you're contributing at least {required_employee_pct:.0f}% "
             f"to capture ${annual_match_value:,.0f}/yr match"
         )
+    elif has_match_config and annual_salary is None:
+        # Match % set but no salary — can't compute dollar value yet
+        action = "Add your annual salary to this account to calculate your employer match value"
     else:
         action = "No employer match configured — update account details"
 

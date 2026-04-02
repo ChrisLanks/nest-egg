@@ -29,6 +29,7 @@ import {
   StatLabel,
   StatNumber,
   Text,
+  Tooltip,
   VStack,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
@@ -153,7 +154,9 @@ export const BackdoorRothTab = () => {
           {/* Summary cards */}
           <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4}>
             <Stat>
-              <StatLabel fontSize="xs">IRA Contribution Headroom</StatLabel>
+              <Tooltip label="How much more you can contribute to an IRA this year before hitting the IRS limit ($7,000 for 2026; $8,000 if age 50+). Unused room cannot be carried forward to next year." hasArrow placement="top">
+                <StatLabel fontSize="xs" cursor="help" textDecoration="underline dotted" display="inline-block">IRA Contribution Headroom</StatLabel>
+              </Tooltip>
               <StatNumber fontSize="lg">{fmt(data.ira_contribution_headroom)}</StatNumber>
             </Stat>
             <Stat>
@@ -165,7 +168,9 @@ export const BackdoorRothTab = () => {
               <StatNumber fontSize="lg">{fmt(data.backdoor_roth.total_ira_balance)}</StatNumber>
             </Stat>
             <Stat>
-              <StatLabel fontSize="xs">Mega Backdoor Available</StatLabel>
+              <Tooltip label="After-tax 401(k) contributions that can be converted to Roth beyond the standard $23,500 limit — requires your plan to allow after-tax contributions and in-service rollovers." hasArrow placement="top">
+                <StatLabel fontSize="xs" cursor="help" textDecoration="underline dotted" display="inline-block">Mega Backdoor Available</StatLabel>
+              </Tooltip>
               <StatNumber fontSize="lg">{fmt(data.mega_backdoor.available_amount)}</StatNumber>
             </Stat>
           </SimpleGrid>

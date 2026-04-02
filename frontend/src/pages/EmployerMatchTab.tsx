@@ -106,11 +106,13 @@ export const EmployerMatchTab = () => {
         </Alert>
       )}
 
-      {data && data.accounts.length > 0 && data.accounts.some((a) => a.action.includes("No employer match")) && (
+      {data && data.accounts.length > 0 && data.accounts.every((a) => a.action.includes("No employer match") || a.action.includes("annual salary")) && (
         <Alert status="info">
           <AlertIcon />
           <AlertDescription fontSize="sm">
-            Employer match details are set on each account. Edit a 401(k) or 403(b) account to add match percentages.
+            {data.accounts.some((a) => a.action.includes("annual salary"))
+              ? "Match percentages are configured. Add your annual salary to each account to calculate your full employer match value."
+              : "No employer match details found. Edit each 401(k) or 403(b) account to add match percentages and salary."}
           </AlertDescription>
         </Alert>
       )}
@@ -258,11 +260,19 @@ export const EmployerMatchTab = () => {
                     <AlertDescription fontSize="sm">
                       {account.action.includes("No employer match") ? (
                         <>
-                          To enable analysis,{" "}
+                          No employer match configured.{" "}
                           <Link as={RouterLink} to="/accounts" color="blue.600" textDecoration="underline">
-                            edit this account
+                            Edit this account
                           </Link>{" "}
-                          and add employer match details (match %, salary cap %).
+                          to add match details (match %, salary cap %).
+                        </>
+                      ) : account.action.includes("annual salary") ? (
+                        <>
+                          {account.action.split("to this account")[0]}to this account —{" "}
+                          <Link as={RouterLink} to="/accounts" color="blue.600" textDecoration="underline">
+                            edit the account
+                          </Link>{" "}
+                          to add it.
                         </>
                       ) : (
                         account.action
