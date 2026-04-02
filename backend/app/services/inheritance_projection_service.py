@@ -182,7 +182,7 @@ def project_inheritance(
     # 1. Fixed 4% withdrawal
     scenario_4pct = _run(
         "4% Rule (fixed real spending)",
-        annual_withdrawal=initial_portfolio * 0.04,
+        annual_withdrawal=initial_portfolio * FIRE.DEFAULT_WITHDRAWAL_RATE,
     )
 
     # 2. Minimum — spend only what's needed beyond income (floor = 0 from portfolio)
@@ -231,7 +231,7 @@ def project_inheritance(
     else:
         scenario_legacy = _run(
             "Legacy Target (not specified — using 4% rule)",
-            annual_withdrawal=initial_portfolio * 0.04,
+            annual_withdrawal=initial_portfolio * FIRE.DEFAULT_WITHDRAWAL_RATE,
         )
 
     data_note = (

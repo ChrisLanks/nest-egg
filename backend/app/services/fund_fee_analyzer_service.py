@@ -32,6 +32,8 @@ import logging
 from dataclasses import asdict, dataclass
 from typing import Optional, Tuple
 
+from app.constants.financial import FIRE
+
 logger = logging.getLogger(__name__)
 
 # Benchmark expense ratio: Vanguard Total Stock Market ETF (VTI) at 0.03 %
@@ -260,7 +262,7 @@ _HIGH_COST_THRESHOLD = 0.005  # 0.50 %
 # Flag funds above this as "extreme cost" (actively managed)
 _EXTREME_COST_THRESHOLD = 0.01  # 1.00 %
 # Assumed annual return *before* fees for drag modelling
-_BASE_RETURN = 0.07
+_BASE_RETURN = FIRE.DEFAULT_EXPECTED_RETURN
 
 
 @dataclass

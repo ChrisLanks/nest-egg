@@ -61,8 +61,8 @@ async def optimize_deductions(
 
     salt_capped = min(request.state_local_taxes, effective_salt_cap)
 
-    # Medical deductible portion: only amount exceeding 7.5% of AGI
-    medical_deductible = max(0, request.medical_expenses - request.agi * 0.075) if request.agi > 0 else 0
+    # Medical deductible portion: only amount exceeding AGI floor (IRC §213 — 7.5%)
+    medical_deductible = max(0, request.medical_expenses - request.agi * float(TAX.MEDICAL_DEDUCTION_AGI_FLOOR)) if request.agi > 0 else 0
 
     itemized_total = (
         salt_capped

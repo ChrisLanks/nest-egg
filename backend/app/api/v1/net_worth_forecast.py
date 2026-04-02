@@ -59,10 +59,10 @@ def _project(
 
 @router.get("/net-worth-forecast", response_model=NetWorthForecastResponse)
 async def get_net_worth_forecast(
-    retirement_age: int = Query(default=67, ge=40, le=90),
-    annual_return: float = Query(default=0.07, ge=0.0, le=0.20),
+    retirement_age: int = Query(default=RETIREMENT.DEFAULT_RETIREMENT_AGE, ge=40, le=90),
+    annual_return: float = Query(default=FIRE.DEFAULT_EXPECTED_RETURN, ge=0.0, le=0.20),
     annual_contribution: Optional[float] = Query(default=None, ge=0),
-    inflation_rate: float = Query(default=0.03, ge=0.0, le=0.15),
+    inflation_rate: float = Query(default=FIRE.DEFAULT_INFLATION, ge=0.0, le=0.15),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

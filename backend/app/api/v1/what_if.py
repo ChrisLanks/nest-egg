@@ -29,8 +29,8 @@ class MortgageVsInvestRequest(BaseModel):
     interest_rate: float = Field(..., gt=0, description="Annual interest rate as decimal, e.g. 0.065")
     monthly_payment: float = Field(..., gt=0)
     extra_monthly_payment: float = Field(0, ge=0)
-    expected_investment_return: float = Field(0.08, description="Expected annual return")
-    tax_bracket: float = Field(0.22, description="Marginal tax bracket as decimal")
+    expected_investment_return: float = Field(FIRE.DEFAULT_EXPECTED_RETURN, description="Expected annual return")
+    tax_bracket: float = Field(float(TAX.FEDERAL_MARGINAL_RATE), description="Marginal tax bracket as decimal")
 
 
 class MortgageVsInvestResponse(BaseModel):
@@ -355,7 +355,7 @@ class EarlyRetirementRequest(BaseModel):
     current_savings: float = Field(..., ge=0)
     annual_savings: float = Field(0, ge=0, description="Annual savings contribution")
     annual_expenses: float = Field(..., gt=0)
-    expected_return: float = Field(0.07, description="Expected annual return")
+    expected_return: float = Field(FIRE.DEFAULT_EXPECTED_RETURN, description="Expected annual return")
     ss_benefit_at_62: float = Field(0, ge=0, description="Estimated SS monthly benefit at 62")
 
 

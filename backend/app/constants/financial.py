@@ -516,6 +516,10 @@ class TAX:
     LTCG_BRACKETS_SINGLE: List[Tuple[float, float]] = _d["LTCG_BRACKETS_SINGLE"]
     LTCG_BRACKETS_MARRIED: List[Tuple[float, float]] = _d["LTCG_BRACKETS_MARRIED"]
 
+    # Medical expense deduction floor — IRC §213(a): only expenses exceeding
+    # 7.5% of AGI are deductible (permanently set at 7.5% by the 2017 TCJA).
+    MEDICAL_DEDUCTION_AGI_FLOOR = Decimal("0.075")
+
     # Net Investment Income Tax (Obamacare surtax) — thresholds not indexed for inflation
     NII_SURTAX_RATE = 0.038  # 3.8% on investment income above MAGI threshold
     NII_THRESHOLD_SINGLE = 200_000
