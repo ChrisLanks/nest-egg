@@ -47,12 +47,13 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FiInfo } from "react-icons/fi";
 import {
   financialPlanningApi,
   type SSClaimingParams,
 } from "../api/financialPlanning";
+import api from "../services/api";
 import { useUserView } from "../contexts/UserViewContext";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 
@@ -90,7 +91,8 @@ export const SSClaimingPage = () => {
   const { selectedUserId } = useUserView();
 
   // Form state — persisted across page refreshes
-  const [salary, setSalary] = useLocalStorage("ss-salary", "80000");
+  // Salary and retirementAge defaults seeded from /settings/financial-defaults
+  const [salary, setSalary] = useLocalStorage("ss-salary", "");
   const [birthYear, setBirthYear] = useLocalStorage(
     "ss-birth-year",
     String(CURRENT_YEAR - 58),
@@ -103,8 +105,24 @@ export const SSClaimingPage = () => {
   const [spousePia, setSpousePia] = useLocalStorage("ss-spouse-pia", "");
   const [plannedRetirementAge, setPlannedRetirementAge] = useLocalStorage(
     "ss-planned-retirement-age",
-    "65",
+    "",
   );
+
+  // Seed defaults from backend when no localStorage value exists
+  useEffect(() => {
+    const hasSalary = (localStorage.getItem("ss-salary") ?? "").length > 0;
+    const hasRetAge = (localStorage.getItem("ss-planned-retirement-age") ?? "").length > 0;
+    if (hasSalary && hasRetAge) return;
+    api.get("/settings/financial-defaults").then((r) => {
+      const d = r.data;
+      if (!hasSalary) setSalary(String(d.default_annual_spending ?? 80000));
+      if (!hasRetAge) setPlannedRetirementAge(String(d.default_retirement_age ?? 67));
+    }).catch(() => {
+      if (!hasSalary) setSalary("80000");
+      if (!hasRetAge) setPlannedRetirementAge("67");
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // Auto-submit on load if persisted salary exists (returning users see results immediately)
   const [submitted, setSubmitted] = useState(
     () => (parseFloat(localStorage.getItem("ss-salary") ?? "") || 0) > 0,

@@ -28,8 +28,9 @@ import {
   Badge,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { fireApi, type FireMetricsResponse } from "../api/fire";
+import api from "../services/api";
 import { useUserView } from "../contexts/UserViewContext";
 import HelpHint from "../components/HelpHint";
 import { helpContent } from "../constants/helpContent";
@@ -40,14 +41,16 @@ function loadAssumptions(): {
   withdrawalRate: string;
   expectedReturn: string;
   retirementAge: string;
+  _fromStorage: boolean;
 } {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) return { ...JSON.parse(raw), _fromStorage: true };
   } catch {
     /* ignore */
   }
-  return { withdrawalRate: "4", expectedReturn: "7", retirementAge: "65" };
+  // Fallback defaults — overridden by /settings/financial-defaults at runtime
+  return { withdrawalRate: "4", expectedReturn: "7", retirementAge: "65", _fromStorage: false };
 }
 
 const formatCurrency = (amount: number) =>
@@ -93,6 +96,18 @@ export const FireMetricsPage = () => {
   const [withdrawalRate, setWithdrawalRate] = useState(saved.withdrawalRate);
   const [expectedReturn, setExpectedReturn] = useState(saved.expectedReturn);
   const [retirementAge, setRetirementAge] = useState(saved.retirementAge);
+
+  // Seed defaults from backend when no localStorage value exists
+  useEffect(() => {
+    if (saved._fromStorage) return;
+    api.get("/settings/financial-defaults").then((r) => {
+      const d = r.data;
+      setWithdrawalRate(String(Math.round((d.default_withdrawal_rate ?? 0.04) * 100)));
+      setExpectedReturn(String(Math.round((d.default_expected_return ?? 0.07) * 100)));
+      setRetirementAge(String(d.default_retirement_age ?? 67));
+    }).catch(() => {/* keep hardcoded fallback */});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const persist = useCallback((wr: string, er: string, ra: string) => {
     try {
