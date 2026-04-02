@@ -231,6 +231,7 @@ Advanced items checked against `showAdvancedNav` toggle (`nest-egg-show-advanced
 - `beginnerClarity.test.ts` — 18 tests covering Categories subtitle (V), Investments subtitle + expense ratio (W), AccountDetail tax treatment explanations (X), TaxProjection acronym expansions (Y)
 - `beginnerReportsRecurring.test.ts` — 16 tests covering ReportsPage tab tooltips (Z1), Group By helper text (Z2), RecurringTransactions plain-English subtitle + empty state (Z3)
 - `beginnerStatusGrade.test.ts` — 11 tests covering FinancialRatios visible grade label (AA), Budgets rollover/reset subtitle (AB), Transactions Pending lifecycle tooltip (AC)
+- `beginnerNetWorth.test.ts` — 7 tests covering NetWorthTimeline subtitle equation + daily recording explanation + plain-English empty state (AD)
 
 ---
 

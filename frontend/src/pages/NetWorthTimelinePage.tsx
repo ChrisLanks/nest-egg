@@ -256,7 +256,7 @@ export default function NetWorthTimelinePage() {
       <Box px={6} pt={4} mb={2}>
         <Heading size="lg">Net Worth Timeline</Heading>
         <Text color="text.secondary" mt={1} fontSize="sm">
-          Historical breakdown and future forecast of your net worth.
+          Historical breakdown and future forecast of your net worth. Net Worth = Assets (what you own) − Liabilities (what you owe). We record a daily snapshot so you can track progress over time.
         </Text>
       </Box>
       <Tabs colorScheme="brand" variant="enclosed" px={6} index={tabIndex} onChange={handleTabChange}>
@@ -422,10 +422,10 @@ export default function NetWorthTimelinePage() {
               >
                 <VStack>
                   <Text color="text.muted">
-                    No net worth snapshots found for this period.
+                    No net worth data found for this period.
                   </Text>
                   <Text fontSize="sm" color="text.muted">
-                    Snapshots are recorded daily. Check back after tomorrow.
+                    Your net worth is recorded once per day automatically. Check back tomorrow to see your first data point.
                   </Text>
                 </VStack>
               </Box>
