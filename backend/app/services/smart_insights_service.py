@@ -28,8 +28,8 @@ from uuid import UUID
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.constants.financial import MEDICARE, RETIREMENT, TAX
-from app.models.account import Account, AccountType
+from app.constants.financial import CRYPTO_TAX, MEDICARE, RENTAL, RETIREMENT, TAX
+from app.models.account import Account, AccountType, RentalType
 from app.models.budget import Budget, BudgetPeriod
 from app.models.holding import Holding
 from app.models.transaction import Transaction
@@ -51,6 +51,8 @@ INSIGHT_HSA_OPPORTUNITY = "hsa_opportunity"
 INSIGHT_NET_WORTH_BENCHMARK = "net_worth_benchmark"
 INSIGHT_SPENDING_ANOMALY = "spending_anomaly"
 INSIGHT_BUDGET_OVERRUN = "budget_overrun"
+INSIGHT_STR_OPPORTUNITY = "str_opportunity"
+INSIGHT_CRYPTO_TLH = "crypto_tlh"
 
 # ── Account type groupings ─────────────────────────────────────────────────
 LIQUID_ACCOUNT_TYPES = frozenset(
@@ -211,6 +213,8 @@ class SmartInsightsService:
             self._check_net_worth_benchmark(accounts, account_ids, user_birthdate),
             self._check_spending_anomaly(account_ids),
             self._check_budget_overrun(organization_id, user_id, account_ids),
+            self._check_str_opportunity(accounts),
+            self._check_crypto_tlh(accounts, account_ids),
         ]
 
         insights: list[_Insight] = []
@@ -964,4 +968,96 @@ class SmartInsightsService:
             priority_score=min(80, 50 + (overrun / max(worst_limit, 1)) * 100),
             amount=round(overrun, 2),
             amount_label="Projected budget overrun",
+        )
+
+    def _check_str_opportunity(self, accounts: list[Account]) -> Optional[_Insight]:
+        """Flag STR loophole opportunity when user has short-term rental accounts.
+
+        Under IRC §469, short-term rentals (avg stay ≤7 days) with material
+        participation are NOT passive activities — losses can offset ordinary income.
+        Only fires when RENTAL.STR_LOOPHOLE_ACTIVE is True.
+        """
+        if not RENTAL.STR_LOOPHOLE_ACTIVE:
+            return None
+
+        str_accounts = [
+            a for a in accounts
+            if getattr(a, "rental_type", None) == RentalType.SHORT_TERM_RENTAL
+        ]
+        if not str_accounts:
+            return None
+
+        count = len(str_accounts)
+        return _Insight(
+            insight_type=INSIGHT_STR_OPPORTUNITY,
+            title=f"STR tax loophole available on {count} rental{'s' if count > 1 else ''}",
+            message=(
+                f"You have {count} short-term rental{'s' if count > 1 else ''} (avg stay ≤7 days). "
+                f"Under IRC §469, STRs with material participation are NOT passive activities — "
+                f"rental losses can offset W-2 and other ordinary income without the $25,000 "
+                f"passive loss cap. Track hours carefully to document material participation "
+                f"(500+ hrs/year or >50% of total work hours)."
+            ),
+            action="Confirm material participation and consult your CPA about deducting STR losses",
+            priority="high",
+            category="tax",
+            icon="🏠",
+            priority_score=72.0,
+        )
+
+    async def _check_crypto_tlh(
+        self, accounts: list[Account], account_ids: list[UUID]
+    ) -> Optional[_Insight]:
+        """Flag crypto tax-loss harvesting opportunity.
+
+        Crypto is property under IRC §1221 — the wash-sale rule (IRC §1091) does NOT
+        apply. Losses can be harvested and the same coin repurchased immediately.
+        Only fires when CRYPTO_TAX.IS_PROPERTY is True and unrealized losses exist.
+        """
+        if not CRYPTO_TAX.IS_PROPERTY:
+            return None
+
+        crypto_accounts = [a for a in accounts if a.account_type == AccountType.CRYPTO]
+        if not crypto_accounts:
+            return None
+
+        crypto_ids = [a.id for a in crypto_accounts]
+        result = await self.db.execute(
+            select(
+                func.sum(Holding.current_total_value).label("market_value"),
+                func.sum(Holding.total_cost_basis).label("cost_basis"),
+            ).where(
+                and_(
+                    Holding.account_id.in_(crypto_ids),
+                    Holding.current_total_value > 0,
+                    Holding.total_cost_basis.isnot(None),
+                    Holding.total_cost_basis > 0,
+                )
+            )
+        )
+        row = result.one_or_none()
+        if not row or not row.market_value:
+            return None
+
+        unrealized_loss = float(row.cost_basis or 0) - float(row.market_value or 0)
+        if unrealized_loss < 500:
+            return None
+
+        return _Insight(
+            insight_type=INSIGHT_CRYPTO_TLH,
+            title=f"${unrealized_loss:,.0f} in crypto losses available to harvest",
+            message=(
+                f"Your crypto holdings have ~${unrealized_loss:,.0f} in unrealized losses. "
+                f"Crypto is treated as property (IRC §1221), so the wash-sale rule "
+                f"(IRC §1091) does NOT apply — you can sell at a loss and immediately "
+                f"repurchase the same coin. Harvested losses offset capital gains or "
+                f"up to $3,000/year of ordinary income."
+            ),
+            action="Review crypto holdings for tax-loss harvesting before year-end",
+            priority="medium",
+            category="tax",
+            icon="₿",
+            priority_score=min(68, 40 + unrealized_loss / 500),
+            amount=round(unrealized_loss, 2),
+            amount_label="Harvestable crypto loss",
         )
