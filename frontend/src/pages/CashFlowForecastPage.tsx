@@ -120,17 +120,20 @@ export const CashFlowForecastPage = () => {
   if (!forecast || forecast.length === 0) {
     return (
       <Box pt={4} px={6}>
-        <Heading size="lg" mb={2}>Cash Flow Forecast</Heading>
+        <Heading size="lg" mb={1}>Cash Flow Forecast</Heading>
+        <Text color="text.secondary" mb={3} fontSize="sm">
+          Will you run low on cash? See your projected checking account balance over the next 30, 60, and 90 days based on your bills and income.
+        </Text>
         <Alert status="info" borderRadius="md">
           <AlertIcon />
           <Box>
-            <AlertTitle>No recurring transactions found</AlertTitle>
+            <AlertTitle>No bills or income set up yet</AlertTitle>
             <AlertDescription>
-              Add recurring bills or income in{" "}
+              Add your recurring bills and income in{" "}
               <Text as="span" color="brand.500" fontWeight="medium">
                 Recurring &amp; Bills
               </Text>{" "}
-              to see a projected balance forecast.
+              and we'll project your future balance automatically.
             </AlertDescription>
           </Box>
         </Alert>
@@ -146,7 +149,7 @@ export const CashFlowForecastPage = () => {
           <Box>
             <Heading size="lg">Cash Flow Forecast</Heading>
             <Text color="text.secondary" mt={1} fontSize="sm">
-              Projected account balance based on your recurring transactions.
+              Will you run low on cash? See your projected checking account balance over the next 30, 60, and 90 days based on your bills and income.
             </Text>
           </Box>
           <ButtonGroup size="sm" isAttached variant="outline">

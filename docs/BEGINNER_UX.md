@@ -232,6 +232,7 @@ Advanced items checked against `showAdvancedNav` toggle (`nest-egg-show-advanced
 - `beginnerReportsRecurring.test.ts` — 16 tests covering ReportsPage tab tooltips (Z1), Group By helper text (Z2), RecurringTransactions plain-English subtitle + empty state (Z3)
 - `beginnerStatusGrade.test.ts` — 11 tests covering FinancialRatios visible grade label (AA), Budgets rollover/reset subtitle (AB), Transactions Pending lifecycle tooltip (AC)
 - `beginnerNetWorth.test.ts` — 7 tests covering NetWorthTimeline subtitle equation + daily recording explanation + plain-English empty state (AD)
+- `beginnerPlanInsightsForecast.test.ts` — 16 tests covering FinancialPlan Health Score tooltip + label (AE), success rate tooltip (AF), SmartInsights subtitle (AG), CashFlowForecast subtitle + empty state (AH)
 
 ---
 

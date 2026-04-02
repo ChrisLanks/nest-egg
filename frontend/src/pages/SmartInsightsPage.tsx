@@ -220,8 +220,7 @@ export const SmartInsightsPage = () => {
         <Box>
           <Heading size="lg">Recommendations</Heading>
           <Text color="text.secondary" mt={1}>
-            Personalized Recommendations based on your live account data — no
-            manual input required.
+            Automated tips for your spending, savings, taxes, and retirement — generated from your actual account data. No manual input needed; new insights appear as your data grows.
           </Text>
         </Box>
 

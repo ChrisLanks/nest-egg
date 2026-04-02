@@ -30,6 +30,7 @@ import {
   Text,
   VStack,
   Center,
+  Tooltip,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link as RouterLink } from "react-router-dom";
@@ -164,30 +165,43 @@ const FinancialPlanPage = () => {
 
   return (
     <Box maxW="1200px" mx="auto" px={4} py={6}>
-      <Heading size="lg" mb={6}>
-        My Dashboard
-      </Heading>
+      <Box mb={6}>
+        <Heading size="lg">My Financial Plan</Heading>
+        <Text color="text.secondary" mt={1} fontSize="sm">
+          A snapshot of your overall financial health — retirement, debt, savings, insurance, and more — in one place.
+        </Text>
+      </Box>
 
       {/* Health Score */}
       <Box textAlign="center" mb={8}>
-        <CircularProgress
-          value={data.health_score}
-          size="160px"
-          thickness="8px"
-          color={scoreColor}
-          trackColor="gray.100"
+        <Tooltip
+          label="A score from 0–100 summarising your overall financial health across retirement readiness, emergency fund, debt levels, insurance, and estate planning. 70+ is solid; below 40 means action is needed."
+          openDelay={300}
         >
-          <CircularProgressLabel>
-            <VStack spacing={0}>
-              <Text fontSize="3xl" fontWeight="bold">
-                {data.health_score}
-              </Text>
-              <Text fontSize="xs" color="gray.500">
-                Health Score
-              </Text>
-            </VStack>
-          </CircularProgressLabel>
-        </CircularProgress>
+          <Box display="inline-block" cursor="help">
+            <CircularProgress
+              value={data.health_score}
+              size="160px"
+              thickness="8px"
+              color={scoreColor}
+              trackColor="gray.100"
+            >
+              <CircularProgressLabel>
+                <VStack spacing={0}>
+                  <Text fontSize="3xl" fontWeight="bold">
+                    {data.health_score}
+                  </Text>
+                  <Text fontSize="xs" color="gray.500">
+                    Health Score
+                  </Text>
+                </VStack>
+              </CircularProgressLabel>
+            </CircularProgress>
+            <Text fontSize="xs" color="text.muted" mt={1}>
+              {data.health_score >= 70 ? "Solid" : data.health_score >= 40 ? "Needs work" : "At risk"} — out of 100
+            </Text>
+          </Box>
+        </Tooltip>
       </Box>
 
       {/* Top Actions */}
@@ -252,9 +266,11 @@ const FinancialPlanPage = () => {
                   {data.retirement.on_track ? "On Track" : "Needs Attention"}
                 </Badge>
                 {data.retirement.success_rate !== undefined && (
-                  <Badge colorScheme="gray" variant="subtle" fontSize="xs">
-                    {data.retirement.success_rate}% success rate
-                  </Badge>
+                  <Tooltip label="How often your money lasts through retirement across 1,000 simulated market scenarios. 80%+ is generally considered solid.">
+                    <Badge colorScheme="gray" variant="subtle" fontSize="xs" cursor="help">
+                      {data.retirement.success_rate}% success rate
+                    </Badge>
+                  </Tooltip>
                 )}
               </HStack>
               <Text fontSize="sm">
