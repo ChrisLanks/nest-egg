@@ -321,6 +321,7 @@ function NavigationVisibilitySection() {
   // Must match every item with advanced: true in NAV_SECTIONS (useNavDefaults.ts)
   const ADVANCED_PATHS = [
     "/investment-tools",
+    "/tax-center",
   ];
 
   // Single source of truth: per-item overrides from nest-egg-nav-visibility.
@@ -458,7 +459,7 @@ function NavigationVisibilitySection() {
             Show advanced features
           </Text>
           <Text fontSize="xs" color="text.muted">
-            Unlocks advanced tabs: Planning Tools (FIRE, loan modeler, HSA optimizer, bond ladder), PE Performance, Rental Properties (Analytics), and Charitable Giving (Tax Center).
+            Unlocks Tax Center (tax projection, Roth conversion, IRMAA, withholding) and Planning Tools (FIRE, loan modeler, HSA optimizer, bond ladder, what-if scenarios). Individual tabs can still be toggled below.
           </Text>
         </Box>
         <Switch

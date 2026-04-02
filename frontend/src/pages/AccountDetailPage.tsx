@@ -660,6 +660,14 @@ export const AccountDetailPage = () => {
     }
   }, [account?.is_rental_property, account?.rental_monthly_income, account?.rental_type]);
 
+  // Seed property address / zip from account data (only when not yet user-edited)
+  useEffect(() => {
+    if (account) {
+      if (account.property_address) setPropertyAddress(account.property_address);
+      if (account.property_zip) setPropertyZip(account.property_zip);
+    }
+  }, [account?.property_address, account?.property_zip]);
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",

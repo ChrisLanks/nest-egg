@@ -10,8 +10,10 @@ from uuid import UUID
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import or_
+
 from app.constants.financial import RENTAL
-from app.models.account import Account, RentalType
+from app.models.account import Account, PropertyType, RentalType
 from app.models.transaction import Category, Transaction
 
 logger = logging.getLogger(__name__)
@@ -42,16 +44,37 @@ class RentalPropertyService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    @staticmethod
+    def _display_address(account: "Account") -> str:
+        """Return the best available display address for a property account.
+
+        Prefers `rental_address` (free-text field set on the rental tab).
+        Falls back to `property_address + property_zip` which is populated
+        when the account is created via the Add Account → Property form.
+        """
+        if account.rental_address:
+            return account.rental_address
+        parts = [p for p in [account.property_address, account.property_zip] if p]
+        return ", ".join(parts) if parts else ""
+
     async def get_rental_properties(
         self,
         organization_id: UUID,
         user_id: Optional[UUID] = None,
     ) -> List[Dict[str, Any]]:
-        """List all accounts flagged as rental properties."""
+        """List all rental / investment property accounts.
+
+        Includes accounts where either:
+        - ``is_rental_property`` is explicitly set to True, OR
+        - ``property_type`` is ``investment`` (set via the Add Account form).
+        """
         conditions = [
             Account.organization_id == organization_id,
             Account.is_active.is_(True),
-            Account.is_rental_property.is_(True),
+            or_(
+                Account.is_rental_property.is_(True),
+                Account.property_type == PropertyType.INVESTMENT,
+            ),
         ]
         if user_id is not None:
             conditions.append(Account.user_id == user_id)
@@ -67,7 +90,7 @@ class RentalPropertyService:
                 "name": a.name,
                 "current_value": float(a.current_balance or 0),
                 "rental_monthly_income": float(a.rental_monthly_income or 0),
-                "rental_address": a.rental_address or "",
+                "rental_address": self._display_address(a),
                 "property_type": a.property_type.value if a.property_type else None,
                 "rental_type": a.rental_type.value if a.rental_type else None,
                 "user_id": str(a.user_id),
@@ -176,7 +199,7 @@ class RentalPropertyService:
         return {
             "account_id": str(account_id),
             "name": account.name,
-            "rental_address": account.rental_address or "",
+            "rental_address": self._display_address(account),
             "current_value": float(property_value),
             "year": year,
             "gross_income": float(gross_income),

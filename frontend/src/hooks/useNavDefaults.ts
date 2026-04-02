@@ -14,6 +14,7 @@ interface Account {
   account_type: string;
   user_id?: string;
   is_rental_property?: boolean;
+  property_type?: string | null;
   plaid_item_id?: string | null;
   plaid_item_hash?: string | null;
 }
@@ -52,10 +53,10 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     group: "Top Level",
     items: [
-      { label: "Overview", path: "/overview", alwaysOn: true },
-      { label: "Calendar", path: "/calendar", alwaysOn: true },
-      { label: "Investments", path: "/investments", alwaysOn: true },
-      { label: "Accounts", path: "/accounts", alwaysOn: true },
+      { label: "Overview", path: "/overview", alwaysOn: true, reason: "Always visible — your financial snapshot at a glance" },
+      { label: "Calendar", path: "/calendar", alwaysOn: true, reason: "Always visible — upcoming bills, dividends, and financial events" },
+      { label: "Investments", path: "/investments", alwaysOn: true, reason: "Always visible — portfolio holdings, performance, and allocation" },
+      { label: "Accounts", path: "/accounts", alwaysOn: true, reason: "Always visible — manage all your linked and manual accounts" },
     ],
   },
   {
@@ -65,31 +66,31 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "Transactions",
         path: "/transactions",
         conditional: true,
-        reason: "Shown once any account is added",
+        reason: "Unlocks with first account — search, filter, and categorize all transactions",
       },
       {
         label: "Budgets",
         path: "/budgets",
         conditional: true,
-        reason: "Shown once any account is added",
+        reason: "Unlocks with first account — set monthly spending limits by category",
       },
       {
         label: "Spending Categories",
         path: "/categories",
         conditional: true,
-        reason: "Shown once any account is added",
+        reason: "Unlocks with first account — customize categories and manage auto-categorization rules",
       },
       {
         label: "Recurring & Bills",
         path: "/recurring-bills",
         conditional: true,
-        reason: "Shown once a bank account is connected",
+        reason: "Unlocks when a bank account is connected — track subscriptions and recurring charges",
       },
       {
         label: "Rules",
         path: "/rules",
         conditional: true,
-        reason: "Shown once any account is added",
+        reason: "Unlocks with first account — auto-categorize and rename transactions by pattern",
       },
     ],
   },
@@ -100,97 +101,92 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "Cash Flow",
         path: "/cash-flow",
         conditional: true,
-        reason: "Shown once any account is added",
+        reason: "Unlocks with first account — monthly income vs. spending trends and cash flow analysis",
       },
       {
         label: "Net Worth Timeline",
         path: "/net-worth-timeline",
         conditional: true,
-        reason: "Shown once any account is added",
+        reason: "Unlocks with first account — historical net worth chart with asset and liability breakdown",
       },
       {
         label: "Reports & Trends",
         path: "/reports",
         conditional: true,
-        reason: "Shown once any account is added",
+        reason: "Unlocks with first account — spending trends, category breakdowns, and custom reports",
       },
-
       {
         label: "Financial Checkup",
         path: "/financial-health",
         conditional: true,
-        reason: "Shown once any account is added",
+        reason: "Unlocks with first account — savings rate, debt ratios, liquidity score, and credit score tracking",
       },
       {
         label: "PE Performance",
         path: "/pe-performance",
         conditional: true,
-        reason: "Shown when you have private equity accounts",
+        reason: "Unlocks when you add a private equity account — IRR, MOIC, and fund-level attribution",
       },
       {
         label: "Rental Properties",
         path: "/rental-properties",
         conditional: true,
-        reason: "Shown when you have a rental property account",
+        reason: "Unlocks when you add an investment property — Schedule E P&L, cap rate, and STR analysis",
       },
     ],
   },
   {
     group: "Planning",
     items: [
-      // ── Beginner-first order: most universal items first ──
       {
         label: "Goals",
         path: "/goals",
         conditional: true,
-        reason: "Shown once any account is added",
+        reason: "Unlocks with first account — track savings targets like emergency fund, down payment, and vacation",
       },
       {
         label: "Retirement & Income",
         path: "/retirement",
         conditional: true,
-        reason: "Shown once any account is added",
+        reason: "Unlocks with first account — retirement planner, Social Security optimizer, RMD projections, and variable income",
       },
-
       {
         label: "Debt Payoff",
         path: "/debt-payoff",
         conditional: true,
-        reason: "Shown when you have loans or credit card debt",
+        reason: "Unlocks when you have loans or credit cards — avalanche vs. snowball payoff strategies",
       },
       {
         label: "Mortgage",
         path: "/mortgage",
         conditional: true,
-        reason: "Shown when you have a mortgage account",
+        reason: "Unlocks when you add a mortgage — amortization schedule and refinance break-even analysis",
       },
       {
         label: "Education",
         path: "/education",
         conditional: true,
-        reason: "Shown when you have a 529 account",
-      },
-      // ── Consolidated hubs (always visible once accounts exist) ──
-      {
-        label: "Tax Center",
-        path: "/tax-center",
-        conditional: true,
-        reason: "Shown once any account is added",
+        reason: "Unlocks when you add a 529 — college savings projection and contribution strategy",
       },
       {
         label: "Estate & Insurance",
         path: "/estate-insurance",
         conditional: true,
-        reason: "Shown once any account is added",
+        reason: "Unlocks with first account — beneficiary tracking, estate planning, and insurance coverage gap analysis",
       },
       // ── Advanced ──
+      {
+        label: "Tax Center",
+        path: "/tax-center",
+        advanced: true,
+        reason: "Advanced — tax projection, Roth conversion, backdoor Roth, IRMAA, withholding check, and charitable giving",
+      },
       {
         label: "Planning Tools",
         path: "/investment-tools",
         advanced: true,
-        reason: "Advanced — FIRE, loan modeler, HSA, bond ladder, what-if scenarios, and more",
+        reason: "Advanced — FIRE calculator, loan modeler, HSA optimizer, bond ladder, employer match, and what-if scenarios",
       },
-
     ],
   },
 ];
@@ -208,7 +204,7 @@ export function buildConditionalDefaults(
   accounts: Account[],
 ): Record<string, boolean> {
   const hasDebt = accounts.some((a) => DEBT_TYPES.has(a.account_type));
-  const hasRental = accounts.some((a) => a.is_rental_property);
+  const hasRental = accounts.some((a) => a.is_rental_property || a.property_type === "investment");
   const hasMortgage = accounts.some((a) => a.account_type === "mortgage");
   const has529 = accounts.some((a) => a.account_type === "retirement_529");
   const hasLinkedAccounts = accounts.some(
@@ -236,7 +232,6 @@ export function buildConditionalDefaults(
     "/debt-payoff": hasDebt,
     "/mortgage": hasMortgage,
     "/education": has529,
-    "/tax-center": hasAnyAccounts,
     "/estate-insurance": hasAnyAccounts,
     // investment-tools and pe-performance are advanced — gated separately
   };
@@ -257,7 +252,6 @@ export function getLockedNavTooltip(path: string): string | undefined {
     "/financial-health": "Add an account to unlock",
     "/goals": "Add an account to unlock",
     "/retirement": "Add an account to unlock",
-    "/tax-center": "Add an account to unlock",
     "/estate-insurance": "Add an account to unlock",
     "/rules": "Add an account to unlock",
     // Unlocked by specific account types
