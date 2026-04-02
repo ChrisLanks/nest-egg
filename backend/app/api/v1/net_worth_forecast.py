@@ -87,7 +87,7 @@ async def get_net_worth_forecast(
     current_nw = float(row[0]) if row and row[0] is not None else 0.0
 
     # Annual contribution: use caller override or sensible default
-    contrib = annual_contribution if annual_contribution is not None else 24_000.0
+    contrib = annual_contribution if annual_contribution is not None else float(FIRE.DEFAULT_ANNUAL_CONTRIBUTION)
 
     years_to_retirement = max(1, retirement_age - current_age) if current_age else 20
 
@@ -96,8 +96,7 @@ async def get_net_worth_forecast(
     optimistic = _project(current_nw, current_age, retirement_age, contrib, annual_return + 0.02, inflation_rate, years_to_retirement, current_year)
 
     # 4% rule retirement target: 25× annual spending (estimate from FIRE defaults)
-    annual_spending = FIRE.DEFAULT_ANNUAL_SPENDING if hasattr(FIRE, "DEFAULT_ANNUAL_SPENDING") else 80_000
-    retirement_target = annual_spending * 25
+    retirement_target = FIRE.DEFAULT_ANNUAL_SPENDING * FIRE.FI_MULTIPLIER
 
     projected_at_retirement = baseline[-1].net_worth if baseline else current_nw
     on_track = projected_at_retirement >= retirement_target

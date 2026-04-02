@@ -38,6 +38,8 @@ import datetime
 from dataclasses import dataclass
 from typing import Optional
 
+from app.constants.financial import FICA
+
 # ---------------------------------------------------------------------------
 # Static IRS data
 # DATA NOTE: Update when IRS publishes new limits (usually November for
@@ -84,8 +86,8 @@ _CDCTC_RATE_SCHEDULE: list[tuple[float, float]] = [
     (float("inf"), 0.20),  # AGI > $43,000: 20% flat
 ]
 
-# FICA employee rate (Social Security 6.2% + Medicare 1.45%)
-_FICA_RATE = 0.0765  # unchanged by law until Social Security wage base adjustments
+# FICA employee rate — imported from financial.py (SS 6.2% + Medicare 1.45%)
+_FICA_RATE = float(FICA.COMBINED_EMPLOYEE_RATE)
 
 _DATA_NOTE = (
     "Based on IRS Publication 503 and IRC §129 / §21. "

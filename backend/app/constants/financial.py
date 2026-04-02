@@ -623,6 +623,9 @@ class FICA:
     MEDICARE_EMPLOYER_RATE = Decimal("0.0145")
     MEDICARE_SELF_EMPLOYED_RATE = Decimal("0.029")  # Both halves
     ADDITIONAL_MEDICARE_RATE = Decimal("0.009")  # 0.9% above threshold
+    # Combined employee share: SS (6.2%) + Medicare (1.45%) = 7.65%
+    # Unchanged by law; only the SS wage base is inflation-adjusted.
+    COMBINED_EMPLOYEE_RATE = Decimal("0.0765")
 
 
 # =========================================================================
@@ -1045,6 +1048,14 @@ class FIRE:
     # Safe withdrawal rate
     DEFAULT_WITHDRAWAL_RATE = 0.04  # 4% rule
     FI_MULTIPLIER = 25  # 1 / 0.04
+
+    # Default annual spending used for retirement target (25× rule) when no
+    # income data is available.  Matches RETIREMENT.FALLBACK_SPENDING_HOUSEHOLD.
+    DEFAULT_ANNUAL_SPENDING = 80_000
+
+    # Default annual contribution used in net-worth forecasting when the caller
+    # does not supply an override (401k + IRA rough combined max, round number).
+    DEFAULT_ANNUAL_CONTRIBUTION = 24_000
 
     # Return / inflation assumptions
     DEFAULT_EXPECTED_RETURN = 0.07  # 7% nominal
@@ -1857,6 +1868,9 @@ class VARIABLE_INCOME:
     SAFE_HARBOR_110_PCT_INCOME_THRESHOLD = 150_000
     SAFE_HARBOR_RATE_NORMAL = Decimal("1.00")
     SAFE_HARBOR_RATE_HIGH_INCOME = Decimal("1.10")
+    # IRS safe-harbour: pay at least 90% of current-year tax to avoid penalty.
+    # (The 100%/110%-of-prior-year alternative is covered by the rates above.)
+    SAFE_HARBOR_CURRENT_YEAR_RATE = Decimal("0.90")
 
 
 # =========================================================================

@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.financial import FIRE, RETIREMENT
 from app.core.database import get_db
 from app.dependencies import get_current_user, verify_household_member
 from app.models.user import User
@@ -79,13 +80,13 @@ async def get_fire_metrics(
         None, description="Filter by user. None = combined household view"
     ),
     withdrawal_rate: float = Query(
-        0.04, ge=0.01, le=0.10, description="Safe withdrawal rate (default 4%)"
+        FIRE.DEFAULT_WITHDRAWAL_RATE, ge=0.01, le=0.10, description="Safe withdrawal rate (default 4%)"
     ),
     expected_return: float = Query(
-        0.07, ge=0.0, le=0.20, description="Expected annual return (default 7%)"
+        FIRE.DEFAULT_EXPECTED_RETURN, ge=0.0, le=0.20, description="Expected annual return (default 7%)"
     ),
     retirement_age: int = Query(
-        65, ge=30, le=100, description="Target retirement age (default 65)"
+        RETIREMENT.DEFAULT_RETIREMENT_AGE, ge=30, le=100, description="Target retirement age (default 67)"
     ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
-from app.constants.financial import TAX
+from app.constants.financial import TAX, VARIABLE_INCOME
 from app.dependencies import get_current_user
 from app.models.user import User
 
@@ -77,11 +77,17 @@ async def withholding_check(
 
     # Safe harbour: min(90% of current year, 110% of prior year if AGI > $150K else 100%)
     if request.prior_year_tax is not None and request.prior_year_tax > 0:
-        agi_threshold = 150_000
-        prior_factor = 1.10 if total_income > agi_threshold else 1.00
-        safe_harbour = min(projected_tax * 0.90, request.prior_year_tax * prior_factor)
+        prior_factor = float(
+            VARIABLE_INCOME.SAFE_HARBOR_RATE_HIGH_INCOME
+            if total_income > VARIABLE_INCOME.SAFE_HARBOR_110_PCT_INCOME_THRESHOLD
+            else VARIABLE_INCOME.SAFE_HARBOR_RATE_NORMAL
+        )
+        safe_harbour = min(
+            projected_tax * float(VARIABLE_INCOME.SAFE_HARBOR_CURRENT_YEAR_RATE),
+            request.prior_year_tax * prior_factor,
+        )
     else:
-        safe_harbour = projected_tax * 0.90
+        safe_harbour = projected_tax * float(VARIABLE_INCOME.SAFE_HARBOR_CURRENT_YEAR_RATE)
 
     # Project year-end withholding
     months_elapsed = 12 - request.months_remaining
