@@ -26,6 +26,7 @@ import {
   StatNumber,
   Text,
   Textarea,
+  Tooltip,
   VStack,
 } from "@chakra-ui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -36,7 +37,7 @@ import {
   LineChart,
   ReferenceLine,
   ResponsiveContainer,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   XAxis,
   YAxis,
 } from "recharts";
@@ -164,7 +165,9 @@ export const CreditScoreTab = () => {
       {data && data.latest_score !== null && (
         <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
           <Stat bg="bg.card" borderRadius="lg" p={4} borderWidth="1px" borderColor="border.subtle">
-            <StatLabel fontSize="xs" color="text.secondary">Latest Score</StatLabel>
+            <Tooltip label="Your most recently recorded credit score. Ranges: 800–850 Exceptional, 740–799 Very Good, 670–739 Good, 580–669 Fair, 300–579 Poor." hasArrow placement="top">
+              <StatLabel fontSize="xs" color="text.secondary" cursor="help" textDecoration="underline dotted" display="inline-block">Latest Score</StatLabel>
+            </Tooltip>
             <HStack align="baseline" spacing={2}>
               <StatNumber fontSize="2xl">{data.latest_score}</StatNumber>
               {data.latest_band && (
@@ -175,7 +178,9 @@ export const CreditScoreTab = () => {
             </HStack>
           </Stat>
           <Stat bg="bg.card" borderRadius="lg" p={4} borderWidth="1px" borderColor="border.subtle">
-            <StatLabel fontSize="xs" color="text.secondary">Change (last entry)</StatLabel>
+            <Tooltip label="How many points your score moved since the previous entry — positive is an improvement." hasArrow placement="top">
+              <StatLabel fontSize="xs" color="text.secondary" cursor="help" textDecoration="underline dotted" display="inline-block">Change (last entry)</StatLabel>
+            </Tooltip>
             <StatNumber
               fontSize="xl"
               color={
@@ -194,7 +199,9 @@ export const CreditScoreTab = () => {
             </StatNumber>
           </Stat>
           <Stat bg="bg.card" borderRadius="lg" p={4} borderWidth="1px" borderColor="border.subtle">
-            <StatLabel fontSize="xs" color="text.secondary">Entries Tracked</StatLabel>
+            <Tooltip label="Total number of score records you have entered. More data points give a better picture of your credit trend." hasArrow placement="top">
+              <StatLabel fontSize="xs" color="text.secondary" cursor="help" textDecoration="underline dotted" display="inline-block">Entries Tracked</StatLabel>
+            </Tooltip>
             <StatNumber fontSize="xl">{data.entries.length}</StatNumber>
           </Stat>
         </SimpleGrid>
@@ -220,7 +227,7 @@ export const CreditScoreTab = () => {
                   stroke="#718096"
                   style={{ fontSize: "11px" }}
                 />
-                <Tooltip
+                <RechartsTooltip
                   formatter={(val: number) => [`${val}`, "Score"]}
                   labelFormatter={(d: string) => formatDate(d)}
                   contentStyle={{ borderRadius: "8px", fontSize: "12px" }}
@@ -251,7 +258,9 @@ export const CreditScoreTab = () => {
         <Text fontSize="sm" fontWeight="medium" mb={3}>Log a Score</Text>
         <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3}>
           <FormControl isRequired>
-            <FormLabel fontSize="sm">Score (300–850)</FormLabel>
+            <Tooltip label="FICO scores range from 300–850. Get yours free from AnnualCreditReport.com, your bank's app, or your credit card issuer." hasArrow placement="top">
+              <FormLabel fontSize="sm" cursor="help" textDecoration="underline dotted" display="inline-block">Score (300–850)</FormLabel>
+            </Tooltip>
             <Input
               size="sm"
               type="number"
@@ -263,7 +272,9 @@ export const CreditScoreTab = () => {
             />
           </FormControl>
           <FormControl isRequired>
-            <FormLabel fontSize="sm">Date Pulled</FormLabel>
+            <Tooltip label="The date the score was pulled. Lenders typically use scores from the past 30 days, so recent entries are most relevant." hasArrow placement="top">
+              <FormLabel fontSize="sm" cursor="help" textDecoration="underline dotted" display="inline-block">Date Pulled</FormLabel>
+            </Tooltip>
             <Input
               size="sm"
               type="date"
@@ -272,7 +283,9 @@ export const CreditScoreTab = () => {
             />
           </FormControl>
           <FormControl isRequired>
-            <FormLabel fontSize="sm">Bureau / Source</FormLabel>
+            <Tooltip label="Equifax, Experian, and TransUnion each maintain separate credit files — scores can differ slightly between bureaus. FICO is a scoring model used by most lenders." hasArrow placement="top">
+              <FormLabel fontSize="sm" cursor="help" textDecoration="underline dotted" display="inline-block">Bureau / Source</FormLabel>
+            </Tooltip>
             <Select size="sm" value={provider} onChange={(e) => setProvider(e.target.value)}>
               {PROVIDERS.map((p) => (
                 <option key={p} value={p}>{p}</option>
@@ -280,7 +293,9 @@ export const CreditScoreTab = () => {
             </Select>
           </FormControl>
           <FormControl>
-            <FormLabel fontSize="sm">Notes (optional)</FormLabel>
+            <Tooltip label="Optional context — e.g. which app you used, whether you applied for credit recently, or any changes you made that may have affected your score." hasArrow placement="top">
+              <FormLabel fontSize="sm" cursor="help" textDecoration="underline dotted" display="inline-block">Notes (optional)</FormLabel>
+            </Tooltip>
             <Textarea
               size="sm"
               rows={1}
