@@ -227,6 +227,7 @@ Advanced items checked against `showAdvancedNav` toggle (`nest-egg-show-advanced
 - `pageSubtitles.test.ts` — 14 tests covering CashFlow subtitle/tooltips, Preferences advanced description, Rules page copy
 - `retirementBeginnerUX.test.ts` — 21 tests covering ScenarioPanel helper text (M), RetirementPage intro banner (N), success rate badge (O)
 - `beginnerJargonFixes.test.ts` — 17 tests covering Transactions Pending tooltip + empty state (P), BudgetCard rollover tooltip + overage label (Q), SmartInsights rewording + category tooltips (R)
+- `beginnerDefinitions.test.ts` — 19 tests covering Net Worth/Assets/Liabilities tooltips (S), FinancialRatios score scale + entry prompt (T), DebtPayoff strategy badge labels (U)
 
 ---
 
@@ -262,6 +263,39 @@ A color-coded `<Badge>` appears next to the success rate percentage in the Simul
 | < 60% | red | Needs attention |
 
 Each badge has a tooltip explaining the threshold in plain language.
+
+---
+
+## Core Financial Term Definitions
+
+### S — Net Worth Timeline: stat card tooltips
+
+All three stat card labels now have plain-language tooltips:
+
+| Label | Tooltip |
+|---|---|
+| **Net Worth** | "Everything you own minus everything you owe. As your savings grow and debts shrink, this number goes up." |
+| **Total Assets** | "Everything you own that has value — bank accounts, investments, real estate, and retirement accounts." |
+| **Total Liabilities** | "Everything you owe — credit card balances, loans, mortgages. Reducing liabilities directly increases your net worth." |
+
+### T — Financial Health: score scale + targeted entry prompt
+
+The **overall letter grade** (A–F) now has a tooltip explaining the scale:
+> "A = 90–100 (excellent) · B = 80–89 (good) · C = 70–79 (fair) · D = 60–69 (needs work) · F = below 60 (at risk). Higher is better."
+
+The **"enter income/spending" alert** is now specific about what each input unlocks:
+- Both missing → "Enter your monthly income and spending above to unlock your savings rate, debt-to-income ratio, and overall health score."
+- Income missing only → "Enter your monthly income above to unlock your savings rate and debt-to-income ratio."
+- Spending missing only → "Enter your monthly spending above to complete your savings rate calculation."
+
+### U — Debt Payoff: plain-English strategy badges
+
+The recommendation badges on the Snowball and Avalanche strategy cards now use plain language with explanatory tooltips:
+
+| Old label | New label | Tooltip |
+|---|---|---|
+| **Best Psychology** | **Best for Motivation** | "Recommended if motivation matters — quick early wins make it easier to stick with the plan, even if total interest is slightly higher." |
+| **Best Savings** | **Saves Most Interest** | "Recommended if saving money is the priority — pays the least interest overall, though the first payoff may take longer." |
 
 ---
 

@@ -45,6 +45,7 @@ import {
   FormHelperText,
   Collapse,
   useColorModeValue,
+  Tooltip,
 } from "@chakra-ui/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useMemo, Fragment } from "react";
@@ -940,7 +941,9 @@ export default function DebtPayoffPage() {
                           <HelpHint hint={helpContent.debtPayoff.snowball} />
                         </Heading>
                         {comparison.recommendation === "SNOWBALL" && (
-                          <Badge colorScheme="green">Best Psychology</Badge>
+                          <Tooltip label="Recommended if motivation matters — quick early wins make it easier to stick with the plan, even if total interest is slightly higher.">
+                            <Badge colorScheme="green" cursor="help">Best for Motivation</Badge>
+                          </Tooltip>
                         )}
                       </HStack>
                       <Box>
@@ -1035,7 +1038,9 @@ export default function DebtPayoffPage() {
                           <HelpHint hint={helpContent.debtPayoff.avalanche} />
                         </Heading>
                         {comparison.recommendation === "AVALANCHE" && (
-                          <Badge colorScheme="blue">Best Savings</Badge>
+                          <Tooltip label="Recommended if saving money is the priority — pays the least interest overall, though the first payoff may take longer.">
+                            <Badge colorScheme="blue" cursor="help">Saves Most Interest</Badge>
+                          </Tooltip>
                         )}
                       </HStack>
                       <Box>

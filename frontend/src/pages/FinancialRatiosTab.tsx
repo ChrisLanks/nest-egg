@@ -207,7 +207,11 @@ export const FinancialRatiosTab = () => {
         <Alert status="info">
           <AlertIcon />
           <AlertDescription fontSize="sm">
-            Enter your income/spending above for a complete analysis.
+            {!data.income_provided && !data.spending_provided
+              ? "Enter your monthly income and spending above to unlock your savings rate, debt-to-income ratio, and overall health score."
+              : !data.income_provided
+              ? "Enter your monthly income above to unlock your savings rate and debt-to-income ratio."
+              : "Enter your monthly spending above to complete your savings rate calculation."}
           </AlertDescription>
         </Alert>
       )}
@@ -216,9 +220,11 @@ export const FinancialRatiosTab = () => {
         <>
           {/* Overall grade */}
           <HStack spacing={6} align="center">
-            <Text fontSize="5xl" fontWeight="bold" color={gradeColor(data.overall_grade)}>
-              {data.overall_grade}
-            </Text>
+            <Tooltip label="A = 90–100 (excellent) · B = 80–89 (good) · C = 70–79 (fair) · D = 60–69 (needs work) · F = below 60 (at risk). Higher is better.">
+              <Text fontSize="5xl" fontWeight="bold" color={gradeColor(data.overall_grade)} cursor="help">
+                {data.overall_grade}
+              </Text>
+            </Tooltip>
             <VStack align="flex-start" spacing={1} flex={1}>
               <Text fontSize="sm" fontWeight="medium">Overall Financial Health Score</Text>
               <Progress

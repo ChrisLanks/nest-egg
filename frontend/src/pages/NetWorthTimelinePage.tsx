@@ -313,9 +313,11 @@ export default function NetWorthTimelinePage() {
             <Card>
               <CardBody py={4}>
                 <Stat>
-                  <StatLabel fontSize="xs" color="text.secondary">
-                    Net Worth
-                  </StatLabel>
+                  <Tooltip label="Everything you own minus everything you owe. As your savings grow and debts shrink, this number goes up.">
+                    <StatLabel fontSize="xs" color="text.secondary" cursor="help" display="inline-block">
+                      Net Worth
+                    </StatLabel>
+                  </Tooltip>
                   <StatNumber fontSize="lg">
                     {fmtFull(latest.total_net_worth)}
                   </StatNumber>
@@ -333,9 +335,11 @@ export default function NetWorthTimelinePage() {
             <Card>
               <CardBody py={4}>
                 <Stat>
-                  <StatLabel fontSize="xs" color="text.secondary">
-                    Total Assets
-                  </StatLabel>
+                  <Tooltip label="Everything you own that has value — bank accounts, investments, real estate, and retirement accounts.">
+                    <StatLabel fontSize="xs" color="text.secondary" cursor="help" display="inline-block">
+                      Total Assets
+                    </StatLabel>
+                  </Tooltip>
                   <StatNumber fontSize="lg" color="green.500">
                     {fmtFull(latest.total_assets)}
                   </StatNumber>
@@ -345,9 +349,11 @@ export default function NetWorthTimelinePage() {
             <Card>
               <CardBody py={4}>
                 <Stat>
-                  <StatLabel fontSize="xs" color="text.secondary">
-                    Total Liabilities
-                  </StatLabel>
+                  <Tooltip label="Everything you owe — credit card balances, loans, mortgages. Reducing liabilities directly increases your net worth.">
+                    <StatLabel fontSize="xs" color="text.secondary" cursor="help" display="inline-block">
+                      Total Liabilities
+                    </StatLabel>
+                  </Tooltip>
                   <StatNumber fontSize="lg" color="red.500">
                     {fmtFull(latest.total_liabilities)}
                   </StatNumber>
