@@ -371,3 +371,141 @@ class TestTaxProjectionService:
 
         assert result_b.ordinary_income > result_a.ordinary_income
         assert result_b.total_tax_before_credits > result_a.total_tax_before_credits
+
+
+# ── _build_summary ─────────────────────────────────────────────────────────
+
+
+class TestBuildSummary:
+    """Tests for TaxProjectionService._build_summary edge cases."""
+
+    def _make_quarterly(self):
+        from app.services.tax_projection_service import QuarterlyPayment
+        return [
+            QuarterlyPayment(quarter="Q1", due_date="2026-04-15", amount_due=0.0),
+            QuarterlyPayment(quarter="Q2", due_date="2026-06-15", amount_due=0.0),
+            QuarterlyPayment(quarter="Q3", due_date="2026-09-15", amount_due=0.0),
+            QuarterlyPayment(quarter="Q4", due_date="2027-01-15", amount_due=0.0),
+        ]
+
+    def test_no_income_tax_state_message_only_for_zero_rate_states(self):
+        """States like TX/FL/WA (rate=0.0) should say 'has no state income tax',
+        NOT states like CT where income just happens to be below the deduction."""
+        quarterly = self._make_quarterly()
+        # TX: genuinely no income tax, rate=0 → should say "has no state income tax"
+        summary_tx = TaxProjectionService._build_summary(
+            ordinary_income=30_000,
+            taxable_income=0.0,
+            total_tax=0.0,
+            effective_rate=0.0,
+            marginal_rate=0.10,
+            se_tax=0.0,
+            ltcg_tax=0.0,
+            filing_status="married",
+            quarterly=quarterly,
+            state="TX",
+            state_tax=0.0,
+            state_tax_rate=0.0,
+        )
+        assert "has no state income tax" in summary_tx
+
+    def test_state_with_income_tax_but_zero_taxable_income(self):
+        """CT (rate=0.065) with taxable_income=0 should NOT say 'has no state income tax'."""
+        quarterly = self._make_quarterly()
+        summary_ct = TaxProjectionService._build_summary(
+            ordinary_income=27_772,
+            taxable_income=0.0,
+            total_tax=0.0,
+            effective_rate=0.0,
+            marginal_rate=0.10,
+            se_tax=0.0,
+            ltcg_tax=0.0,
+            filing_status="married",
+            quarterly=quarterly,
+            state="CT",
+            state_tax=0.0,
+            state_tax_rate=0.065,
+        )
+        assert "has no state income tax" not in summary_ct
+        assert "Connecticut" in summary_ct
+        assert "deduction" in summary_ct.lower() or "$0" in summary_ct
+
+    def test_state_with_positive_tax_shows_combined(self):
+        """When state tax > 0, summary includes combined federal+state total."""
+        quarterly = self._make_quarterly()
+        summary = TaxProjectionService._build_summary(
+            ordinary_income=100_000,
+            taxable_income=84_000,
+            total_tax=15_000,
+            effective_rate=0.15,
+            marginal_rate=0.22,
+            se_tax=0.0,
+            ltcg_tax=0.0,
+            filing_status="single",
+            quarterly=quarterly,
+            state="CA",
+            state_tax=8_400,
+            state_tax_rate=0.10,
+        )
+        assert "California" in summary
+        assert "Combined" in summary
+        assert "$23,400" in summary or "23,400" in summary
+
+    def test_marginal_rate_shown_correctly_when_income_below_deduction(self):
+        """When taxable_income=0, marginal rate passed in (10%) should appear in summary."""
+        quarterly = self._make_quarterly()
+        summary = TaxProjectionService._build_summary(
+            ordinary_income=27_772,
+            taxable_income=0.0,
+            total_tax=0.0,
+            effective_rate=0.0,
+            marginal_rate=0.10,
+            se_tax=0.0,
+            ltcg_tax=0.0,
+            filing_status="married",
+            quarterly=quarterly,
+        )
+        assert "marginal 10%" in summary
+
+
+# ── marginal_rate when taxable_income = 0 ─────────────────────────────────
+
+
+@pytest.mark.asyncio
+class TestMarginalRateZeroTaxableIncome:
+    async def _make_service(self, ytd_income: float = 0.0):
+        from unittest.mock import AsyncMock
+        db = AsyncMock()
+        svc = TaxProjectionService(db)
+        svc._ytd_income = AsyncMock(return_value=ytd_income)
+        return svc
+
+    async def test_marginal_rate_is_first_bracket_when_income_below_deduction(self):
+        """Married filer with $27,772 income (below $32,200 married deduction in 2026)
+        should report marginal_rate = 0.10 (first bracket), not 0.0."""
+        svc = await self._make_service(ytd_income=0)
+        result = await svc.project(
+            organization_id="org-123",
+            user_id=None,
+            filing_status="married",
+            self_employment_income=27_772,
+            today=date(2025, 7, 1),
+        )
+        assert result.taxable_income == pytest.approx(0, abs=500)
+        # Marginal rate must be the 10% first bracket, not 0
+        assert result.marginal_rate == pytest.approx(0.10, abs=0.01)
+
+    async def test_marginal_rate_nonzero_for_single_below_deduction(self):
+        """Single filer with income below the standard deduction should also
+        show 10% marginal rate (not 0%)."""
+        svc = await self._make_service(ytd_income=0)
+        result = await svc.project(
+            organization_id="org-123",
+            user_id=None,
+            filing_status="single",
+            self_employment_income=10_000,
+            today=date(2025, 7, 1),
+        )
+        # $10k income − SE tax deduction − ~$16,100 standard deduction → taxable = 0
+        assert result.taxable_income == pytest.approx(0, abs=1_000)
+        assert result.marginal_rate == pytest.approx(0.10, abs=0.01)

@@ -305,7 +305,13 @@ class TaxProjectionService:
 
         total_tax = round(ordinary_tax + se_tax + ltcg_tax + niit, 2)
         effective_rate = round(total_tax / ordinary_income, 4) if ordinary_income > 0 else 0.0
-        marginal_rate = bracket_breakdown[-1].rate if bracket_breakdown else 0.0
+        # When taxable income is 0 (e.g. income fully covered by standard deduction)
+        # show the first bracket rate as marginal, since that's what applies to the next dollar.
+        if bracket_breakdown:
+            marginal_rate = bracket_breakdown[-1].rate
+        else:
+            brackets = _get_brackets(filing_status, 0)
+            marginal_rate = brackets[0][0] if brackets else 0.0
 
         # State income tax — use pluggable provider for bracket-aware rates
         state_upper = state.upper() if state else None
@@ -346,6 +352,7 @@ class TaxProjectionService:
             quarterly,
             state=state_upper,
             state_tax=state_tax,
+            state_tax_rate=state_tax_rate,
         )
 
         return TaxProjection(
@@ -421,6 +428,7 @@ class TaxProjectionService:
         quarterly: list[QuarterlyPayment],
         state: Optional[str] = None,
         state_tax: float = 0.0,
+        state_tax_rate: float = 0.0,
     ) -> str:
         parts = [
             f"Estimated {date.today().year} federal tax: ${total_tax:,.0f} "
@@ -431,16 +439,22 @@ class TaxProjectionService:
             parts.append(f"Self-employment tax: ${se_tax:,.0f}.")
         if ltcg_tax > 0:
             parts.append(f"Capital gains tax: ${ltcg_tax:,.0f}.")
-        if state and state_tax > 0:
+        if state:
             state_name = STATE_NAMES.get(state, state)
-            combined = total_tax + state_tax
-            parts.append(
-                f"{state_name} state income tax: ${state_tax:,.0f}. "
-                f"Combined federal + state: ${combined:,.0f}."
-            )
-        elif state and state_tax == 0:
-            state_name = STATE_NAMES.get(state, state)
-            parts.append(f"{state_name} has no state income tax.")
+            if state_tax_rate == 0.0:
+                # True no-income-tax state (e.g. TX, FL, WA) — rate is inherently 0
+                parts.append(f"{state_name} has no state income tax.")
+            elif state_tax > 0:
+                combined = total_tax + state_tax
+                parts.append(
+                    f"{state_name} state income tax: ${state_tax:,.0f}. "
+                    f"Combined federal + state: ${combined:,.0f}."
+                )
+            else:
+                # State has income tax but taxable income is 0 (fully covered by deductions)
+                parts.append(
+                    f"{state_name} state income tax: $0 (income fully offset by deductions)."
+                )
         else:
             parts.append("Federal only — does not include state taxes or credits.")
         next_due = next((q for q in quarterly if not q.paid), None)
