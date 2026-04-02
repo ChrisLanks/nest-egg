@@ -22,6 +22,7 @@ from pydantic import BaseModel
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.financial import RETIREMENT
 from app.core.database import get_db
 from app.dependencies import get_current_user, verify_household_member
 from app.models.account import Account, AccountType
@@ -811,7 +812,7 @@ async def get_survivor_scenario(
     current_portfolio: float = Query(..., ge=0),
     joint_annual_income: float = Query(..., ge=0),
     joint_annual_spending: float = Query(..., ge=0),
-    spending_reduction_pct: float = Query(0.20, ge=0.0, le=0.50),
+    spending_reduction_pct: float = Query(RETIREMENT.SURVIVOR_SPENDING_REDUCTION, ge=0.0, le=0.50),
     current_user: User = Depends(get_current_user),
 ) -> SurvivorScenarioResponse:
     """

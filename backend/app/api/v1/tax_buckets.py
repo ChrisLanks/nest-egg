@@ -8,6 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.financial import FIRE
 from app.core.database import get_db
 from app.dependencies import get_current_user, verify_household_member
 from app.models.user import User
@@ -33,7 +34,7 @@ async def get_bucket_summary(
 async def get_rmd_projection(
     pre_tax_balance: float = Query(..., ge=0, le=50_000_000),
     current_age: int = Query(..., ge=0, le=120),
-    growth_rate: float = Query(0.06, ge=0, le=1.0),
+    growth_rate: float = Query(FIRE.DEFAULT_GROWTH_RATE, ge=0, le=1.0),
     current_user: User = Depends(get_current_user),
 ):
     return TaxBucketService.project_rmd_schedule(

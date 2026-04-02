@@ -672,6 +672,9 @@ class RETIREMENT:
     SPENDING_RATIO_SINGLE = 0.80  # 80% of pre-retirement income
     FALLBACK_SPENDING_HOUSEHOLD = 80_000  # If no income data available
     FALLBACK_SPENDING_SINGLE = 60_000
+    # Default spending reduction for survivor scenario: household typically
+    # spends 20% less after a spouse dies (1 - SPENDING_RATIO_SINGLE).
+    SURVIVOR_SPENDING_REDUCTION = 0.20
 
     # Catch-up contribution eligibility ages (IRS rules — watch SECURE 3.0)
     CATCH_UP_AGE_401K = 50  # Age 50+: 401k / 403b / IRA catch-up eligible

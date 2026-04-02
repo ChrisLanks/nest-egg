@@ -30,6 +30,7 @@ from pydantic import BaseModel
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.financial import FIRE
 from app.core.database import get_db
 from app.dependencies import get_current_user, verify_household_member
 from app.models.account import Account, AccountType
@@ -276,7 +277,7 @@ async def get_roth_conversion(
         description="'single' or 'married'.",
         pattern="^(single|married)$",
     ),
-    expected_return: float = Query(0.07, ge=0.0, le=0.20),
+    expected_return: float = Query(FIRE.DEFAULT_EXPECTED_RETURN, ge=0.0, le=0.20),
     years_to_project: int = Query(20, ge=1, le=40),
     respect_irmaa: bool = Query(True, description="Cap conversions to avoid IRMAA tier crossings."),
     assumed_future_rate: Optional[float] = Query(None, ge=0.0, le=1.0, description="Override assumed future marginal tax rate for savings estimate (0.0–1.0). Leave blank to use current-year rate."),
