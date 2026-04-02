@@ -20,7 +20,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.financial import (
+    CRYPTO_TAX,
     MEDICARE,
+    RENTAL,
     RETIREMENT,
     SS,
     TAX,
@@ -28,7 +30,7 @@ from app.constants.financial import (
 from app.constants.financial import (
     RMD as RMD_CONSTANTS,
 )
-from app.models.account import Account, AccountType, TaxTreatment
+from app.models.account import Account, AccountType, RentalType, TaxTreatment
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -125,6 +127,13 @@ class TaxAdvisorService:
                 AccountType.CRYPTO,
             ):
                 taxable_total += bal
+
+        # Detect STR and crypto accounts for targeted insights
+        str_accounts = [
+            a for a in accounts
+            if a.is_rental_property and a.rental_type == RentalType.SHORT_TERM_RENTAL
+        ]
+        crypto_accounts = [a for a in accounts if a.account_type == AccountType.CRYPTO]
 
         insights: List[Dict[str, Any]] = []
         contribution_limits: List[Dict[str, Any]] = []
@@ -311,6 +320,48 @@ class TaxAdvisorService:
                     ),
                     "priority": "info",
                     "age_relevant": True,
+                }
+            )
+
+        # --- Short-Term Rental (STR) tax loophole ---
+        if str_accounts and RENTAL.STR_LOOPHOLE_ACTIVE:
+            str_names = ", ".join(a.name for a in str_accounts[:3])
+            insights.append(
+                {
+                    "category": "rental",
+                    "title": "Short-Term Rental (STR) Tax Opportunity",
+                    "description": (
+                        f"You have {len(str_accounts)} short-term rental propert"
+                        f"{'y' if len(str_accounts) == 1 else 'ies'} ({str_names}). "
+                        f"STRs with average stays ≤{RENTAL.STR_AVG_RENTAL_DAYS_THRESHOLD} days "
+                        f"may qualify for the IRC §469 material participation exception — "
+                        f"rental losses can offset ordinary income (bypassing the "
+                        f"${RENTAL.PASSIVE_LOSS_ALLOWANCE_MAX:,}/yr passive loss limit that "
+                        f"applies to long-term rentals). You must materially participate "
+                        f"(≥750 hrs/yr or meet one of the 7 IRS tests). Consult a CPA."
+                    ),
+                    "priority": "action",
+                    "age_relevant": False,
+                }
+            )
+
+        # --- Crypto: no wash-sale rule ---
+        if crypto_accounts and CRYPTO_TAX.IS_PROPERTY:
+            crypto_bal = sum(float(a.current_balance or 0) for a in crypto_accounts)
+            insights.append(
+                {
+                    "category": "capital_gains",
+                    "title": "Crypto Has No Wash-Sale Rule",
+                    "description": (
+                        f"You have ${crypto_bal:,.0f} in crypto holdings. "
+                        f"Unlike stocks, crypto is classified as property (IRC §1221) — "
+                        f"the wash-sale rule (IRC §1091) does not apply. "
+                        f"You can sell crypto at a loss to harvest a tax deduction and "
+                        f"immediately repurchase it. This flexibility makes crypto a "
+                        f"powerful tax-loss harvesting tool if you have unrealized losses."
+                    ),
+                    "priority": "info",
+                    "age_relevant": False,
                 }
             )
 

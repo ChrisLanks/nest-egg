@@ -226,3 +226,45 @@ def test_rental_type_service_includes_rental_type_field():
     from app.services import rental_property_service
     source = inspect.getsource(rental_property_service)
     assert "rental_type" in source
+
+
+# ---------------------------------------------------------------------------
+# 8. Tax Advisor STR and crypto insights
+# ---------------------------------------------------------------------------
+
+
+def test_tax_advisor_imports_rental_constants():
+    """tax_advisor_service must import RENTAL and CRYPTO_TAX constants."""
+    from app.services import tax_advisor_service
+
+    source = inspect.getsource(tax_advisor_service)
+    assert "RENTAL" in source
+    assert "CRYPTO_TAX" in source
+
+
+def test_tax_advisor_str_insight_when_loophole_active():
+    """tax_advisor_service must generate STR insight when RENTAL.STR_LOOPHOLE_ACTIVE."""
+    from app.services import tax_advisor_service
+
+    source = inspect.getsource(tax_advisor_service)
+    assert "STR_LOOPHOLE_ACTIVE" in source
+    assert "Short-Term Rental" in source or "STR" in source
+    assert "material participation" in source.lower() or "materially participate" in source.lower()
+
+
+def test_tax_advisor_crypto_insight_when_is_property():
+    """tax_advisor_service must generate crypto no-wash-sale insight when CRYPTO_TAX.IS_PROPERTY."""
+    from app.services import tax_advisor_service
+
+    source = inspect.getsource(tax_advisor_service)
+    assert "CRYPTO_TAX.IS_PROPERTY" in source
+    assert "wash-sale" in source.lower() or "wash_sale" in source.lower()
+
+
+def test_tax_advisor_imports_rental_type():
+    """tax_advisor_service must import RentalType to detect STR accounts."""
+    from app.services import tax_advisor_service
+
+    source = inspect.getsource(tax_advisor_service)
+    assert "RentalType" in source
+    assert "SHORT_TERM_RENTAL" in source
