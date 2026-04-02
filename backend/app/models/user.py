@@ -147,6 +147,9 @@ class User(Base):
     target_retirement_state = Column(String(2), nullable=True)
     minimum_monthly_budget = Column(Numeric(12, 2), nullable=True)
 
+    # UI mode preference — persisted so it syncs across devices
+    show_advanced_nav = Column(Boolean, default=False, nullable=False, server_default="false")
+
     last_login_at = Column(DateTime)
     login_count = Column(Integer, default=0, nullable=False, server_default="0")
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)

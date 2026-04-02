@@ -48,6 +48,8 @@ class UserUpdate(BaseModel):
     state_of_residence: Optional[str] = Field(None, min_length=2, max_length=2)
     # State the user plans to retire in (may differ from current state).
     target_retirement_state: Optional[str] = Field(None, min_length=2, max_length=2)
+    # UI mode preference — synced across devices via API
+    show_advanced_nav: Optional[bool] = None
 
     @field_validator("state_of_residence", "target_retirement_state", mode="before")
     @classmethod
@@ -82,6 +84,7 @@ class UserInDB(UserBase):
     dashboard_layout: Optional[List[Any]] = None
     last_login_at: Optional[datetime] = None
     login_count: int = 0
+    show_advanced_nav: bool = False
     created_at: datetime
     updated_at: datetime
 

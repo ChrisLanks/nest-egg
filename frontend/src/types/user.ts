@@ -18,6 +18,7 @@ export interface User {
   dashboard_layout?: Array<{ id: string; span: 1 | 2 }> | null;
   last_login_at: string | null;
   login_count: number;
+  show_advanced_nav: boolean;
   created_at: string;
   updated_at: string;
 }

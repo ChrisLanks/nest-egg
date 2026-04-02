@@ -40,6 +40,14 @@ export const useAuthStore = create<AuthState>()(
       setTokens: (accessToken, user) => {
         // Schedule proactive token refresh
         scheduleTokenRefresh(accessToken);
+        // Seed localStorage from server-persisted preference so all pages
+        // read the correct mode immediately (cross-device sync on login).
+        try {
+          localStorage.setItem(
+            "nest-egg-show-advanced-nav",
+            String(user.show_advanced_nav ?? false),
+          );
+        } catch { /* ignore */ }
 
         set({
           accessToken,
@@ -65,6 +73,7 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         clearTokenRefresh(); // cancel any pending proactive refresh timer
         localStorage.removeItem("nest-egg-view"); // clear persisted view selection
+        localStorage.removeItem("nest-egg-show-advanced-nav"); // clear UI mode (will be re-seeded on next login)
         set({
           user: null,
           accessToken: null,

@@ -363,6 +363,10 @@ function NavigationVisibilitySection() {
     } catch {
       /* ignore */
     }
+    // Persist to server so the preference survives across devices
+    api.patch("/settings/profile", { show_advanced_nav: next }).catch(() => {
+      /* non-critical — localStorage is the immediate source of truth */
+    });
     // Reload so the top-nav dropdowns reflect the change immediately
     window.location.reload();
   };

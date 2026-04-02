@@ -63,6 +63,7 @@ class UserProfileResponse(BaseModel):
     # In multi-member households every member may be in a different state.
     state_of_residence: Optional[str] = None
     target_retirement_state: Optional[str] = None
+    show_advanced_nav: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -169,6 +170,7 @@ async def get_user_profile(
         onboarding_goal=current_user.onboarding_goal,
         state_of_residence=v if isinstance(v := getattr(current_user, "state_of_residence", None), str) else None,
         target_retirement_state=v if isinstance(v := getattr(current_user, "target_retirement_state", None), str) else None,
+        show_advanced_nav=current_user.show_advanced_nav,
     )
 
 
@@ -202,6 +204,8 @@ async def update_user_profile(
         )
     if update_data.onboarding_goal is not None:
         current_user.onboarding_goal = update_data.onboarding_goal
+    if update_data.show_advanced_nav is not None:
+        current_user.show_advanced_nav = update_data.show_advanced_nav
 
     # State of residence — per-user; each household member sets their own.
     # Validated as uppercase 2-char code by the UserUpdate schema.
@@ -325,6 +329,7 @@ async def update_user_profile(
         onboarding_goal=current_user.onboarding_goal,
         state_of_residence=v if isinstance(v := getattr(current_user, "state_of_residence", None), str) else None,
         target_retirement_state=v if isinstance(v := getattr(current_user, "target_retirement_state", None), str) else None,
+        show_advanced_nav=current_user.show_advanced_nav,
     )
 
 
