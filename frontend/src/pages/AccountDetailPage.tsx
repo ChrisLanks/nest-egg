@@ -419,6 +419,26 @@ export const AccountDetailPage = () => {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Salary estimate — only fetch for employer plan accounts without a salary set
+  const isEmployerPlanAccount = account
+    ? (EMPLOYER_MATCH_TYPES as readonly string[]).includes(account.account_type)
+    : false;
+  const { data: salaryEstimate } = useQuery<{
+    estimated_annual_salary: number | null;
+    source: string;
+    note: string;
+  }>({
+    queryKey: ["salary-estimate", account?.user_id],
+    queryFn: () =>
+      api
+        .get(
+          `/retirement/salary-estimate${account?.user_id ? `?user_id=${account.user_id}` : ""}`,
+        )
+        .then((r) => r.data),
+    enabled: isEmployerPlanAccount && !!account && account.annual_salary == null,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Update vehicle details mutation
   const updateVehicleMutation = useMutation({
     mutationFn: async (data: {
@@ -2339,10 +2359,37 @@ export const AccountDetailPage = () => {
                           placeholder={
                             account.annual_salary != null
                               ? String(account.annual_salary)
-                              : "e.g., 100000"
+                              : salaryEstimate?.estimated_annual_salary != null
+                                ? `~${Math.round(salaryEstimate.estimated_annual_salary).toLocaleString()} (estimated)`
+                                : "e.g., 100000"
                           }
                         />
                       </NumberInput>
+                      {salaryEstimate?.estimated_annual_salary != null &&
+                        account.annual_salary == null &&
+                        empAnnualSalary === "" && (
+                          <Text
+                            fontSize="xs"
+                            color="blue.500"
+                            mt={1}
+                            cursor="pointer"
+                            onClick={() =>
+                              setEmpAnnualSalary(
+                                String(
+                                  Math.round(
+                                    salaryEstimate.estimated_annual_salary!,
+                                  ),
+                                ),
+                              )
+                            }
+                          >
+                            Use estimated: $
+                            {Math.round(
+                              salaryEstimate.estimated_annual_salary,
+                            ).toLocaleString()}{" "}
+                            (last 12 months income)
+                          </Text>
+                        )}
                     </FormControl>
                   </HStack>
                   <Button

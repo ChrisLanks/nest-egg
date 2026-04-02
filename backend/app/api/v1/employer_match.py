@@ -1,16 +1,18 @@
 """Employer 401k/403b/457b match optimization API endpoint."""
 
+import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from sqlalchemy import select, and_
+from sqlalchemy import func, select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import Account, AccountType
 from app.models.contribution import AccountContribution, ContributionFrequency, ContributionType
+from app.models.transaction import Transaction
 from app.models.user import User
 
 router = APIRouter()
@@ -303,4 +305,72 @@ async def get_employer_match(
         total_left_on_table=total_left_on_table,
         fully_optimized=fully_optimized,
         summary=summary,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Salary estimate endpoint
+# ---------------------------------------------------------------------------
+
+class SalaryEstimateResponse(BaseModel):
+    estimated_annual_salary: Optional[float]
+    source: str  # "last_12_months_income" | "none"
+    note: str
+
+
+@router.get("/salary-estimate", response_model=SalaryEstimateResponse)
+async def get_salary_estimate(
+    user_id: Optional[str] = Query(None, description="Household member user ID (org-admin only)"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Estimate annual salary from the last 12 months of positive income transactions.
+
+    Used to pre-populate the Annual Salary field when adding employer match details
+    to a 401k/403b account.  The user can always override the value.
+    """
+    org_id = current_user.organization_id
+    cutoff = datetime.date.today() - datetime.timedelta(days=365)
+
+    conditions = [
+        Account.organization_id == org_id,
+        Account.is_active == True,  # noqa: E712
+        Transaction.date >= cutoff,
+        Transaction.amount > 0,
+        Transaction.is_transfer.is_(False),
+    ]
+
+    # Scope to specific user if provided and caller is org-admin
+    target_user_id = None
+    if user_id and current_user.is_org_admin:
+        from uuid import UUID as PyUUID
+        try:
+            target_user_id = PyUUID(user_id)
+        except ValueError:
+            pass
+    elif not user_id:
+        target_user_id = current_user.id
+
+    if target_user_id:
+        conditions.append(Account.user_id == target_user_id)
+
+    result = await db.execute(
+        select(func.coalesce(func.sum(Transaction.amount), 0))
+        .join(Account, Transaction.account_id == Account.id)
+        .where(and_(*conditions))
+    )
+    total = float(result.scalar() or 0)
+
+    if total > 0:
+        return SalaryEstimateResponse(
+            estimated_annual_salary=round(total),
+            source="last_12_months_income",
+            note="Estimated from your last 12 months of income transactions. Edit if this doesn't match your salary.",
+        )
+
+    return SalaryEstimateResponse(
+        estimated_annual_salary=None,
+        source="none",
+        note="No recent income transactions found. Enter your annual salary manually.",
     )
