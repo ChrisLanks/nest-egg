@@ -246,15 +246,21 @@ export const FinancialRatiosTab = () => {
           {/* Context stats */}
           <SimpleGrid columns={{ base: 3 }} spacing={4}>
             <Stat size="sm">
-              <StatLabel fontSize="xs">Net Worth</StatLabel>
+              <Tooltip label="Total assets minus total liabilities — the single most important measure of financial progress." hasArrow placement="top">
+                <StatLabel fontSize="xs" cursor="help" textDecoration="underline dotted" display="inline-block">Net Worth</StatLabel>
+              </Tooltip>
               <StatNumber fontSize="md">{fmtCompact(data.net_worth)}</StatNumber>
             </Stat>
             <Stat size="sm">
-              <StatLabel fontSize="xs">Liquid Assets</StatLabel>
+              <Tooltip label="Cash, savings, and money-market balances you can access immediately — your financial safety net." hasArrow placement="top">
+                <StatLabel fontSize="xs" cursor="help" textDecoration="underline dotted" display="inline-block">Liquid Assets</StatLabel>
+              </Tooltip>
               <StatNumber fontSize="md">{fmtCompact(data.liquid_assets)}</StatNumber>
             </Stat>
             <Stat size="sm">
-              <StatLabel fontSize="xs">Total Debt</StatLabel>
+              <Tooltip label="Sum of all outstanding loan balances, credit card balances, and other liabilities." hasArrow placement="top">
+                <StatLabel fontSize="xs" cursor="help" textDecoration="underline dotted" display="inline-block">Total Debt</StatLabel>
+              </Tooltip>
               <StatNumber fontSize="md" color="red.400">{fmtCompact(data.total_debt)}</StatNumber>
             </Stat>
           </SimpleGrid>
