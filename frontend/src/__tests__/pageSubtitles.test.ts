@@ -84,8 +84,8 @@ describe("Preferences advanced-features toggle description (J)", () => {
     expect(getToggleContext()).toMatch(/Charitable Giving|Charitable giving/);
   });
 
-  it("reassures user they can start without advanced features", () => {
-    expect(getToggleContext()).toMatch(/start without|hidden by default|individually/i);
+  it("lists the advanced tabs that get unlocked", () => {
+    expect(getToggleContext()).toMatch(/Calculators|bond ladder|PE Performance/i);
   });
 });
 

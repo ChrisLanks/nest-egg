@@ -78,28 +78,31 @@ describe("InvestmentsPage subtitle and expense ratio explanation (W)", () => {
 // ── X: AccountDetailPage tax treatment explanations ──────────────────────────
 
 describe("AccountDetailPage tax treatment inline explanations (X)", () => {
-  it("explains Traditional/Pre-Tax in plain language near the dropdown", () => {
-    expect(acctSrc).toMatch(/contributions were tax-deductible|tax-deductible.*withdraw/i);
+  it("shows a condensed explanation when no tax treatment is selected", () => {
+    expect(acctSrc).toMatch(/Affects how this account is counted/i);
   });
 
-  it("mentions 401k or Traditional IRA as examples of pre-tax accounts", () => {
+  it("condensed hint covers all four tax treatment types", () => {
+    expect(acctSrc).toMatch(/Traditional.*pre-tax|pre-tax.*Traditional/i);
+    expect(acctSrc).toMatch(/Roth.*after-tax|after-tax.*Roth/i);
+    expect(acctSrc).toMatch(/Taxable.*brokerage|brokerage.*checking/i);
+    expect(acctSrc).toMatch(/HSA.*529|529.*HSA/i);
+  });
+
+  it("explanation is only shown when tax_treatment is not set (not noisy for power users)", () => {
+    // The explanation block should be gated by !account.tax_treatment
+    expect(acctSrc).toMatch(/!account\.tax_treatment/);
+    // It should NOT show per-value paragraphs after a value is selected
+    expect(acctSrc).not.toMatch(/tax_treatment === "pre_tax" && "Traditional/);
+    expect(acctSrc).not.toMatch(/tax_treatment === "roth" && "Roth/);
+  });
+
+  it("mentions 401k or Traditional IRA as examples", () => {
     expect(acctSrc).toMatch(/Traditional IRA|401k|401\(k\)/i);
   });
 
-  it("explains Roth as after-tax with tax-free withdrawals", () => {
-    expect(acctSrc).toMatch(/after-tax.*tax-free|tax-free.*withdrawal/i);
-  });
-
-  it("explains Taxable as brokerage/checking with capital gains", () => {
-    expect(acctSrc).toMatch(/Brokerage.*checking|gains are taxed/i);
-  });
-
-  it("explains Tax-Free as HSA/529 with qualified expenses", () => {
-    expect(acctSrc).toMatch(/qualified.*tax-free|HSA.*529|529.*HSA/i);
-  });
-
-  it("shows a default explanation when no tax treatment is selected", () => {
-    expect(acctSrc).toMatch(/Affects how this account is counted/i);
+  it("mentions tax-free growth for HSA/529", () => {
+    expect(acctSrc).toMatch(/tax-free.*growth|tax-free growth/i);
   });
 });
 
