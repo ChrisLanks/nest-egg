@@ -322,6 +322,8 @@ export const helpContent = {
     tips: [
       "Residential rental property depreciates over 27.5 years for tax purposes.",
       "The $25K passive loss allowance phases out between $100K-$150K AGI.",
+      "Short-term rentals (Airbnb/VRBO) may qualify for the IRC §469 STR loophole — losses can offset ordinary income if you materially participate (750+ hrs/yr).",
+      "Classify investment properties as Buy & Hold, Long-Term Rental, or Short-Term Rental to unlock the right tax guidance.",
       "Screen tenants carefully — one bad tenant can wipe out a year's profit.",
       "Keep a cash reserve of 6+ months of expenses per property for vacancies and repairs.",
     ],
