@@ -458,7 +458,7 @@ function NavigationVisibilitySection() {
             Show advanced features
           </Text>
           <Text fontSize="xs" color="text.muted">
-            Unlocks advanced tabs: Calculators (FIRE, loan modeler, HSA optimizer, bond ladder), PE Performance, Rental Properties (Analytics), and Charitable Giving (Tax Center).
+            Unlocks advanced tabs: Planning Tools (FIRE, loan modeler, HSA optimizer, bond ladder), PE Performance, Rental Properties (Analytics), and Charitable Giving (Tax Center).
           </Text>
         </Box>
         <Switch

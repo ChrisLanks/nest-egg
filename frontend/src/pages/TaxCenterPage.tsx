@@ -39,6 +39,7 @@ const ContributionHeadroomTab = lazy(() =>
     default: m.ContributionHeadroomTab,
   })),
 );
+const RothConversionPage = lazy(() => import("./RothConversionPage"));
 
 const TabLoader = () => (
   <Center py={12}>
@@ -62,6 +63,7 @@ const TAB_TOOLTIPS: Record<string, string> = {
   "Charitable Giving": "Track donations to charities, churches, and nonprofits — and see how they reduce your taxable income.",
   "Medicare & IRMAA": "If your income is above ~$103K/yr, Medicare charges you more for Part B and Part D premiums. IRMAA = Income-Related Monthly Adjustment Amount. Planning ahead can lower these costs.",
   "Roth Wizard": "A Roth IRA grows tax-free, but high earners can't contribute directly. This wizard shows you the 'backdoor' workaround and whether it applies to you.",
+  "Roth Conversion": "Model the optimal amount to convert from a traditional IRA or 401(k) to Roth each year — filling bracket headroom while minimizing IRMAA surcharges.",
   "Contribution Headroom": "How much more you can still contribute to your 401(k), IRA, and HSA this year before hitting IRS limits — maxing these out lowers your taxable income.",
 };
 
@@ -96,7 +98,7 @@ export const TaxCenterPage = () => {
       <Box px={6} mb={2}>
         <Heading size="lg">Tax Center</Heading>
         <Text color="text.secondary" mt={1} fontSize="sm">
-          Tax projection, bucket optimization, Medicare planning, Roth strategies, and contribution headroom.
+          Tax projection, bucket optimization, Medicare planning, Roth strategies, conversion optimizer, and contribution headroom.
           {!showAdvancedNav && (
             <Text as="span" color="text.muted"> Charitable Giving is available in Advanced mode (Preferences).</Text>
           )}
@@ -109,6 +111,7 @@ export const TaxCenterPage = () => {
           {showAdvancedNav && <TooltipTab label="Charitable Giving" />}
           <TooltipTab label="Medicare & IRMAA" />
           <TooltipTab label="Roth Wizard" />
+          <TooltipTab label="Roth Conversion" />
           <TooltipTab label="Contribution Headroom" />
         </TabList>
         <TabPanels>
@@ -137,6 +140,11 @@ export const TaxCenterPage = () => {
           <TabPanel px={0}>
             <Suspense fallback={<TabLoader />}>
               <BackdoorRothTab />
+            </Suspense>
+          </TabPanel>
+          <TabPanel px={0}>
+            <Suspense fallback={<TabLoader />}>
+              <RothConversionPage />
             </Suspense>
           </TabPanel>
           <TabPanel px={0}>

@@ -146,7 +146,7 @@ export const NAV_SECTIONS: NavSection[] = [
         reason: "Shown once any account is added",
       },
       {
-        label: "Retirement",
+        label: "Retirement & Income",
         path: "/retirement",
         conditional: true,
         reason: "Shown once any account is added",
@@ -178,14 +178,14 @@ export const NAV_SECTIONS: NavSection[] = [
         reason: "Shown once any account is added",
       },
       {
-        label: "Life Planning",
-        path: "/life-planning",
+        label: "Estate & Insurance",
+        path: "/estate-insurance",
         conditional: true,
         reason: "Shown once any account is added",
       },
       // ── Advanced ──
       {
-        label: "Calculators",
+        label: "Planning Tools",
         path: "/investment-tools",
         advanced: true,
         reason: "Advanced — FIRE, loan modeler, HSA, bond ladder, what-if scenarios, and more",
@@ -237,7 +237,7 @@ export function buildConditionalDefaults(
     "/mortgage": hasMortgage,
     "/education": has529,
     "/tax-center": hasAnyAccounts,
-    "/life-planning": hasAnyAccounts,
+    "/estate-insurance": hasAnyAccounts,
     // investment-tools and pe-performance are advanced — gated separately
   };
 }
@@ -258,7 +258,7 @@ export function getLockedNavTooltip(path: string): string | undefined {
     "/goals": "Add an account to unlock",
     "/retirement": "Add an account to unlock",
     "/tax-center": "Add an account to unlock",
-    "/life-planning": "Add an account to unlock",
+    "/estate-insurance": "Add an account to unlock",
     "/rules": "Add an account to unlock",
     // Unlocked by specific account types
     "/recurring-bills": "Connect a bank account to unlock",

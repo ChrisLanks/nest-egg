@@ -68,9 +68,9 @@ const RentalPropertiesPage = lazy(() =>
     default: m.RentalPropertiesPage,
   })),
 );
-const RetirementPage = lazy(() =>
-  import("./features/retirement/pages/RetirementPage").then((m) => ({
-    default: m.RetirementPage,
+const RetirementHubPage = lazy(() =>
+  import("./pages/RetirementHubPage").then((m) => ({
+    default: m.RetirementHubPage,
   })),
 );
 const EducationPlanningPage = lazy(
@@ -102,9 +102,7 @@ const AcceptInvitationPage = lazy(() =>
   })),
 );
 const SmartInsightsPage = lazy(() => import("./pages/SmartInsightsPage"));
-const RothConversionPage = lazy(() => import("./pages/RothConversionPage"));
 const MortgagePage = lazy(() => import("./pages/MortgagePage"));
-const SSClaimingPage = lazy(() => import("./pages/SSClaimingPage"));
 const TaxProjectionPage = lazy(() => import("./pages/TaxProjectionPage"));
 const TaxBucketsPage = lazy(() => import("./pages/TaxBucketsPage"));
 const EquityPage = lazy(() => import("./pages/EquityPage"));
@@ -236,7 +234,7 @@ function App() {
                         path="/subscriptions"
                         element={<Navigate to="/recurring" replace />}
                       />
-                      <Route path="/retirement" element={<RetirementPage />} />
+                      <Route path="/retirement" element={<RetirementHubPage />} />
                       <Route
                         path="/education"
                         element={<EducationPlanningPage />}
@@ -248,14 +246,18 @@ function App() {
                         path="/smart-insights"
                         element={<Navigate to="/financial-health" replace />}
                       />
+                      {/* /roth-conversion merged into Tax Center */}
                       <Route
                         path="/roth-conversion"
-                        element={<RothConversionPage />}
+                        element={<Navigate to="/tax-center" replace />}
                       />
                       <Route path="/mortgage" element={<MortgagePage />} />
                       {/* Consolidated hub pages */}
                       <Route path="/tax-center" element={<TaxCenterPage />} />
-                      <Route path="/life-planning" element={<LifePlanningPage />} />
+                      {/* Estate & Insurance: estate planning + insurance audit */}
+                      <Route path="/estate-insurance" element={<LifePlanningPage />} />
+                      {/* /life-planning kept as redirect for bookmarks */}
+                      <Route path="/life-planning" element={<Navigate to="/estate-insurance" replace />} />
                       <Route path="/investment-tools" element={<InvestmentToolsPage />} />
                       <Route path="/financial-health" element={<FinancialHealthPage />} />
                       <Route path="/financial-plan" element={<Navigate to="/overview" replace />} />
@@ -263,13 +265,13 @@ function App() {
                       <Route path="/bond-ladder" element={<BondLadderPage />} />
                       <Route path="/what-if" element={<Navigate to="/investment-tools" replace />} />
                       {/* Individual pages still accessible directly (deep links, bookmarks) */}
-                      <Route path="/ss-claiming" element={<Navigate to="/life-planning" replace />} />
+                      <Route path="/ss-claiming" element={<Navigate to="/retirement" replace />} />
                       <Route path="/tax-projection" element={<Navigate to="/tax-center" replace />} />
                       <Route path="/tax-buckets" element={<Navigate to="/tax-center" replace />} />
                       <Route path="/equity" element={<Navigate to="/investment-tools" replace />} />
                       <Route path="/hsa" element={<Navigate to="/investment-tools" replace />} />
-                      <Route path="/estate" element={<Navigate to="/life-planning" replace />} />
-                      <Route path="/variable-income" element={<Navigate to="/life-planning" replace />} />
+                      <Route path="/estate" element={<Navigate to="/estate-insurance" replace />} />
+                      <Route path="/variable-income" element={<Navigate to="/retirement" replace />} />
                       <Route path="/loan-modeler" element={<Navigate to="/investment-tools" replace />} />
                       <Route path="/charitable-giving" element={<Navigate to="/tax-center" replace />} />
                       <Route

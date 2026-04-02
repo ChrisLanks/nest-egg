@@ -26,7 +26,7 @@ import {
   LockIcon,
   WarningIcon,
 } from "@chakra-ui/icons";
-import { FiSettings, FiLogOut, FiUsers } from "react-icons/fi";
+import { FiSettings, FiLogOut, FiUsers, FiSliders } from "react-icons/fi";
 import {
   Navigate,
   Outlet,
@@ -848,8 +848,8 @@ export const Layout = () => {
       announce(
         "ss-optimizer-nav",
         "SS Optimizer unlocked",
-        "Based on your age, Social Security planning is now available under Planning — find the best age to claim.",
-        "/ss-claiming",
+        "Based on your age, Social Security planning is now available under Retirement & Income — find the best age to claim.",
+        "/retirement",
       );
     }
     // Nudge users who have accounts but haven't turned on advanced features
@@ -958,10 +958,10 @@ export const Layout = () => {
         "Set savings targets — emergency fund, vacation, down payment — and track your progress",
     },
     {
-      label: "Retirement",
+      label: "Retirement & Income",
       path: "/retirement",
       tooltip:
-        "Project whether you'll have enough to retire — see your savings trajectory and model different life scenarios",
+        "Retirement planner, Social Security optimizer, RMD projections, pension modeling, and variable income planning",
     },
 
     // ── Unlocked by specific account types ────────────────────────────────
@@ -991,14 +991,14 @@ export const Layout = () => {
         "Estimate your tax bill, optimize across account types, track charitable giving, and plan Roth conversions",
     },
     {
-      label: "Life Planning",
-      path: "/life-planning",
+      label: "Estate & Insurance",
+      path: "/estate-insurance",
       tooltip:
-        "Social Security strategy, RMD projections, pension modeling, estate & beneficiary planning, insurance audit, and more",
+        "Estate & beneficiary planning and insurance coverage gap analysis",
     },
     // ── Advanced ──────────────────────────────────────────────────────────
     {
-      label: "Calculators",
+      label: "Planning Tools",
       path: "/investment-tools",
       tooltip:
         "FIRE progress, loan modeler, HSA optimizer, bond ladder, employer match, what-if scenarios, and more",
@@ -1362,6 +1362,31 @@ export const Layout = () => {
             <Box ml={10}>
               <UserViewToggle />
             </Box>
+            <Tooltip
+              label={showAdvancedNav ? "Switch to Simple mode" : "Switch to Advanced mode"}
+              placement="bottom"
+              hasArrow
+              openDelay={300}
+            >
+              <Button
+                size="sm"
+                variant={showAdvancedNav ? "solid" : "ghost"}
+                colorScheme={showAdvancedNav ? "brand" : "gray"}
+                leftIcon={<FiSliders />}
+                onClick={() => {
+                  const next = !showAdvancedNav;
+                  setShowAdvancedNav(next);
+                  try {
+                    localStorage.setItem("nest-egg-show-advanced-nav", String(next));
+                    window.dispatchEvent(new StorageEvent("storage", { key: "nest-egg-show-advanced-nav", newValue: String(next) }));
+                  } catch {}
+                }}
+                aria-label={showAdvancedNav ? "Simple mode" : "Advanced mode"}
+                fontWeight="medium"
+              >
+                {showAdvancedNav ? "Advanced" : "Simple"}
+              </Button>
+            </Tooltip>
             <NotificationBell />
 
             <UserMenu

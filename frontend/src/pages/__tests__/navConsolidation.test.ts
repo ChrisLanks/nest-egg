@@ -18,7 +18,7 @@ describe("nav consolidation — planning items", () => {
 
   it("has the three consolidated hub items", () => {
     expect(planningPaths).toContain("/tax-center");
-    expect(planningPaths).toContain("/life-planning");
+    expect(planningPaths).toContain("/estate-insurance");
     expect(planningPaths).toContain("/investment-tools");
   });
 
@@ -27,7 +27,7 @@ describe("nav consolidation — planning items", () => {
     expect(planningPaths).not.toContain("/tax-projection");
     expect(planningPaths).not.toContain("/tax-buckets");
     expect(planningPaths).not.toContain("/charitable-giving");
-    // These were merged into /life-planning
+    // SS, RMD, Pension, Variable Income merged into /retirement hub; Estate merged into /estate-insurance
     expect(planningPaths).not.toContain("/ss-claiming");
     expect(planningPaths).not.toContain("/variable-income");
     expect(planningPaths).not.toContain("/estate");
@@ -118,11 +118,11 @@ describe("buildConditionalDefaults — hub paths", () => {
   });
 
   it("life-planning hidden with no accounts (progressive disclosure)", () => {
-    expect(noAccounts["/life-planning"]).toBe(false);
+    expect(noAccounts["/estate-insurance"]).toBe(false);
   });
 
   it("life-planning visible once any account exists", () => {
-    expect(withAccount["/life-planning"]).toBe(true);
+    expect(withAccount["/estate-insurance"]).toBe(true);
   });
 
   it("investment-tools NOT in conditionalDefaults (advanced — gated separately)", () => {
@@ -225,7 +225,7 @@ describe("filterVisible with consolidated nav", () => {
     const paths = visible.map((i) => i.path);
     // With zero accounts, hubs are locked — not shown by default
     expect(paths).not.toContain("/tax-center");
-    expect(paths).not.toContain("/life-planning");
+    expect(paths).not.toContain("/estate-insurance");
   });
 
   it("tax-center and life-planning visible once any account exists", () => {
@@ -233,6 +233,6 @@ describe("filterVisible with consolidated nav", () => {
     const visible = filterVisible(false, {}, withAccount);
     const paths = visible.map((i) => i.path);
     expect(paths).toContain("/tax-center");
-    expect(paths).toContain("/life-planning");
+    expect(paths).toContain("/estate-insurance");
   });
 });

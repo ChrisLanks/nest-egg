@@ -27,7 +27,7 @@ describe("getLockedNavTooltip", () => {
       "/goals",
       "/retirement",
       "/tax-center",
-      "/life-planning",
+      "/estate-insurance",
       "/rules",
     ];
     for (const path of paths) {

@@ -13,7 +13,7 @@
  *   - "Show advanced features" toggle and "Reset to Default" reload immediately
  *   - No standalone "Advanced" button in the top nav (removed as duplicate)
  *   - Recurring + Bills merged into /recurring-bills hub
- *   - 9 planning items consolidated into 3 hubs (/tax-center, /life-planning, /investment-tools)
+ *   - 9 planning items consolidated into 3 hubs (/tax-center, /estate-insurance, /investment-tools)
  *
  * @vitest-environment jsdom
  */
@@ -494,9 +494,9 @@ describe("NAV_SECTIONS: structure", () => {
       "/categories",
       "/debt-payoff",
       "/education",
+      "/estate-insurance",
       "/financial-health",
       "/goals",
-      "/life-planning",
       "/mortgage",
       "/net-worth-timeline",
       "/pe-performance",
@@ -530,7 +530,7 @@ describe("NAV_SECTIONS: structure", () => {
     const planning = NAV_SECTIONS.find((s) => s.group === "Planning");
     const paths = planning!.items.map((i) => i.path);
     expect(paths).toContain("/tax-center");
-    expect(paths).toContain("/life-planning");
+    expect(paths).toContain("/estate-insurance");
     expect(paths).toContain("/investment-tools");
   });
   it("Mortgage is in Planning group as a conditional item", () => {
@@ -588,29 +588,29 @@ describe("top-nav Advanced button: removed (consolidated into Preferences)", () 
   });
 });
 
-// ── SS Optimizer / Life Planning hub ─────────────────────────────────────────
-// /ss-claiming was merged into /life-planning. The nav now shows /life-planning
-// unconditionally; age-gating for SS is handled inside the hub page itself.
+// ── SS Optimizer / Retirement hub ─────────────────────────────────────────
+// /ss-claiming was merged into /retirement. /estate-insurance is the new nav path
+// for Estate & Insurance (formerly /life-planning with just Estate + Insurance tabs).
 
-describe("Life Planning hub: always visible (SS age-gating inside hub)", () => {
+describe("Estate & Insurance hub: always visible (SS now in Retirement hub)", () => {
   it("/ss-claiming is no longer a top-level nav path", () => {
     const allPaths = NAV_SECTIONS.flatMap((s) => s.items).map((i) => i.path);
     expect(allPaths).not.toContain("/ss-claiming");
   });
 
-  it("/ss-claiming is not in conditionalDefaults (merged into hub)", () => {
+  it("/ss-claiming is not in conditionalDefaults (merged into /retirement hub)", () => {
     const defaults = buildConditionalDefaults(noAccounts);
     expect("/ss-claiming" in defaults).toBe(false);
   });
 
-  it("/life-planning is visible once any account exists (no age-gating)", () => {
+  it("/estate-insurance is visible once any account exists (no age-gating)", () => {
     // No accounts: locked (progressive disclosure, not age-gated)
     const defaultsNoAccounts = buildConditionalDefaults(noAccounts);
-    expect(defaultsNoAccounts["/life-planning"]).toBe(false);
+    expect(defaultsNoAccounts["/estate-insurance"]).toBe(false);
 
     // Any account (regardless of age): unlocked
     const withAnyAccount = buildConditionalDefaults([{ account_type: "checking", plaid_item_id: null, plaid_item_hash: null }]);
-    expect(withAnyAccount["/life-planning"]).toBe(true);
+    expect(withAnyAccount["/estate-insurance"]).toBe(true);
   });
 });
 

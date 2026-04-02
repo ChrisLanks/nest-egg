@@ -168,9 +168,10 @@ describe("RmdPlannerTab", () => {
     expect(rmdSrc).toContain("estimated_tax_on_rmd");
   });
 
-  it("is added as RMD Planner tab in LifePlanningPage", () => {
-    expect(lifePlanningsSrc).toContain("RmdPlannerTab");
-    expect(lifePlanningsSrc).toContain("RMD Planner");
+  it("is added as RMD Planner tab in RetirementHubPage", () => {
+    const retirementHubSrc = readPage("pages/RetirementHubPage.tsx");
+    expect(retirementHubSrc).toContain("RmdPlannerTab");
+    expect(retirementHubSrc).toContain("RMD Planner");
   });
 
   it("has filing status selector that affects tax estimate only", () => {
@@ -326,15 +327,15 @@ describe("CalendarPage", () => {
 // ── Hub page integration ──────────────────────────────────────────────────────
 
 describe("Hub page tab counts", () => {
-  it("TaxCenterPage has 6 tabs", () => {
+  it("TaxCenterPage has 7 tabs (Roth Conversion added)", () => {
     // TaxCenterPage uses TooltipTab components instead of bare <Tab>
     const tabMatches = taxCenterSrc.match(/<TooltipTab\s/g) ?? taxCenterSrc.match(/<Tab\s/g) ?? [];
-    expect(tabMatches.length).toBeGreaterThanOrEqual(6);
+    expect(tabMatches.length).toBeGreaterThanOrEqual(7);
   });
 
-  it("LifePlanningPage has 4 tabs", () => {
+  it("LifePlanningPage (Estate & Insurance) has 2 tabs", () => {
     const tabMatches = lifePlanningsSrc.match(/<Tab\s/g) ?? [];
-    expect(tabMatches.length).toBeGreaterThanOrEqual(4);
+    expect(tabMatches.length).toBeGreaterThanOrEqual(2);
   });
 
   it("InvestmentToolsPage has 5 tabs", () => {

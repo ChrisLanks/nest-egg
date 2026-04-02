@@ -187,7 +187,7 @@ describe("getResourceTypeForPath", () => {
     expect(getResourceTypeForPath("/financial-health")).toBe("report");
     expect(getResourceTypeForPath("/net-worth-timeline")).toBe("report");
     expect(getResourceTypeForPath("/tax-center")).toBe("report");
-    expect(getResourceTypeForPath("/life-planning")).toBe("report");
+    expect(getResourceTypeForPath("/estate-insurance")).toBe("report");
     expect(getResourceTypeForPath("/investment-tools")).toBe("report");
     expect(getResourceTypeForPath("/pe-performance")).toBe("report");
   });

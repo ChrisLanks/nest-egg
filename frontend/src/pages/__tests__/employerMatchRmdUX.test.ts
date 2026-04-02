@@ -59,7 +59,7 @@ describe("RmdPlannerTab — empty table state", () => {
   });
 });
 
-// ── Calculators page subtitle ─────────────────────────────────────────────
+// ── Planning Tools page subtitle ─────────────────────────────────────────
 
 describe("InvestmentToolsPage — subtitle", () => {
   it("does NOT just list tab names in the subtitle", () => {
@@ -122,5 +122,97 @@ describe("BackdoorRothTab — Contribution Headroom tooltip", () => {
     expect(idx).toBeGreaterThan(-1);
     const before = backdoorRothSrc.slice(idx - 600, idx);
     expect(before).toContain("<Tooltip");
+  });
+});
+
+// ── RetirementHubPage — merged SS/RMD/Pension/Variable Income ─────────────────
+
+const retirementHubSrc = readPage("RetirementHubPage.tsx");
+
+describe("RetirementHubPage — structure", () => {
+  it("exports RetirementHubPage", () => {
+    expect(retirementHubSrc).toContain("export const RetirementHubPage");
+  });
+
+  it("includes SS Optimizer tab", () => {
+    expect(retirementHubSrc).toContain("SS Optimizer");
+  });
+
+  it("includes RMD Planner tab", () => {
+    expect(retirementHubSrc).toContain("RMD Planner");
+  });
+
+  it("includes Pension tab", () => {
+    expect(retirementHubSrc).toContain("Pension");
+  });
+
+  it("includes Variable Income tab", () => {
+    expect(retirementHubSrc).toContain("Variable Income");
+  });
+
+  it("heading is Retirement & Income", () => {
+    expect(retirementHubSrc).toContain("Retirement & Income");
+  });
+});
+
+// ── LifePlanningPage (Estate & Insurance) — simplified ───────────────────────
+
+const estateInsuranceSrc = readPage("LifePlanningPage.tsx");
+
+describe("LifePlanningPage (Estate & Insurance) — structure", () => {
+  it("heading is Estate & Insurance", () => {
+    expect(estateInsuranceSrc).toContain("Estate & Insurance");
+  });
+
+  it("has Estate & Beneficiaries tab", () => {
+    expect(estateInsuranceSrc).toContain("Estate");
+  });
+
+  it("has Insurance Audit tab", () => {
+    expect(estateInsuranceSrc).toContain("Insurance Audit");
+  });
+
+  it("does NOT include SS Optimizer (moved to Retirement hub)", () => {
+    expect(estateInsuranceSrc).not.toContain("SS Optimizer");
+  });
+
+  it("does NOT include RMD Planner (moved to Retirement hub)", () => {
+    expect(estateInsuranceSrc).not.toContain("RMD Planner");
+  });
+});
+
+// ── TaxCenterPage — Roth Conversion tab added ────────────────────────────────
+
+const taxCenterSrc = readPage("TaxCenterPage.tsx");
+
+describe("TaxCenterPage — Roth Conversion tab", () => {
+  it("includes Roth Conversion tab", () => {
+    expect(taxCenterSrc).toContain("Roth Conversion");
+  });
+
+  it("imports RothConversionPage as lazy", () => {
+    expect(taxCenterSrc).toContain("RothConversionPage");
+  });
+});
+
+// ── Layout.tsx — simple/advanced toggle ──────────────────────────────────────
+
+const layoutSrc = readFileSync(
+  resolve(__dirname, "..", "..", "components", "Layout.tsx"),
+  "utf-8",
+);
+
+describe("Layout.tsx — simple/advanced toggle in header", () => {
+  it("imports FiSliders icon", () => {
+    expect(layoutSrc).toContain("FiSliders");
+  });
+
+  it("toggle button shows 'Advanced' or 'Simple' label", () => {
+    expect(layoutSrc).toContain("Advanced");
+    expect(layoutSrc).toContain("Simple");
+  });
+
+  it("toggle writes to nest-egg-show-advanced-nav localStorage key", () => {
+    expect(layoutSrc).toContain("nest-egg-show-advanced-nav");
   });
 });

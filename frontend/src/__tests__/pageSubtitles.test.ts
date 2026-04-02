@@ -68,8 +68,8 @@ describe("Preferences advanced-features toggle description (J)", () => {
     return "";
   }
 
-  it("mentions Calculators", () => {
-    expect(getToggleContext()).toContain("Calculators");
+  it("mentions Planning Tools", () => {
+    expect(getToggleContext()).toContain("Planning Tools");
   });
 
   it("mentions PE Performance", () => {
@@ -85,7 +85,7 @@ describe("Preferences advanced-features toggle description (J)", () => {
   });
 
   it("lists the advanced tabs that get unlocked", () => {
-    expect(getToggleContext()).toMatch(/Calculators|bond ladder|PE Performance/i);
+    expect(getToggleContext()).toMatch(/Planning Tools|bond ladder|PE Performance/i);
   });
 });
 

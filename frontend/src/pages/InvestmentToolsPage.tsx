@@ -1,5 +1,5 @@
 /**
- * Calculators — consolidated advanced planning calculators hub.
+ * Planning Tools — consolidated advanced planning calculators hub.
  *
  * Combines FIRE metrics, Loan Modeler, HSA Optimizer, Employer Match,
  * What-If Scenarios, Bond Ladder, Equity Compensation, Tax-Equivalent Yield,
@@ -68,7 +68,7 @@ export const InvestmentToolsPage = () => {
   return (
     <Box pt={4}>
       <Box px={6} mb={2}>
-        <Heading size="lg">Calculators</Heading>
+        <Heading size="lg">Planning Tools</Heading>
         <Text color="text.secondary" mt={1} fontSize="sm">
           Model what-if scenarios, check if you're on track to retire early, optimize your HSA and employer match, and run advanced analysis on loans, bonds, equity compensation, and taxes — all based on your actual account data.
         </Text>

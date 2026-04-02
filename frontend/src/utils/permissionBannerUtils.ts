@@ -39,7 +39,7 @@ export const ROUTE_TO_RESOURCE_TYPE: Record<string, string> = {
   "/financial-health": "report",
   "/net-worth-timeline": "report",
   "/tax-center": "report",
-  "/life-planning": "report",
+  "/estate-insurance": "report",
   "/investment-tools": "report",
   "/pe-performance": "report",
 };

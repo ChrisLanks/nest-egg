@@ -155,9 +155,10 @@ describe("PensionModelerTab", () => {
     expect(pensionModelerSrc).toContain("recommendation");
   });
 
-  it("is embedded in LifePlanningPage as Pension Modeler tab", () => {
-    expect(lifePlanningSrc).toContain("PensionModelerTab");
-    expect(lifePlanningSrc).toContain("Pension Modeler");
+  it("is embedded in RetirementHubPage as Pension tab", () => {
+    const retirementHubSrc = readPage("pages/RetirementHubPage.tsx");
+    expect(retirementHubSrc).toContain("PensionModelerTab");
+    expect(retirementHubSrc).toContain("Pension");
   });
 });
 
@@ -490,8 +491,8 @@ describe("App.tsx routing", () => {
     expect(appSrc).toContain("/investment-tools");
   });
 
-  it("has /life-planning route", () => {
-    expect(appSrc).toContain("/life-planning");
+  it("has /estate-insurance route", () => {
+    expect(appSrc).toContain("/estate-insurance");
   });
 
   it("has /net-worth-timeline route", () => {
@@ -507,11 +508,11 @@ describe("Hub page tab counts", () => {
     expect(tabMatches.length).toBeGreaterThanOrEqual(8);
   });
 
-  it("LifePlanningPage has 6 tabs including Insurance Audit and Pension Modeler", () => {
+  it("LifePlanningPage (Estate & Insurance) has 2 tabs: Estate & Beneficiaries and Insurance Audit", () => {
     const tabMatches = lifePlanningSrc.match(/<Tab\s/g) ?? [];
-    expect(tabMatches.length).toBeGreaterThanOrEqual(6);
+    expect(tabMatches.length).toBeGreaterThanOrEqual(2);
     expect(lifePlanningSrc).toContain("Insurance Audit");
-    expect(lifePlanningSrc).toContain("Pension Modeler");
+    expect(lifePlanningSrc).toContain("Estate");
   });
 
   it("NetWorthTimelinePage has Historical, Forecast, and Percentile tabs", () => {
@@ -541,7 +542,7 @@ describe("Tab persistence on all hub pages", () => {
     expect(taxCenterSrc).toContain("handleTabChange");
   });
 
-  it("LifePlanningPage persists active tab to localStorage", () => {
+  it("LifePlanningPage (Estate & Insurance) persists active tab to localStorage", () => {
     expect(lifePlanningSrc).toContain("nest-egg-tab-life-planning");
     expect(lifePlanningSrc).toContain("localStorage");
   });
@@ -681,14 +682,14 @@ describe("CalendarPage dividend integration", () => {
   });
 });
 
-// ── RmdPlannerTab federal rate input ──────────────────────────────────────────
+// ── RmdPlannerTab filing status ───────────────────────────────────────────────
 
-describe("RmdPlannerTab federal rate input", () => {
-  it("has editable federal tax rate state", () => {
-    expect(rmdSrc).toContain("federalRate");
+describe("RmdPlannerTab filing status", () => {
+  it("has filing status selector", () => {
+    expect(rmdSrc).toContain("filingStatus");
   });
-  it("sends federal_rate_pct to API", () => {
-    expect(rmdSrc).toContain("federal_rate_pct");
+  it("does NOT send unused federal_rate_pct to API", () => {
+    expect(rmdSrc).not.toContain("federal_rate_pct");
   });
 });
 
@@ -720,16 +721,16 @@ describe("Nav consolidation: Investments nav item", () => {
   });
 });
 
-describe("Nav consolidation: Calculators (formerly Planning Tools) rename", () => {
-  it('InvestmentToolsPage heading is "Calculators"', () => {
-    expect(investmentToolsSrc).toContain("Calculators");
+describe("Nav consolidation: Planning Tools rename", () => {
+  it('InvestmentToolsPage heading is "Planning Tools"', () => {
+    expect(investmentToolsSrc).toContain("Planning Tools");
   });
 
-  it('Layout allPlanningItems has "Calculators" label', () => {
-    expect(layoutSrc).toContain('"Calculators"');
+  it('Layout allPlanningItems has "Planning Tools" label', () => {
+    expect(layoutSrc).toContain('"Planning Tools"');
   });
 
-  it("Calculators still routes to /investment-tools", () => {
+  it("Planning Tools still routes to /investment-tools", () => {
     expect(layoutSrc).toContain('"/investment-tools"');
   });
 });
@@ -768,8 +769,8 @@ describe("Nav consolidation: Smart Insights and Financial Health in Analytics", 
 });
 
 describe("Nav consolidation: NAV_SECTIONS matches Layout structure", () => {
-  it("Calculators appears in NAV_SECTIONS Planning group (formerly Planning Tools)", () => {
-    expect(useNavDefaultsSrc).toContain("Calculators");
+  it("Planning Tools appears in NAV_SECTIONS Planning group", () => {
+    expect(useNavDefaultsSrc).toContain("Planning Tools");
   });
 
   it("PE Performance appears in NAV_SECTIONS Analytics group (moved from Planning)", () => {
