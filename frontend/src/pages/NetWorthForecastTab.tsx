@@ -66,23 +66,41 @@ const fmt = (v: number) =>
     maximumFractionDigits: 1,
   }).format(v);
 
+interface FinancialDefaults {
+  default_retirement_age: number;
+  default_expected_return: number;
+  default_annual_contribution: number;
+}
+
 export const NetWorthForecastTab = () => {
   const { selectedUserId } = useUserView();
   const { formatCurrency } = useCurrency();
-  const [retirementAge, setRetirementAge] = useState(67);
-  const [annualReturn, setAnnualReturn] = useState(7);
-  const [annualContrib, setAnnualContrib] = useState(24000);
+
+  const { data: defaults } = useQuery<FinancialDefaults>({
+    queryKey: ["financial-defaults"],
+    queryFn: () => api.get("/settings/financial-defaults").then((r) => r.data),
+    staleTime: Infinity,
+  });
+
+  const [retirementAge, setRetirementAge] = useState<number | null>(null);
+  const [annualReturn, setAnnualReturn] = useState<number | null>(null);
+  const [annualContrib, setAnnualContrib] = useState<number | null>(null);
+
+  const effectiveRetirementAge = retirementAge ?? (defaults?.default_retirement_age ?? 67);
+  const effectiveAnnualReturn = annualReturn ?? (defaults ? defaults.default_expected_return * 100 : 7);
+  const effectiveAnnualContrib = annualContrib ?? (defaults?.default_annual_contribution ?? 24000);
 
   const params = new URLSearchParams({
-    retirement_age: String(retirementAge),
-    annual_return: String(annualReturn / 100),
-    annual_contribution: String(annualContrib),
+    retirement_age: String(effectiveRetirementAge),
+    annual_return: String(effectiveAnnualReturn / 100),
+    annual_contribution: String(effectiveAnnualContrib),
   });
   if (selectedUserId) params.set("user_id", selectedUserId);
 
   const { data, isLoading, error } = useQuery<ForecastResponse>({
-    queryKey: ["net-worth-forecast", retirementAge, annualReturn, annualContrib, selectedUserId],
+    queryKey: ["net-worth-forecast", effectiveRetirementAge, effectiveAnnualReturn, effectiveAnnualContrib, selectedUserId],
     queryFn: () => api.get(`/dashboard/net-worth-forecast?${params}`).then((r) => r.data),
+    enabled: defaults !== undefined,
   });
 
   // Merge scenarios into chart data
@@ -103,7 +121,7 @@ export const NetWorthForecastTab = () => {
             <FormControl>
               <FormLabel fontSize="sm">Retirement Age</FormLabel>
               <NumberInput
-                value={retirementAge}
+                value={effectiveRetirementAge}
                 min={50}
                 max={90}
                 onChange={(_, v) => !isNaN(v) && setRetirementAge(v)}
@@ -115,7 +133,7 @@ export const NetWorthForecastTab = () => {
             <FormControl>
               <FormLabel fontSize="sm">Annual Return (%)</FormLabel>
               <NumberInput
-                value={annualReturn}
+                value={effectiveAnnualReturn}
                 min={1}
                 max={15}
                 step={0.5}
@@ -128,7 +146,7 @@ export const NetWorthForecastTab = () => {
             <FormControl>
               <FormLabel fontSize="sm">Annual Contribution ($)</FormLabel>
               <NumberInput
-                value={annualContrib}
+                value={effectiveAnnualContrib}
                 min={0}
                 max={500000}
                 step={1000}

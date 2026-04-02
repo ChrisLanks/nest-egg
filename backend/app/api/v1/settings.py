@@ -28,7 +28,7 @@ from app.models.rule import Rule
 from app.models.transaction import Transaction, TransactionLabel
 from app.models.user import Organization, RefreshToken, User
 from app.schemas.user import OrganizationUpdate, UserUpdate
-from app.constants.financial import VARIABLE_INCOME
+from app.constants.financial import FIRE, RETIREMENT, TAX, VARIABLE_INCOME
 from app.constants.state_tax_rates import STATE_NAMES, STATE_TAX_RATES
 from app.services.email_service import create_verification_token, email_service
 from app.services.fx_service import SUPPORTED_CURRENCIES
@@ -993,3 +993,35 @@ async def get_state_list():
             "no_income_tax": rate == 0.0,
         })
     return {"states": states}
+
+
+# ── Financial defaults ─────────────────────────────────────────────────────
+
+
+@router.get("/financial-defaults")
+async def get_financial_defaults(
+    current_user: User = Depends(get_current_user),
+):
+    """Return planning defaults sourced from financial.py constants.
+
+    Frontend components use this endpoint to pre-populate form defaults so
+    that numeric assumptions are never hardcoded in the UI layer.
+    """
+    return {
+        # FIRE / retirement planning
+        "default_withdrawal_rate": FIRE.DEFAULT_WITHDRAWAL_RATE,
+        "default_expected_return": FIRE.DEFAULT_EXPECTED_RETURN,
+        "default_inflation": FIRE.DEFAULT_INFLATION,
+        "default_annual_spending": FIRE.DEFAULT_ANNUAL_SPENDING,
+        "default_annual_contribution": FIRE.DEFAULT_ANNUAL_CONTRIBUTION,
+        "fi_multiplier": FIRE.FI_MULTIPLIER,
+        # Retirement ages
+        "default_retirement_age": RETIREMENT.DEFAULT_RETIREMENT_AGE,
+        "default_life_expectancy": RETIREMENT.DEFAULT_LIFE_EXPECTANCY,
+        # Tax defaults
+        "federal_marginal_rate": float(TAX.FEDERAL_MARGINAL_RATE),
+        "medical_deduction_agi_floor": float(TAX.MEDICAL_DEDUCTION_AGI_FLOOR),
+        # Safe-harbour withholding
+        "safe_harbor_current_year_rate": float(VARIABLE_INCOME.SAFE_HARBOR_CURRENT_YEAR_RATE),
+        "safe_harbor_high_income_threshold": VARIABLE_INCOME.SAFE_HARBOR_110_PCT_INCOME_THRESHOLD,
+    }

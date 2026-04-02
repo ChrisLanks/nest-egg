@@ -39,11 +39,12 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   smartInsightsApi,
   type RothConversionResponse,
 } from "../api/smartInsights";
+import api from "../services/api";
 import { useUserView } from "../contexts/UserViewContext";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -60,19 +61,28 @@ const fmtPct = (n: number) => `${(n * 100).toFixed(0)}%`;
 
 const STORAGE_KEY = "roth-conversion-assumptions";
 
-function loadAssumptions() {
+function loadAssumptions(): {
+  currentIncome: string;
+  filingStatus: "single" | "married";
+  expectedReturn: string;
+  yearsToProject: string;
+  respectIrmaa: boolean;
+  _fromStorage: boolean;
+} {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) return { ...JSON.parse(raw), _fromStorage: true };
   } catch {
     /* ignore */
   }
+  // Fallback defaults — overridden by /settings/financial-defaults at runtime
   return {
     currentIncome: "80000",
     filingStatus: "single",
     expectedReturn: "7",
     yearsToProject: "20",
     respectIrmaa: true,
+    _fromStorage: false,
   };
 }
 
@@ -210,6 +220,17 @@ export const RothConversionPage = () => {
   const [yearsToProject, setYearsToProject] = useState(saved.yearsToProject);
   const [respectIrmaa, setRespectIrmaa] = useState<boolean>(saved.respectIrmaa);
   const [assumedFutureRate, setAssumedFutureRate] = useState<string>("");
+
+  // Seed defaults from backend when no localStorage value exists
+  useEffect(() => {
+    if (saved._fromStorage) return;
+    api.get("/settings/financial-defaults").then((r) => {
+      const d = r.data;
+      setCurrentIncome(String(d.default_annual_spending ?? 80000));
+      setExpectedReturn(String(Math.round((d.default_expected_return ?? 0.07) * 100)));
+    }).catch(() => {/* keep hardcoded fallback */});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const persist = useCallback(
     (
