@@ -104,6 +104,7 @@ function grantLabel(type?: string | null) {
     rsu: "RSU",
     rsa: "RSA",
     profit_interest: "Profits Interest",
+    lp_interest: "LP Interest",
   };
   return type ? (map[type] ?? type.toUpperCase()) : "—";
 }
@@ -115,6 +116,7 @@ function grantColor(type?: string | null) {
     rsu: "green",
     rsa: "purple",
     profit_interest: "gray",
+    lp_interest: "teal",
   };
   return type ? (map[type] ?? "gray") : "gray";
 }

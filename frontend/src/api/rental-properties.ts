@@ -38,6 +38,9 @@ export interface PropertyPnl {
   cap_rate: number;
   expense_breakdown: ExpenseBreakdownItem[];
   monthly: MonthlyData[];
+  rental_type?: string | null;
+  is_str?: boolean;
+  str_loophole_active?: boolean;
 }
 
 export interface PropertySummaryItem {
@@ -50,6 +53,8 @@ export interface PropertySummaryItem {
   total_expenses: number;
   net_income: number;
   cap_rate: number;
+  rental_type?: string | null;
+  is_str?: boolean;
 }
 
 export interface PropertiesSummary {

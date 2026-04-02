@@ -3,10 +3,14 @@
  */
 
 import {
+  Alert,
+  AlertDescription,
+  AlertIcon,
   Box,
   Container,
   Heading,
   Text,
+  Tooltip,
   VStack,
   HStack,
   Card,
@@ -279,6 +283,21 @@ export const RentalPropertiesPage = () => {
                               {formatPercent(prop.cap_rate)} cap
                             </Badge>
                           )}
+                          {prop.is_str && (
+                            <Tooltip
+                              label="Short-Term Rental (Airbnb/VRBO). May qualify for the IRC §469 STR loophole — rental losses can offset ordinary income if you materially participate."
+                              hasArrow
+                              placement="top"
+                            >
+                              <Badge colorScheme="purple" cursor="help">STR</Badge>
+                            </Tooltip>
+                          )}
+                          {prop.rental_type === "long_term_rental" && (
+                            <Badge colorScheme="blue" variant="subtle">LTR</Badge>
+                          )}
+                          {prop.rental_type === "buy_and_hold" && (
+                            <Badge colorScheme="gray" variant="subtle">Hold</Badge>
+                          )}
                         </HStack>
                         {prop.rental_address && (
                           <Text fontSize="sm" color="text.secondary">
@@ -357,6 +376,22 @@ export const RentalPropertiesPage = () => {
                     <Heading size="md">
                       {propertyPnl.name} — {year} P&L Detail
                     </Heading>
+
+                    {/* STR loophole callout */}
+                    {propertyPnl.is_str && propertyPnl.str_loophole_active !== false && (
+                      <Alert status="info" variant="subtle" borderRadius="md">
+                        <AlertIcon />
+                        <AlertDescription fontSize="sm">
+                          <strong>Short-Term Rental (STR) Tax Note:</strong> Since average rental
+                          periods are ≤7 days, this property may qualify for the{" "}
+                          <strong>IRC §469 STR loophole</strong>. If you materially participate
+                          (≥750 hrs/yr or qualify as a real estate professional), rental losses
+                          can offset ordinary income — bypassing the passive activity loss rules
+                          that limit long-term rental deductions to $25K/yr. Consult a CPA before
+                          claiming this treatment.
+                        </AlertDescription>
+                      </Alert>
+                    )}
 
                     {/* Expense Breakdown Table */}
                     <Card bg={cardBg}>
