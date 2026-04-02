@@ -196,8 +196,7 @@ export default function BudgetsPage() {
               <HelpHint hint={helpContent.budgets.period} />
             </Heading>
             <Text color="text.secondary">
-              Monthly spending limits by category — alerts you before you
-              overspend
+              Spending limits by category — alerts you before you overspend. Budgets reset each period (monthly by default). Unused amounts don't carry over unless you turn on rollover for that budget.
             </Text>
           </VStack>
           <Tooltip

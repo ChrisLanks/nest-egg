@@ -63,7 +63,7 @@ describe("FinancialRatiosTab score scale and entry prompt (T)", () => {
   it("overall grade letter has a tooltip with the A–F scale", () => {
     const gradeIdx = ratiosSrc.indexOf("overall_grade}");
     expect(gradeIdx).toBeGreaterThan(-1);
-    const context = ratiosSrc.slice(Math.max(0, gradeIdx - 300), gradeIdx + 50);
+    const context = ratiosSrc.slice(Math.max(0, gradeIdx - 600), gradeIdx + 50);
     expect(context).toMatch(/Tooltip/);
   });
 

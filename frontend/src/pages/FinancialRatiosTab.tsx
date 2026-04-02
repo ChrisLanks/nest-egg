@@ -221,9 +221,14 @@ export const FinancialRatiosTab = () => {
           {/* Overall grade */}
           <HStack spacing={6} align="center">
             <Tooltip label="A = 90–100 (excellent) · B = 80–89 (good) · C = 70–79 (fair) · D = 60–69 (needs work) · F = below 60 (at risk). Higher is better.">
-              <Text fontSize="5xl" fontWeight="bold" color={gradeColor(data.overall_grade)} cursor="help">
-                {data.overall_grade}
-              </Text>
+              <VStack spacing={0} cursor="help">
+                <Text fontSize="5xl" fontWeight="bold" color={gradeColor(data.overall_grade)}>
+                  {data.overall_grade}
+                </Text>
+                <Text fontSize="2xs" color="text.muted" letterSpacing="wide" textTransform="uppercase">
+                  {data.overall_grade === "A" ? "Excellent" : data.overall_grade === "B" ? "Good" : data.overall_grade === "C" ? "Fair" : data.overall_grade === "D" ? "Needs work" : "At risk"}
+                </Text>
+              </VStack>
             </Tooltip>
             <VStack align="flex-start" spacing={1} flex={1}>
               <Text fontSize="sm" fontWeight="medium">Overall Financial Health Score</Text>

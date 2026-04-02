@@ -306,7 +306,7 @@ const TransactionDesktopRow = memo(
         <Td>
           <HStack spacing={2}>
             {txn.is_pending && (
-              <Tooltip label="This transaction has been initiated but not yet fully processed by your bank. Pending transactions may still be adjusted or cancelled.">
+              <Tooltip label="This transaction has been initiated but not yet fully processed by your bank. Pending transactions may still be adjusted or cancelled. Once confirmed, it disappears from this column.">
                 <Badge colorScheme="orange" cursor="help">Pending</Badge>
               </Tooltip>
             )}
