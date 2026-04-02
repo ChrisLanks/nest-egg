@@ -59,7 +59,7 @@ Comprehensive 11-tab portfolio analysis with **multi-provider** market data:
   - Asset class allocation breakdown
 - **Holdings Detail**: Sortable table with CSV export
 - **Roth Conversion Analyzer**: Model tax-efficient Roth conversion strategies
-- **Tax-Loss Harvesting**: Identify unrealized losses, estimate tax savings (27% combined rate), wash-sale rule warnings, and same-sector replacement suggestions
+- **Tax-Loss Harvesting**: Identify unrealized losses, estimate tax savings (27% combined rate), wash-sale rule warnings, and same-sector replacement suggestions. **Crypto holdings are flagged with a "No Wash-Sale Rule (Crypto)" badge** — since crypto is classified as property (IRC §1221), the IRC §1091 wash-sale rule does not apply, allowing immediate repurchase after a loss sale. `CRYPTO_TAX.IS_PROPERTY` in `app/constants/financial.py` controls this; set to `False` if crypto is reclassified as a security.
 - **Dividend Income**: Track dividend and investment income with summary stats, monthly chart, and top payers table (see Dividend & Investment Income section below)
 - **Account Exclusion Tooltip**: Explains why primary residence and vehicles are excluded by default (needed to live in/use; investment properties count)
 - **Trump Account Support**: Available as a manual investment account type
@@ -233,7 +233,9 @@ Drop-in support for external identity providers alongside the built-in JWT syste
 ## Manual Assets & Accounts
 
 - **Manual Account Types**: Savings, Checking, Investment, Retirement, Loan, Mortgage, Credit Card, Other
+- **Private Equity & LP Interests**: Track PE funds, VC stakes, and Limited Partnership interests with grant types: ISO, NSO, RSU, RSA, Profit Interest (LLC), and **LP Interest** (PE fund / real estate LP). NAV-based balance entry with a quarterly update reminder.
 - **Property Tracking**: Track real estate with address, mortgage balance, and equity calculation
+  - Investment properties include a **Rental Strategy** picker: Buy and Hold, Long-Term Rental, or Short-Term Rental (with STR loophole disclosure)
 - **Vehicle Tracking**: Track vehicles with VIN, mileage, loan balance, and equity calculation
 - **Auto-Valuation**: Automatically refresh property and vehicle market values via third-party APIs
   - Property: RentCast (free), ATTOM (paid), or Zillow via RapidAPI (not recommended)
@@ -541,6 +543,12 @@ Per-property financial tracking for real estate investors:
 - **Cap Rate Calculation**: Automatic capitalization rate based on NOI and property value
 - **Monthly Breakdown**: Month-by-month P&L table with year-to-date totals
 - **Dedicated Page**: `RentalPropertiesPage` with multi-property dashboard
+- **Rental Strategy Classification**: Investment properties are classified as one of three strategies:
+  - **Buy and Hold** (`buy_and_hold`): Long-term appreciation play, no rental income expected
+  - **Long-Term Rental** (`long_term_rental`): 12+ month leases; losses are passive (up to $25K/yr allowed for AGI < $100K under IRC §469)
+  - **Short-Term Rental** (`short_term_rental`): Airbnb/VRBO/nightly rentals; may qualify for the **STR loophole** (IRC §469 material participation) allowing passive losses to offset ordinary income
+- **STR Loophole Flag**: `RENTAL.STR_LOOPHOLE_ACTIVE` in `app/constants/financial.py` controls whether the app surfaces the STR tax strategy. Set to `False` if Congress closes the loophole — no other code change needed.
+- **Depreciation**: Residential rental properties depreciate over 27.5 years (3.636%/yr) per IRC §168 — tracked in `RENTAL.RESIDENTIAL_DEPRECIATION_YEARS`
 
 ## Dividend & Investment Income
 

@@ -66,6 +66,7 @@ export interface RentalFieldsUpdate {
   is_rental_property?: boolean;
   rental_monthly_income?: number;
   rental_address?: string;
+  rental_type?: string;
 }
 
 export const rentalPropertiesApi = {

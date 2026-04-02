@@ -40,14 +40,23 @@ class PropertyType(str, enum.Enum):
     VACATION_HOME = "vacation_home"
 
 
+class RentalType(str, enum.Enum):
+    """Rental strategy classification for investment properties."""
+
+    BUY_AND_HOLD = "buy_and_hold"           # Long-term appreciation play
+    LONG_TERM_RENTAL = "long_term_rental"   # 12+ month leases (LTR)
+    SHORT_TERM_RENTAL = "short_term_rental" # Airbnb/VRBO/nightly (STR)
+
+
 class GrantType(str, enum.Enum):
     """Grant type for private equity/stock options."""
 
-    ISO = "iso"  # Incentive Stock Option
-    NSO = "nso"  # Non-Qualified Stock Option
-    RSU = "rsu"  # Restricted Stock Unit
-    RSA = "rsa"  # Restricted Stock Award
+    ISO = "iso"                      # Incentive Stock Option
+    NSO = "nso"                      # Non-Qualified Stock Option
+    RSU = "rsu"                      # Restricted Stock Unit
+    RSA = "rsa"                      # Restricted Stock Award
     PROFIT_INTEREST = "profit_interest"  # LLC Profits Interest (membership units)
+    LP_INTEREST = "lp_interest"      # Limited Partnership Interest (PE fund / real estate LP)
 
 
 class CompanyStatus(str, enum.Enum):
@@ -486,6 +495,7 @@ class Account(Base):
     is_rental_property = Column(Boolean, default=False, nullable=False, server_default="false")
     rental_monthly_income = Column(Numeric(12, 2), nullable=True)  # Expected monthly rent
     rental_address = Column(String(500), nullable=True)  # Display address for rental properties
+    rental_type = Column(SQLEnum(RentalType), nullable=True)  # Buy-and-hold, LTR, or STR
 
     # Auto-valuation metadata (property + vehicle)
     last_auto_valued_at = Column(DateTime, nullable=True)  # When balance was last set by the API

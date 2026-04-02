@@ -1939,6 +1939,34 @@ class TAX_BUCKETS:
 # =========================================================================
 
 
+class CRYPTO_TAX:
+    """Crypto tax classification constants.
+
+    As of 2026, crypto is classified as property (like collectibles) under IRC §1221.
+    This means:
+    - No wash-sale rule (IRC §1091 does not apply to property)
+    - Short-term gains taxed as ordinary income
+    - Long-term gains taxed at capital gains rates
+    - Selling crypto to offset gains is a valid tax strategy
+
+    IS_PROPERTY = True means wash-sale does NOT apply.
+    If/when crypto is reclassified as a security, set IS_PROPERTY = False
+    and wash-sale rules will apply.
+    """
+
+    # Current classification: True = property (no wash-sale), False = security (wash-sale applies)
+    IS_PROPERTY: bool = True
+
+    # Wash-sale rule applies to securities (IRC §1091), not property
+    WASH_SALE_APPLIES: bool = not IS_PROPERTY  # = False currently
+
+    NOTE = (
+        "Crypto is currently classified as property under IRC §1221. "
+        "No wash-sale rule applies. Selling at a loss and immediately re-buying is allowed. "
+        "This may change if Congress reclassifies crypto as a security."
+    )
+
+
 class BOND_LADDER:
     """Bond ladder fallback constants used when live Treasury cache is unavailable.
 
@@ -1961,3 +1989,32 @@ class BOND_LADDER:
         "10_year": 0.0395,
         "30_year": 0.0410,
     }
+
+
+class RENTAL:
+    """Rental property financial constants and tax rules.
+
+    STR (Short-Term Rental) notes:
+    - The STR loophole (IRC §469 material participation) lets real estate
+      professionals or materially participating STR owners deduct rental
+      losses against ordinary income — bypassing passive activity loss rules.
+    - This loophole may be legislated away. STR_LOOPHOLE_ACTIVE controls
+      whether the app surfaces this as a recommendation.
+    - Average rental period must be <= 7 days to qualify for STR treatment.
+    """
+
+    # Toggle this to False if/when Congress closes the STR loophole
+    STR_LOOPHOLE_ACTIVE: bool = True
+
+    # Average rental period threshold (days) to qualify as STR under IRC §469
+    STR_AVG_RENTAL_DAYS_THRESHOLD: int = 7
+
+    # Residential rental depreciation (27.5-year straight-line, IRC §168)
+    RESIDENTIAL_DEPRECIATION_YEARS: float = 27.5
+    RESIDENTIAL_DEPRECIATION_RATE: float = 1 / 27.5  # ~3.636% per year
+
+    # Passive activity loss rules for LTR (IRC §469)
+    # Losses are passive but up to $25K/yr is allowed if AGI < $100K (active participation)
+    PASSIVE_LOSS_ALLOWANCE_MAX: int = 25_000
+    PASSIVE_LOSS_PHASEOUT_START: int = 100_000
+    PASSIVE_LOSS_PHASEOUT_END: int = 150_000

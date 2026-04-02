@@ -33,6 +33,8 @@ interface TaxLossOpportunity {
   loss_percentage: number;
   estimated_tax_savings: number;
   wash_sale_risk: boolean;
+  is_crypto?: boolean;
+  no_wash_sale_rule?: boolean;
 }
 
 interface TaxLossHarvestingData {
@@ -139,6 +141,9 @@ const TaxLossHarvestingWidgetBase: React.FC = () => {
                     <Badge colorScheme="yellow" fontSize="2xs">
                       Wash sale risk
                     </Badge>
+                  )}
+                  {opp.no_wash_sale_rule && (
+                    <Badge colorScheme="orange" fontSize="xs">No Wash-Sale Rule (Crypto)</Badge>
                   )}
                 </HStack>
                 <HStack spacing={2}>

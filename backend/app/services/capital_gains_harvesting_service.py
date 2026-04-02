@@ -117,6 +117,7 @@ class CapitalGainsHarvestingService:
 
             # Fetch current value from the associated holding
             from app.models.holding import Holding
+            from app.models.account import Account, AccountType
 
             holding_result = await db.execute(
                 select(Holding).where(Holding.id == lot.holding_id)
@@ -136,6 +137,13 @@ class CapitalGainsHarvestingService:
             if gain < min_gain:
                 continue
 
+            # Fetch account type to determine crypto-specific tax treatment
+            acct_result = await db.execute(
+                select(Account.account_type).where(Account.id == lot.account_id)
+            )
+            account_type = acct_result.scalar_one_or_none()
+            is_crypto = account_type == AccountType.CRYPTO
+
             holding_period_days = (date.today() - lot.acquisition_date).days
             candidates.append(
                 {
@@ -148,6 +156,12 @@ class CapitalGainsHarvestingService:
                     "acquisition_date": lot.acquisition_date.isoformat(),
                     "holding_period_days": holding_period_days,
                     "is_long_term": True,
+                    "is_crypto": is_crypto,
+                    "no_wash_sale_rule": is_crypto,
+                    "crypto_wash_sale_note": (
+                        "Crypto is currently treated as property (no wash-sale rule applies). "
+                        "This may change if crypto is reclassified as a security."
+                    ) if is_crypto else None,
                 }
             )
 

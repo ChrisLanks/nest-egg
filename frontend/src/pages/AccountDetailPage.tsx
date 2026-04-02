@@ -113,6 +113,7 @@ interface Account {
   // Rental property fields
   is_rental_property: boolean | null;
   rental_monthly_income: number | null;
+  rental_type?: string | null;
   // Employer match fields (401k / 403b)
   employer_match_percent: number | null;
   employer_match_limit_percent: number | null;
@@ -182,6 +183,7 @@ export const AccountDetailPage = () => {
   const [propertyZip, setPropertyZip] = useState("");
   const [isRentalProperty, setIsRentalProperty] = useState(false);
   const [rentalMonthlyIncome, setRentalMonthlyIncome] = useState("");
+  const [rentalType, setRentalType] = useState<string>("");
   const [manualBalance, setManualBalance] = useState("");
   const [debtBalance, setDebtBalance] = useState("");
   const [isEditingName, setIsEditingName] = useState(false);
@@ -635,7 +637,7 @@ export const AccountDetailPage = () => {
 
   // Update rental property fields mutation
   const updateRentalFieldsMutation = useMutation({
-    mutationFn: (body: { is_rental_property?: boolean; rental_monthly_income?: number }) =>
+    mutationFn: (body: { is_rental_property?: boolean; rental_monthly_income?: number; rental_type?: string }) =>
       rentalPropertiesApi.updateRentalFields(account!.id, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["account", accountId] });
@@ -654,8 +656,9 @@ export const AccountDetailPage = () => {
       setRentalMonthlyIncome(
         account.rental_monthly_income != null ? String(account.rental_monthly_income) : ""
       );
+      setRentalType(account.rental_type ?? "");
     }
-  }, [account?.is_rental_property, account?.rental_monthly_income]);
+  }, [account?.is_rental_property, account?.rental_monthly_income, account?.rental_type]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -2058,6 +2061,27 @@ export const AccountDetailPage = () => {
                         </HStack>
                         <Text fontSize="xs" color="text.muted" mt={1}>
                           Used for cap rate and P&amp;L calculations in Rental Properties.
+                        </Text>
+                      </FormControl>
+                    )}
+                    {isRentalProperty && (
+                      <FormControl>
+                        <FormLabel fontSize="sm">Rental Strategy</FormLabel>
+                        <Select
+                          size="sm"
+                          value={rentalType}
+                          onChange={(e) => {
+                            setRentalType(e.target.value);
+                            updateRentalFieldsMutation.mutate({ rental_type: e.target.value });
+                          }}
+                        >
+                          <option value="">Not specified</option>
+                          <option value="buy_and_hold">Buy and Hold</option>
+                          <option value="long_term_rental">Long-Term Rental (12+ months)</option>
+                          <option value="short_term_rental">Short-Term Rental (Airbnb/VRBO)</option>
+                        </Select>
+                        <Text fontSize="xs" color="text.muted" mt={1}>
+                          STR may qualify for passive loss offset (IRC §469) if you materially participate.
                         </Text>
                       </FormControl>
                     )}

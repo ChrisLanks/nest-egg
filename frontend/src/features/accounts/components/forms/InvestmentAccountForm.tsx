@@ -147,7 +147,10 @@ export const InvestmentAccountForm = ({
 
         <FormControl isInvalid={!!errors.account_type}>
           <FormLabel>Account Type</FormLabel>
-          <Select {...register("account_type")}>
+          <Select
+            {...register("account_type")}
+            isDisabled={defaultAccountType === ACCOUNT_TYPES.RETIREMENT_529}
+          >
             <option value={ACCOUNT_TYPES.BROKERAGE}>Brokerage</option>
             <option value={ACCOUNT_TYPES.RETIREMENT_401K}>401(k)</option>
             <option value={ACCOUNT_TYPES.RETIREMENT_403B}>403(b)</option>
@@ -162,6 +165,11 @@ export const InvestmentAccountForm = ({
             <option value={ACCOUNT_TYPES.RETIREMENT_529}>529 Plan</option>
             <option value={ACCOUNT_TYPES.HSA}>HSA</option>
           </Select>
+          {defaultAccountType === ACCOUNT_TYPES.RETIREMENT_529 && (
+            <FormHelperText>
+              Account type is set based on your selection.
+            </FormHelperText>
+          )}
           <FormErrorMessage>{errors.account_type?.message}</FormErrorMessage>
         </FormControl>
 

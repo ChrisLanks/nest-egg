@@ -10,7 +10,8 @@ from uuid import UUID
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.account import Account
+from app.constants.financial import RENTAL
+from app.models.account import Account, RentalType
 from app.models.transaction import Category, Transaction
 
 logger = logging.getLogger(__name__)
@@ -68,6 +69,7 @@ class RentalPropertyService:
                 "rental_monthly_income": float(a.rental_monthly_income or 0),
                 "rental_address": a.rental_address or "",
                 "property_type": a.property_type.value if a.property_type else None,
+                "rental_type": a.rental_type.value if a.rental_type else None,
                 "user_id": str(a.user_id),
             }
             for a in accounts
@@ -183,6 +185,9 @@ class RentalPropertyService:
             "cap_rate": cap_rate,
             "expense_breakdown": expense_breakdown,
             "monthly": monthly_data,
+            "rental_type": account.rental_type.value if account.rental_type else None,
+            "is_str": account.rental_type == RentalType.SHORT_TERM_RENTAL,
+            "str_loophole_active": RENTAL.STR_LOOPHOLE_ACTIVE,
         }
 
     async def get_all_properties_summary(
@@ -223,6 +228,8 @@ class RentalPropertyService:
                     "total_expenses": pnl["total_expenses"],
                     "net_income": pnl["net_income"],
                     "cap_rate": pnl["cap_rate"],
+                    "rental_type": pnl.get("rental_type"),
+                    "is_str": pnl.get("is_str", False),
                 }
             )
 
@@ -246,6 +253,7 @@ class RentalPropertyService:
         is_rental_property: Optional[bool] = None,
         rental_monthly_income: Optional[Decimal] = None,
         rental_address: Optional[str] = None,
+        rental_type: Optional[str] = None,
         user_id: Optional[UUID] = None,
     ) -> Dict[str, Any]:
         """Update rental-specific fields on an account."""
@@ -269,6 +277,11 @@ class RentalPropertyService:
             account.rental_monthly_income = rental_monthly_income
         if rental_address is not None:
             account.rental_address = rental_address
+        if rental_type is not None:
+            try:
+                account.rental_type = RentalType(rental_type)
+            except ValueError:
+                pass  # ignore invalid values
 
         await self.db.commit()
         await self.db.refresh(account)
@@ -279,4 +292,5 @@ class RentalPropertyService:
             "is_rental_property": account.is_rental_property,
             "rental_monthly_income": float(account.rental_monthly_income or 0),
             "rental_address": account.rental_address or "",
+            "rental_type": account.rental_type.value if account.rental_type else None,
         }

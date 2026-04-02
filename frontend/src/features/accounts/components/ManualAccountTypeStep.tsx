@@ -212,7 +212,7 @@ const accountTypeOptions: AccountTypeOption[] = [
   {
     type: ACCOUNT_TYPES.PRIVATE_EQUITY,
     label: "Private Equity",
-    description: "Company equity, RSUs, and stock options",
+    description: "PE funds, VC stakes, LP interests, startup equity",
     icon: FiBriefcase,
     category: "alternative",
   },

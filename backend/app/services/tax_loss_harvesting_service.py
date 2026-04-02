@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.financial import TAX
-from app.models.account import Account, TaxTreatment
+from app.models.account import Account, AccountType, TaxTreatment
 from app.models.holding import Holding
 
 logger = logging.getLogger(__name__)
@@ -39,6 +39,8 @@ class TaxLossOpportunity:
         wash_sale_reason: Optional[str],
         sector: Optional[str],
         suggested_replacements: List[str],
+        is_crypto: bool = False,
+        no_wash_sale_rule: bool = False,
     ):
         self.holding_id = holding_id
         self.ticker = ticker
@@ -53,6 +55,8 @@ class TaxLossOpportunity:
         self.wash_sale_reason = wash_sale_reason
         self.sector = sector
         self.suggested_replacements = suggested_replacements
+        self.is_crypto = is_crypto
+        self.no_wash_sale_rule = no_wash_sale_rule
 
 
 class TaxLossHarvestingService:
@@ -82,8 +86,6 @@ class TaxLossHarvestingService:
         taxable_account_ids = {row[0] for row in acct_result.all()}
 
         # Also include accounts with NULL tax_treatment that look taxable (brokerage, crypto)
-        from app.models.account import AccountType
-
         fallback_result = await db.execute(
             select(Account.id).where(
                 Account.organization_id == organization_id,
@@ -101,16 +103,20 @@ class TaxLossHarvestingService:
         if not taxable_account_ids:
             return []
 
-        # Get holdings in taxable accounts with cost basis data
+        # Get holdings in taxable accounts with cost basis data, including account_type
         result = await db.execute(
-            select(Holding).where(
+            select(Holding, Account.account_type).join(
+                Account, Holding.account_id == Account.id
+            ).where(
                 Holding.organization_id == organization_id,
                 Holding.account_id.in_(taxable_account_ids),
                 Holding.total_cost_basis.isnot(None),
                 Holding.current_total_value.isnot(None),
             )
         )
-        holdings = result.scalars().all()
+        holding_rows = result.all()
+        holdings = [row[0] for row in holding_rows]
+        holding_account_types = {row[0].id: row[1] for row in holding_rows}
 
         # Build sector -> tickers map for replacement suggestions
         sector_tickers: dict[Optional[str], list[str]] = defaultdict(list)
@@ -139,6 +145,9 @@ class TaxLossHarvestingService:
             if h.sector and h.sector in sector_tickers:
                 replacements = [t for t in sector_tickers[h.sector] if t != h.ticker]
 
+            account_type = holding_account_types.get(h.id)
+            is_crypto = account_type == AccountType.CRYPTO
+
             opportunities.append(
                 TaxLossOpportunity(
                     holding_id=h.id,
@@ -154,6 +163,8 @@ class TaxLossHarvestingService:
                     wash_sale_reason="Unable to determine wash sale risk without 30-day transaction history",
                     sector=h.sector,
                     suggested_replacements=replacements[:3],
+                    is_crypto=is_crypto,
+                    no_wash_sale_rule=is_crypto,
                 )
             )
 

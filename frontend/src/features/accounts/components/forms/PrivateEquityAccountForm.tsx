@@ -191,7 +191,12 @@ export const PrivateEquityAccountForm = ({
             <option value="rsu">RSU (Restricted Stock Unit)</option>
             <option value="rsa">RSA (Restricted Stock Award)</option>
             <option value="profit_interest">Profits Interest (LLC Units)</option>
+            <option value="lp_interest">LP Interest (Limited Partnership)</option>
           </Select>
+          <FormHelperText>
+            Limited Partnership interests track your capital commitment in PE funds, real estate
+            partnerships, or hedge funds. Enter your current NAV (Net Asset Value) as the balance.
+          </FormHelperText>
           <FormErrorMessage>{errors.grant_type?.message}</FormErrorMessage>
         </FormControl>
 

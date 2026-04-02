@@ -59,7 +59,7 @@ in Preferences → Navigation (also accessible via the Simple/Advanced toggle bu
 |---|---|
 | `/investment-tools` | FIRE, Loan Modeler, HSA Optimizer, Employer Match, What-If, Bond Ladder, Equity Comp, Tax-Equiv Yield, Asset Location, Cost Basis |
 | `/pe-performance` | Private equity TVPI, DPI, MOIC, IRR, capital call history |
-| `/rental-properties` | Rental income/expense tracking, net operating income per property |
+| `/rental-properties` | Rental income/expense tracking, net operating income per property. Investment properties include a **Rental Strategy** field (Buy and Hold / Long-Term Rental / Short-Term Rental). STR properties show a callout about the IRC §469 material participation loophole for deducting rental losses against ordinary income. |
 | Tax Center → Charitable Giving tab | Donation tracking and taxable income reduction |
 
 These are gated separately from the account-based progressive disclosure.

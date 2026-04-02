@@ -219,6 +219,9 @@ export const propertyAccountSchema = z.object({
     .number()
     .or(z.string().transform((val) => parseFloat(val)))
     .optional(),
+  rental_type: z
+    .enum(["buy_and_hold", "long_term_rental", "short_term_rental"])
+    .optional(),
 });
 
 export type PropertyAccountFormData = z.infer<typeof propertyAccountSchema>;

@@ -24,6 +24,7 @@ class RentalFieldsUpdate(BaseModel):
     is_rental_property: Optional[bool] = None
     rental_monthly_income: Optional[Decimal] = None
     rental_address: Optional[str] = None
+    rental_type: Optional[str] = None  # "buy_and_hold", "long_term_rental", "short_term_rental"
 
 
 @router.get("")
@@ -124,6 +125,7 @@ async def update_rental_fields(
         is_rental_property=body.is_rental_property,
         rental_monthly_income=body.rental_monthly_income,
         rental_address=sanitized_address,
+        rental_type=body.rental_type,
         user_id=current_user.id,
     )
 

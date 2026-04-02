@@ -53,6 +53,7 @@ export const PropertyAccountForm = ({
 
   const value = watch('value');
   const mortgageBalance = watch('mortgage_balance');
+  const watchedClassification = watch('property_classification');
   const equity = (Number(value) || 0) - (Number(mortgageBalance) || 0);
 
   return (
@@ -115,6 +116,22 @@ export const PropertyAccountForm = ({
             This classification affects tax implications and rental income tracking
           </Text>
         </FormControl>
+
+        {watchedClassification === 'investment' && (
+          <FormControl isInvalid={!!errors.rental_type}>
+            <FormLabel>Investment Strategy</FormLabel>
+            <Select {...register('rental_type')}>
+              <option value="buy_and_hold">Buy and Hold (appreciation play)</option>
+              <option value="long_term_rental">Long-Term Rental (12+ month leases)</option>
+              <option value="short_term_rental">Short-Term Rental (Airbnb/VRBO)</option>
+            </Select>
+            <FormHelperText>
+              Short-term rentals may qualify for the STR loophole (IRC §469) — losses may offset
+              ordinary income if you materially participate. Long-term rental losses are generally
+              passive (limited to $25K/yr for AGI under $100K).
+            </FormHelperText>
+          </FormControl>
+        )}
 
         <FormControl isInvalid={!!errors.property_type}>
           <FormLabel>Property Type</FormLabel>
