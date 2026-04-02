@@ -64,11 +64,12 @@ def test_auto_sync_ownership_matches_get_goal_pattern():
     sync_source = inspect.getsource(SavingsGoalService.auto_sync_goals)
     get_source = inspect.getsource(SavingsGoalService.get_goal)
 
-    # Both must use shared_user_ids.contains() for shared access
-    assert "shared_user_ids.contains" in sync_source, (
-        "auto_sync_goals must check shared_user_ids.contains() like get_goal()"
+    # Both must check shared_user_ids for shared access — either via direct
+    # .contains() or via a JSONB cast to handle JSON-typed columns in PostgreSQL.
+    assert "shared_user_ids" in sync_source and ".contains(" in sync_source, (
+        "auto_sync_goals must check shared_user_ids.contains() for shared access"
     )
-    assert "shared_user_ids.contains" in get_source
+    assert "shared_user_ids" in get_source and ".contains(" in get_source
 
 
 def test_reorder_ownership_matches_get_goal_pattern():
@@ -76,6 +77,6 @@ def test_reorder_ownership_matches_get_goal_pattern():
     from app.services.savings_goal_service import SavingsGoalService
 
     reorder_source = inspect.getsource(SavingsGoalService.reorder_goals)
-    assert "shared_user_ids.contains" in reorder_source, (
-        "reorder_goals must check shared_user_ids.contains() like get_goal()"
+    assert "shared_user_ids" in reorder_source and ".contains(" in reorder_source, (
+        "reorder_goals must check shared_user_ids.contains() for shared access"
     )

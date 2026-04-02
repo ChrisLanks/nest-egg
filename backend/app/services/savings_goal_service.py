@@ -7,6 +7,7 @@ from typing import Dict, List, Optional
 from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.financial import SAVINGS_GOALS
@@ -127,7 +128,7 @@ class SavingsGoalService:
                             SavingsGoal.is_shared.is_(True),
                             or_(
                                 SavingsGoal.shared_user_ids.is_(None),  # shared with all org members
-                                SavingsGoal.shared_user_ids.contains(str(user.id)),
+                                func.cast(SavingsGoal.shared_user_ids, JSONB).contains([str(user.id)]),
                             ),
                         ),
                     ),
@@ -381,7 +382,7 @@ class SavingsGoalService:
                             SavingsGoal.is_shared.is_(True),
                             or_(
                                 SavingsGoal.shared_user_ids.is_(None),
-                                SavingsGoal.shared_user_ids.contains(str(user.id)),
+                                func.cast(SavingsGoal.shared_user_ids, JSONB).contains([str(user.id)]),
                             ),
                         ),
                     ),
@@ -482,7 +483,7 @@ class SavingsGoalService:
                             SavingsGoal.is_shared.is_(True),
                             or_(
                                 SavingsGoal.shared_user_ids.is_(None),
-                                SavingsGoal.shared_user_ids.contains(str(user.id)),
+                                func.cast(SavingsGoal.shared_user_ids, JSONB).contains([str(user.id)]),
                             ),
                         ),
                     ),

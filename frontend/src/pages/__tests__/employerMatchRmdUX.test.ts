@@ -216,3 +216,77 @@ describe("Layout.tsx — simple/advanced toggle in header", () => {
     expect(layoutSrc).toContain("nest-egg-show-advanced-nav");
   });
 });
+
+// ── ReportsPage — no duplicate Tooltip import ─────────────────────────────
+
+const reportsSrc = readPage("ReportsPage.tsx");
+
+describe("ReportsPage — no duplicate Tooltip import", () => {
+  it("aliases recharts Tooltip as RechartsTooltip", () => {
+    expect(reportsSrc).toContain("Tooltip as RechartsTooltip");
+  });
+
+  it("uses RechartsTooltip in chart JSX", () => {
+    expect(reportsSrc).toContain("<RechartsTooltip");
+  });
+
+  it("does not have two bare Tooltip imports", () => {
+    // Count bare `Tooltip,` lines (not aliased)
+    const bareCount = (reportsSrc.match(/^\s+Tooltip,\s*$/gm) ?? []).length;
+    expect(bareCount).toBeLessThanOrEqual(1);
+  });
+});
+
+// ── GoalForm — auto-select checking account for new goals ─────────────────
+
+const goalFormSrc = readFileSync(
+  resolve(__dirname, "..", "..", "features", "goals", "components", "GoalForm.tsx"),
+  "utf-8",
+);
+
+describe("GoalForm — auto-select checking account for new goals", () => {
+  it("filters accounts for checking types", () => {
+    expect(goalFormSrc).toContain("depository_checking");
+    expect(goalFormSrc).toContain("checking");
+  });
+
+  it("auto-sets account_id when single checking account found", () => {
+    expect(goalFormSrc).toContain("checkingAccounts.length === 1");
+    expect(goalFormSrc).toContain("setValue('account_id'");
+  });
+
+  it("only auto-selects when not editing an existing goal", () => {
+    expect(goalFormSrc).toContain("isEditing");
+    // The effect must guard against auto-select when editing
+    const effectSrc = goalFormSrc.slice(
+      goalFormSrc.indexOf("checkingAccounts"),
+      goalFormSrc.indexOf("checkingAccounts") + 300,
+    );
+    expect(effectSrc).toContain("isEditing");
+  });
+});
+
+// ── AccountDetailPage — rental property toggle ────────────────────────────
+
+describe("AccountDetailPage — rental property toggle", () => {
+  it("imports rentalPropertiesApi", () => {
+    expect(accountDetailSrc).toContain("rentalPropertiesApi");
+  });
+
+  it("has is_rental_property field in Account interface", () => {
+    expect(accountDetailSrc).toContain("is_rental_property");
+  });
+
+  it("has rental_monthly_income field in Account interface", () => {
+    expect(accountDetailSrc).toContain("rental_monthly_income");
+  });
+
+  it("renders a rental property toggle Switch", () => {
+    expect(accountDetailSrc).toContain("Rental Property");
+    expect(accountDetailSrc).toContain("isRentalProperty");
+  });
+
+  it("calls updateRentalFields mutation", () => {
+    expect(accountDetailSrc).toContain("updateRentalFieldsMutation");
+  });
+});

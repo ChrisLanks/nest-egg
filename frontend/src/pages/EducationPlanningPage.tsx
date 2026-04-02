@@ -430,11 +430,19 @@ export default function EducationPlanningPage() {
 
         {/* Empty state */}
         {!isLoading && plans.length === 0 && (
-          <EmptyState
-            icon={FiBookOpen}
-            title="No 529 accounts found"
-            description="Add a 529 education savings account to start planning for college costs. You can add one from the Accounts page."
-          />
+          <VStack spacing={4} align="stretch">
+            <EmptyState
+              icon={FiBookOpen}
+              title="No 529 accounts found"
+              description="Add a 529 education savings account to start planning for college costs. You can add one from the Accounts page."
+            />
+            <Alert status="info" borderRadius="md">
+              <AlertIcon />
+              Don&apos;t see your 529? Make sure the account type is set to
+              &ldquo;529 Plan&rdquo; in Account Settings &mdash; go to Accounts,
+              click the account, and change the type to &ldquo;529 Plan&rdquo;.
+            </Alert>
+          </VStack>
         )}
 
         {/* Summary stats */}

@@ -58,7 +58,7 @@ import {
 } from "react-icons/fi";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import api from "../services/api";
 import { useUserView } from "../contexts/UserViewContext";
 import type { Transaction } from "../types/transaction";
@@ -66,6 +66,7 @@ import { ContributionsManager } from "../features/accounts/components/Contributi
 import { AddTransactionModal } from "../features/accounts/components/AddTransactionModal";
 import { AddHoldingModal } from "../features/accounts/components/AddHoldingModal";
 import { holdingsApi, type Holding } from "../api/holdings";
+import { rentalPropertiesApi } from "../api/rental-properties";
 import { TaxLotsPanel } from "../features/investments/components/TaxLotsPanel";
 import { ReconciliationCard } from "../features/accounts/components/ReconciliationCard";
 import { formatAccountType } from "../utils/formatAccountType";
@@ -109,6 +110,9 @@ interface Account {
   vehicle_mileage: number | null;
   last_auto_valued_at: string | null;
   valuation_adjustment_pct: number | null;
+  // Rental property fields
+  is_rental_property: boolean | null;
+  rental_monthly_income: number | null;
   // Employer match fields (401k / 403b)
   employer_match_percent: number | null;
   employer_match_limit_percent: number | null;
@@ -176,6 +180,8 @@ export const AccountDetailPage = () => {
   const [vehicleVin, setVehicleVin] = useState("");
   const [propertyAddress, setPropertyAddress] = useState("");
   const [propertyZip, setPropertyZip] = useState("");
+  const [isRentalProperty, setIsRentalProperty] = useState(false);
+  const [rentalMonthlyIncome, setRentalMonthlyIncome] = useState("");
   const [manualBalance, setManualBalance] = useState("");
   const [debtBalance, setDebtBalance] = useState("");
   const [isEditingName, setIsEditingName] = useState(false);
@@ -626,6 +632,30 @@ export const AccountDetailPage = () => {
       });
     },
   });
+
+  // Update rental property fields mutation
+  const updateRentalFieldsMutation = useMutation({
+    mutationFn: (body: { is_rental_property?: boolean; rental_monthly_income?: number }) =>
+      rentalPropertiesApi.updateRentalFields(account!.id, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["account", accountId] });
+      queryClient.invalidateQueries({ queryKey: ["rental-properties-summary"] });
+      toast({ title: "Rental settings saved", status: "success", duration: 2000 });
+    },
+    onError: () => {
+      toast({ title: "Failed to save rental settings", status: "error", duration: 3000 });
+    },
+  });
+
+  // Sync rental state when account data changes
+  useEffect(() => {
+    if (account) {
+      setIsRentalProperty(account.is_rental_property ?? false);
+      setRentalMonthlyIncome(
+        account.rental_monthly_income != null ? String(account.rental_monthly_income) : ""
+      );
+    }
+  }, [account?.is_rental_property, account?.rental_monthly_income]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -1982,6 +2012,55 @@ export const AccountDetailPage = () => {
                       Address and ZIP are used to fetch automated property
                       valuations.
                     </Text>
+                    <Divider />
+                    <HStack justify="space-between" align="center">
+                      <Box>
+                        <Text fontSize="sm" fontWeight="medium">Rental Property</Text>
+                        <Text fontSize="xs" color="text.muted">Track this property in Rental Properties P&L</Text>
+                      </Box>
+                      <Switch
+                        isChecked={isRentalProperty}
+                        onChange={(e) => {
+                          setIsRentalProperty(e.target.checked);
+                          updateRentalFieldsMutation.mutate({ is_rental_property: e.target.checked });
+                        }}
+                        colorScheme="brand"
+                      />
+                    </HStack>
+                    {isRentalProperty && (
+                      <FormControl>
+                        <FormLabel fontSize="sm">Monthly Rental Income ($)</FormLabel>
+                        <HStack>
+                          <NumberInput
+                            value={rentalMonthlyIncome}
+                            onChange={(val) => setRentalMonthlyIncome(val)}
+                            min={0}
+                            step={100}
+                            size="sm"
+                            maxW="180px"
+                          >
+                            <NumberInputField placeholder="e.g., 2500" />
+                          </NumberInput>
+                          <Button
+                            size="sm"
+                            colorScheme="brand"
+                            variant="outline"
+                            isLoading={updateRentalFieldsMutation.isPending}
+                            onClick={() => {
+                              const amount = parseFloat(rentalMonthlyIncome);
+                              if (!isNaN(amount)) {
+                                updateRentalFieldsMutation.mutate({ rental_monthly_income: amount });
+                              }
+                            }}
+                          >
+                            Save
+                          </Button>
+                        </HStack>
+                        <Text fontSize="xs" color="text.muted" mt={1}>
+                          Used for cap rate and P&amp;L calculations in Rental Properties.
+                        </Text>
+                      </FormControl>
+                    )}
                   </>
                 )}
               </VStack>

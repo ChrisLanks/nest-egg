@@ -72,7 +72,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   Legend,
   ResponsiveContainer,
 } from "recharts";
@@ -489,7 +489,7 @@ function CustomReportsTab() {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" />
                       <YAxis tickFormatter={(value) => formatCurrency(value)} />
-                      <Tooltip
+                      <RechartsTooltip
                         formatter={
                           ((value: number) => formatCurrency(value)) as any
                         }
@@ -520,7 +520,7 @@ function CustomReportsTab() {
                           />
                         ))}
                       </Pie>
-                      <Tooltip
+                      <RechartsTooltip
                         formatter={
                           ((value: number) => formatCurrency(value)) as any
                         }

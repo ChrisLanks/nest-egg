@@ -85,6 +85,17 @@ export default function GoalForm({ isOpen, onClose, goal }: GoalFormProps) {
     queryFn: accountsApi.getAccounts,
   });
 
+  // Auto-select single checking account on new goals
+  useEffect(() => {
+    if (isEditing || watchedAccountId) return;
+    const checkingAccounts = accounts.filter(
+      (a: any) => a.account_type === 'depository_checking' || a.account_type === 'checking'
+    );
+    if (checkingAccounts.length === 1) {
+      setValue('account_id', checkingAccounts[0].id);
+    }
+  }, [accounts, isEditing, watchedAccountId, setValue]);
+
   // Household members for shared goal feature
   const { data: householdMembers = [] } = useHouseholdMembers();
   const currentUser = useAuthStore((s) => s.user);
