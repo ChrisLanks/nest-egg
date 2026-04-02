@@ -2018,3 +2018,44 @@ class RENTAL:
     PASSIVE_LOSS_ALLOWANCE_MAX: int = 25_000
     PASSIVE_LOSS_PHASEOUT_START: int = 100_000
     PASSIVE_LOSS_PHASEOUT_END: int = 150_000
+
+
+class DEPENDENT_BENEFITS:
+    """Tax benefits and credits for households with dependents (2026 tax year).
+
+    These are per-child/per-dependent amounts. Update each year when IRS
+    publishes new limits.
+
+    Sources:
+    - Child Tax Credit: IRC §24
+    - Child & Dependent Care Credit: IRC §21
+    - Dependent Care FSA: IRC §129
+    - EITC: IRC §32 (complex income-based formula — amounts below are maximums)
+    """
+
+    # Child Tax Credit (IRC §24) — per qualifying child under 17
+    CHILD_TAX_CREDIT_PER_CHILD: int = 2_000
+    CHILD_TAX_CREDIT_REFUNDABLE_MAX: int = 1_700  # Additional CTC (refundable portion)
+    CHILD_TAX_CREDIT_PHASEOUT_SINGLE: int = 200_000
+    CHILD_TAX_CREDIT_PHASEOUT_MARRIED: int = 400_000
+
+    # Child & Dependent Care Credit (IRC §21) — for children under 13 or disabled dependents
+    DEPENDENT_CARE_CREDIT_MAX_ONE_CHILD: int = 3_000   # max qualifying expenses, 1 child
+    DEPENDENT_CARE_CREDIT_MAX_TWO_PLUS: int = 6_000    # max qualifying expenses, 2+ children
+    DEPENDENT_CARE_CREDIT_RATE_MAX: float = 0.35        # max credit rate (lower incomes)
+    DEPENDENT_CARE_CREDIT_RATE_MIN: float = 0.20        # min credit rate (higher incomes)
+
+    # Dependent Care FSA (IRC §129) — pre-tax dollars for childcare
+    DEPENDENT_CARE_FSA_MAX: int = 5_000  # per household (married filing jointly)
+    DEPENDENT_CARE_FSA_MAX_SINGLE: int = 5_000
+
+    # Earned Income Tax Credit (EITC) — max amounts by number of children (2026 est.)
+    EITC_MAX_NO_CHILD: int = 649
+    EITC_MAX_ONE_CHILD: int = 4_328
+    EITC_MAX_TWO_CHILDREN: int = 7_152
+    EITC_MAX_THREE_PLUS: int = 8_046
+
+    # Age thresholds
+    CHILD_TAX_CREDIT_MAX_AGE: int = 17     # must be under 17 at year-end
+    DEPENDENT_CARE_MAX_AGE: int = 13       # must be under 13
+    QUALIFYING_CHILD_MAX_AGE: int = 19     # or 24 if full-time student

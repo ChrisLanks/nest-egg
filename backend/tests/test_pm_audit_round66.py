@@ -268,3 +268,78 @@ def test_tax_advisor_imports_rental_type():
     source = inspect.getsource(tax_advisor_service)
     assert "RentalType" in source
     assert "SHORT_TERM_RENTAL" in source
+
+
+# ---------------------------------------------------------------------------
+# 9. DEPENDENT_BENEFITS constants
+# ---------------------------------------------------------------------------
+
+
+def test_dependent_benefits_ctc_per_child():
+    """DEPENDENT_BENEFITS.CHILD_TAX_CREDIT_PER_CHILD must be $2,000."""
+    from app.constants.financial import DEPENDENT_BENEFITS
+    assert DEPENDENT_BENEFITS.CHILD_TAX_CREDIT_PER_CHILD == 2_000
+
+
+def test_dependent_benefits_dependent_care_fsa():
+    """DEPENDENT_BENEFITS.DEPENDENT_CARE_FSA_MAX must be $5,000."""
+    from app.constants.financial import DEPENDENT_BENEFITS
+    assert DEPENDENT_BENEFITS.DEPENDENT_CARE_FSA_MAX == 5_000
+
+
+def test_dependent_benefits_age_thresholds():
+    """Age thresholds for CTC and care credit must match IRS rules."""
+    from app.constants.financial import DEPENDENT_BENEFITS
+    assert DEPENDENT_BENEFITS.CHILD_TAX_CREDIT_MAX_AGE == 17
+    assert DEPENDENT_BENEFITS.DEPENDENT_CARE_MAX_AGE == 13
+
+
+def test_dependent_benefits_phaseout_married_higher():
+    """Married phaseout must be higher than single phaseout for CTC."""
+    from app.constants.financial import DEPENDENT_BENEFITS
+    assert DEPENDENT_BENEFITS.CHILD_TAX_CREDIT_PHASEOUT_MARRIED > DEPENDENT_BENEFITS.CHILD_TAX_CREDIT_PHASEOUT_SINGLE
+
+
+# ---------------------------------------------------------------------------
+# 10. Tax Advisor dependent insights
+# ---------------------------------------------------------------------------
+
+
+def test_tax_advisor_imports_dependent_benefits():
+    """tax_advisor_service must import DEPENDENT_BENEFITS."""
+    from app.services import tax_advisor_service
+    source = inspect.getsource(tax_advisor_service)
+    assert "DEPENDENT_BENEFITS" in source
+
+
+def test_tax_advisor_fetches_dependents():
+    """tax_advisor_service must query Dependent model."""
+    from app.services import tax_advisor_service
+    source = inspect.getsource(tax_advisor_service)
+    assert "Dependent" in source
+    assert "household_id" in source
+
+
+def test_tax_advisor_ctc_insight():
+    """tax_advisor_service must generate Child Tax Credit insight for eligible children."""
+    from app.services import tax_advisor_service
+    source = inspect.getsource(tax_advisor_service)
+    assert "Child Tax Credit" in source
+    assert "ctc_children" in source
+
+
+def test_tax_advisor_care_fsa_insight():
+    """tax_advisor_service must generate Dependent Care FSA insight."""
+    from app.services import tax_advisor_service
+    source = inspect.getsource(tax_advisor_service)
+    assert "Dependent Care FSA" in source
+    assert "care_children" in source
+
+
+def test_tax_advisor_response_includes_dependents_count():
+    """tax_advisor_service response must include dependents dict."""
+    from app.services import tax_advisor_service
+    source = inspect.getsource(tax_advisor_service)
+    assert "qualifying_children" in source
+    assert "ctc_eligible" in source
+    assert "care_eligible" in source

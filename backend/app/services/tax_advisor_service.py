@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.financial import (
     CRYPTO_TAX,
+    DEPENDENT_BENEFITS,
     MEDICARE,
     RENTAL,
     RETIREMENT,
@@ -31,6 +32,7 @@ from app.constants.financial import (
     RMD as RMD_CONSTANTS,
 )
 from app.models.account import Account, AccountType, RentalType, TaxTreatment
+from app.models.dependent import Dependent
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -99,6 +101,27 @@ class TaxAdvisorService:
             - user.birthdate.year
             - ((today.month, today.day) < (user.birthdate.month, user.birthdate.day))
         )
+
+        # Get dependents for this household
+        dep_result = await self.db.execute(
+            select(Dependent).where(Dependent.household_id == organization_id)
+        )
+        dependents = list(dep_result.scalars().all())
+        this_year = today.year
+        qualifying_children = [
+            d for d in dependents
+            if d.relationship == "child"
+            and d.date_of_birth is not None
+            and (this_year - d.date_of_birth.year) < DEPENDENT_BENEFITS.QUALIFYING_CHILD_MAX_AGE
+        ]
+        ctc_children = [
+            d for d in qualifying_children
+            if (this_year - d.date_of_birth.year) < DEPENDENT_BENEFITS.CHILD_TAX_CREDIT_MAX_AGE
+        ]
+        care_children = [
+            d for d in qualifying_children
+            if (this_year - d.date_of_birth.year) < DEPENDENT_BENEFITS.DEPENDENT_CARE_MAX_AGE
+        ]
 
         # Get account balances by tax treatment
         acct_result = await self.db.execute(
@@ -345,6 +368,57 @@ class TaxAdvisorService:
                 }
             )
 
+        # --- Dependent tax benefits ---
+        if ctc_children:
+            ctc_total = len(ctc_children) * DEPENDENT_BENEFITS.CHILD_TAX_CREDIT_PER_CHILD
+            child_names = ", ".join(d.first_name for d in ctc_children[:3])
+            insights.append(
+                {
+                    "category": "dependent",
+                    "title": f"Child Tax Credit — Up to ${ctc_total:,}",
+                    "description": (
+                        f"You have {len(ctc_children)} qualifying child"
+                        f"{'ren' if len(ctc_children) > 1 else ''} ({child_names}) "
+                        f"under age {DEPENDENT_BENEFITS.CHILD_TAX_CREDIT_MAX_AGE}. "
+                        f"The Child Tax Credit (IRC §24) is ${DEPENDENT_BENEFITS.CHILD_TAX_CREDIT_PER_CHILD:,} "
+                        f"per child, up to ${ctc_total:,} total. "
+                        f"Up to ${DEPENDENT_BENEFITS.CHILD_TAX_CREDIT_REFUNDABLE_MAX:,} per child "
+                        f"is refundable as the Additional Child Tax Credit. "
+                        f"Credit phases out above "
+                        f"${DEPENDENT_BENEFITS.CHILD_TAX_CREDIT_PHASEOUT_MARRIED:,} (married) / "
+                        f"${DEPENDENT_BENEFITS.CHILD_TAX_CREDIT_PHASEOUT_SINGLE:,} (single) MAGI."
+                    ),
+                    "priority": "action",
+                    "age_relevant": False,
+                }
+            )
+
+        if care_children:
+            fsa_max = DEPENDENT_BENEFITS.DEPENDENT_CARE_FSA_MAX
+            care_max = (
+                DEPENDENT_BENEFITS.DEPENDENT_CARE_CREDIT_MAX_TWO_PLUS
+                if len(care_children) >= 2
+                else DEPENDENT_BENEFITS.DEPENDENT_CARE_CREDIT_MAX_ONE_CHILD
+            )
+            insights.append(
+                {
+                    "category": "dependent",
+                    "title": "Dependent Care FSA + Child Care Tax Credit",
+                    "description": (
+                        f"You have {len(care_children)} child"
+                        f"{'ren' if len(care_children) > 1 else ''} "
+                        f"under age {DEPENDENT_BENEFITS.DEPENDENT_CARE_MAX_AGE}. "
+                        f"Consider a Dependent Care FSA — you can contribute up to "
+                        f"${fsa_max:,} pre-tax for childcare expenses (daycare, after-school). "
+                        f"Additionally, the Child & Dependent Care Credit (IRC §21) "
+                        f"covers 20–35% of up to ${care_max:,} in qualifying expenses. "
+                        f"The FSA and credit can be combined but not doubled up on the same dollars."
+                    ),
+                    "priority": "action",
+                    "age_relevant": False,
+                }
+            )
+
         # --- Crypto: no wash-sale rule ---
         if crypto_accounts and CRYPTO_TAX.IS_PROPERTY:
             crypto_bal = sum(float(a.current_balance or 0) for a in crypto_accounts)
@@ -373,6 +447,12 @@ class TaxAdvisorService:
             "hsa_total": float(hsa_total),
             "insights": insights,
             "contribution_limits": contribution_limits,
+            "dependents": {
+                "total": len(dependents),
+                "qualifying_children": len(qualifying_children),
+                "ctc_eligible": len(ctc_children),
+                "care_eligible": len(care_children),
+            },
             "tax_constants": {
                 "standard_deduction_single": TAX.STANDARD_DEDUCTION_SINGLE,
                 "standard_deduction_married": TAX.STANDARD_DEDUCTION_MARRIED,
