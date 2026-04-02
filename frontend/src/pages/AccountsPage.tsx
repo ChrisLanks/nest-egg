@@ -182,12 +182,16 @@ export const AccountsPage = () => {
     const terms = searchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
     if (terms.length === 0) return accounts;
     return accounts.filter((a) => {
-      const haystack = [
+      const raw = [
         a.name ?? "",
         a.institution_name ?? "",
         ACCOUNT_TYPE_LABELS[a.account_type] ?? "",
         a.account_type ?? "",
       ].join(" ").toLowerCase();
+      // Also include a stripped version (removes parentheses, underscores, hyphens)
+      // so "401k" matches "401(k)" and "roth ira" matches "roth_ira"
+      const normalized = raw.replace(/[()_-]/g, " ");
+      const haystack = raw + " " + normalized;
       return terms.every((term) => haystack.includes(term));
     });
   }, [accounts, searchQuery]);
