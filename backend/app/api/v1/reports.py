@@ -402,7 +402,7 @@ async def delete_report_template(
     await db.commit()
 
 
-@router.post("/execute")
+@router.post("/execute", response_model=Dict[str, Any])
 async def execute_report(
     request: ExecuteReportRequest,
     http_request: Request,

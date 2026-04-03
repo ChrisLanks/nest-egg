@@ -44,6 +44,10 @@ MAX_GUEST_REVOCATIONS_PER_HOUR = 20  # Prevent bulk-revocation abuse
 # ─── Schemas ───────────────────────────────────────────────────────────────
 
 
+class GuestActionResponse(BaseModel):
+    detail: str
+
+
 class InviteGuestRequest(BaseModel):
     email: EmailStr
     role: GuestRole = GuestRole.VIEWER
@@ -442,7 +446,7 @@ async def my_guest_households(
     ]
 
 
-@router.post("/accept/{code}")
+@router.post("/accept/{code}", response_model=GuestActionResponse)
 async def accept_guest_invitation(
     code: str,
     http_request: Request,
@@ -542,10 +546,10 @@ async def accept_guest_invitation(
     invitation.accepted_at = utc_now()
     await db.commit()
 
-    return {"detail": "Guest access granted successfully"}
+    return GuestActionResponse(detail="Guest access granted successfully")
 
 
-@router.post("/decline/{code}")
+@router.post("/decline/{code}", response_model=GuestActionResponse)
 async def decline_guest_invitation(
     code: str,
     http_request: Request,
@@ -585,7 +589,7 @@ async def decline_guest_invitation(
     invitation.status = GuestInvitationStatus.DECLINED
     await db.commit()
 
-    return {"detail": "Invitation declined"}
+    return GuestActionResponse(detail="Invitation declined")
 
 
 @router.delete("/leave/{org_id}", status_code=204)

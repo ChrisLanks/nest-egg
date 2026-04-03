@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,6 +23,10 @@ from app.utils.datetime_utils import utc_now
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+class WebhookAckResponse(BaseModel):
+    status: str
 
 
 def verify_teller_webhook_signature(
@@ -73,7 +78,7 @@ def verify_teller_webhook_signature(
         raise HTTPException(status_code=401, detail="Webhook verification failed")
 
 
-@router.post("/webhook")
+@router.post("/webhook", response_model=WebhookAckResponse)
 async def handle_teller_webhook(
     request: Request,
     db: AsyncSession = Depends(get_db),
@@ -125,7 +130,7 @@ async def handle_teller_webhook(
 
         if not enrollment_id:
             logger.warning("Webhook missing enrollment_id")
-            return {"status": "acknowledged"}
+            return WebhookAckResponse(status="acknowledged")
 
         # Get TellerEnrollment — enrollment_id is trusted because the webhook
         # signature was verified above.  No org filter needed (webhook is external).
@@ -136,7 +141,7 @@ async def handle_teller_webhook(
 
         if not enrollment:
             logger.warning(f"TellerEnrollment not found for enrollment_id: {enrollment_id}")
-            return {"status": "enrollment_not_found"}
+            return WebhookAckResponse(status="enrollment_not_found")
 
         # Handle different webhook types
         if event_type == "enrollment.connected":
@@ -156,7 +161,7 @@ async def handle_teller_webhook(
         else:
             logger.warning("Unhandled Teller webhook event_type=%r — may need a handler", event_type)
 
-        return {"status": "acknowledged"}
+        return WebhookAckResponse(status="acknowledged")
 
     except HTTPException:
         raise

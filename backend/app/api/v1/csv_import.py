@@ -2,6 +2,7 @@
 
 import logging
 from typing import Dict, Optional
+from pydantic import BaseModel
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
@@ -22,6 +23,11 @@ from app.services.rate_limit_service import rate_limit_service
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+class CsvValidateResponse(BaseModel):
+    message: str
+
 
 # Safety cap: a single CSV must not exceed this many data rows.
 # Prevents memory exhaustion from maliciously crafted files (many tiny rows).
@@ -128,7 +134,7 @@ async def validate_csv_content(file: UploadFile) -> None:
         raise HTTPException(status_code=400, detail="File is not valid UTF-8 encoded text")
 
 
-@router.post("/validate")
+@router.post("/validate", response_model=CsvValidateResponse)
 async def validate_csv(
     http_request: Request,
     file: UploadFile = File(...),
@@ -164,7 +170,7 @@ async def validate_csv(
     if not validation["is_valid"]:
         raise HTTPException(status_code=400, detail={"errors": validation["errors"]})
 
-    return {"message": "CSV file is valid"}
+    return CsvValidateResponse(message="CSV file is valid")
 
 
 @router.post("/preview", response_model=CSVPreviewResponse)

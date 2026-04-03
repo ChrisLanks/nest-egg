@@ -59,6 +59,12 @@ class HouseholdMember(BaseModel):
         from_attributes = True
 
 
+class AcceptInvitationResponse(BaseModel):
+    message: str
+    organization_id: str
+    accounts_migrated: int
+
+
 class InvitationResponse(BaseModel):
     id: UUID
     email: str
@@ -755,7 +761,7 @@ async def get_invitation_details(
     }
 
 
-@router.post("/accept/{invitation_code}", status_code=status.HTTP_200_OK)
+@router.post("/accept/{invitation_code}", status_code=status.HTTP_200_OK, response_model=AcceptInvitationResponse)
 async def accept_invitation(
     invitation_code: str,
     request: Request,
@@ -889,11 +895,11 @@ async def accept_invitation(
             expires_in_days=14,
         )
 
-        return {
-            "message": "Invitation accepted successfully",
-            "organization_id": str(invitation.organization_id),
-            "accounts_migrated": len(user_accounts),
-        }
+        return AcceptInvitationResponse(
+            message="Invitation accepted successfully",
+            organization_id=str(invitation.organization_id),
+            accounts_migrated=len(user_accounts),
+        )
     else:
         # User has no organization - simple case
         existing_user.organization_id = invitation.organization_id
@@ -919,8 +925,8 @@ async def accept_invitation(
             expires_in_days=14,
         )
 
-        return {
-            "message": "Invitation accepted successfully",
-            "organization_id": str(invitation.organization_id),
-            "accounts_migrated": 0,
-        }
+        return AcceptInvitationResponse(
+            message="Invitation accepted successfully",
+            organization_id=str(invitation.organization_id),
+            accounts_migrated=0,
+        )
