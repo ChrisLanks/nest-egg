@@ -24,13 +24,13 @@ from app.schemas.notification import (
 class MarkAllReadResponse(BaseModel):
     marked_read: int
 from app.services.notification_service import NotificationService, notification_service
-from app.services.rate_limit_service import rate_limit_service as _rate_limit_svc
+from app.services.rate_limit_service import rate_limit_service
 from app.utils.datetime_utils import utc_now
 
 
 async def _rate_limit(http_request: Request, current_user: User = Depends(get_current_user)):
     """Shared rate-limit dependency for notification endpoints."""
-    await _rate_limit_svc.check_rate_limit(
+    await rate_limit_service.check_rate_limit(
         request=http_request, max_requests=60, window_seconds=60, identifier=str(current_user.id)
     )
 
@@ -167,7 +167,7 @@ async def mark_all_notifications_read(
 ):
     """Mark all notifications as read."""
     # Additional tighter limit for this bulk-write operation (10/min vs 60/min default)
-    await _rate_limit_svc.check_rate_limit(
+    await rate_limit_service.check_rate_limit(
         request=http_request,
         max_requests=10,
         window_seconds=60,

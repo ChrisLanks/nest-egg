@@ -446,8 +446,11 @@ class TestFinancialPlanSummary:
             education={"total_education_gap": 40000},
         )
         assert len(actions) <= 5
-        assert any("will" in a.lower() for a in actions)
-        assert any("umbrella" in a.lower() for a in actions)
+        # Actions are dicts with a 'message' key (or plain strings — handle both)
+        def action_text(a):
+            return a["message"] if isinstance(a, dict) else a
+        assert any("will" in action_text(a).lower() for a in actions)
+        assert any("umbrella" in action_text(a).lower() for a in actions)
 
     def test_insurance_coverage_score(self):
         from app.api.v1.financial_plan import _insurance_coverage_score

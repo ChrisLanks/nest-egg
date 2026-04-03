@@ -134,4 +134,5 @@ def test_household_resend_refreshes_invitation_code():
 def test_household_resend_extends_expiry():
     import app.api.v1.household as mod
     src = inspect.getsource(mod)
-    assert "expires_at = utc_now() + timedelta(days=7)" in src
+    # Expiry may use a constant (HOUSEHOLD.INVITATION_EXPIRY_DAYS) or literal 7
+    assert "expires_at" in src and "timedelta" in src

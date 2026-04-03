@@ -8,8 +8,8 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
+from app.constants.financial import HOUSEHOLD
 from app.api.v1.household import (
-    MAX_HOUSEHOLD_MEMBERS,
     InviteMemberRequest,
     UpdateMemberRoleRequest,
     accept_invitation,
@@ -189,7 +189,7 @@ class TestInviteMember:
 
         # Mock household size check (at limit) - returns count via scalar_one()
         member_result = Mock()
-        member_result.scalar_one.return_value = MAX_HOUSEHOLD_MEMBERS
+        member_result.scalar_one.return_value = HOUSEHOLD.MAX_MEMBERS
         mock_db.execute.return_value = member_result
 
         with patch(
@@ -300,7 +300,7 @@ class TestInviteMember:
 
         # scalar_one() returns the count integer directly — if the code
         # accidentally called scalars().all() it would get a Mock object,
-        # and the >= comparison with MAX_HOUSEHOLD_MEMBERS would raise TypeError.
+        # and the >= comparison with HOUSEHOLD.MAX_MEMBERS would raise TypeError.
         count_result = Mock()
         count_result.scalar_one.return_value = 1  # one member, under limit
 
@@ -341,11 +341,11 @@ class TestInviteMember:
 
     @pytest.mark.asyncio
     async def test_allows_invite_when_one_below_limit(self, mock_db, mock_user, mock_request):
-        """Should allow invite when member count is exactly one below MAX_HOUSEHOLD_MEMBERS."""
+        """Should allow invite when member count is exactly one below HOUSEHOLD.MAX_MEMBERS."""
         request_data = InviteMemberRequest(email="newmember@example.com")
 
         count_result = Mock()
-        count_result.scalar_one.return_value = MAX_HOUSEHOLD_MEMBERS - 1
+        count_result.scalar_one.return_value = HOUSEHOLD.MAX_MEMBERS - 1
 
         existing_user_result = Mock()
         existing_user_result.scalar_one_or_none.return_value = None
@@ -381,11 +381,11 @@ class TestInviteMember:
 
     @pytest.mark.asyncio
     async def test_rejects_exactly_at_limit(self, mock_db, mock_user, mock_request):
-        """Should reject when count equals MAX_HOUSEHOLD_MEMBERS (boundary condition)."""
+        """Should reject when count equals HOUSEHOLD.MAX_MEMBERS (boundary condition)."""
         request_data = InviteMemberRequest(email="toomany@example.com")
 
         count_result = Mock()
-        count_result.scalar_one.return_value = MAX_HOUSEHOLD_MEMBERS
+        count_result.scalar_one.return_value = HOUSEHOLD.MAX_MEMBERS
 
         mock_db.execute.return_value = count_result
 
@@ -490,6 +490,7 @@ class TestRemoveMember:
         ):
             await remove_member(
                 user_id=user_id,
+                http_request=Mock(),
                 current_user=mock_user,
                 db=mock_db,
             )
@@ -509,6 +510,7 @@ class TestRemoveMember:
         with pytest.raises(HTTPException) as exc_info:
             await remove_member(
                 user_id=user_id,
+                http_request=Mock(),
                 current_user=mock_user,
                 db=mock_db,
             )
@@ -528,6 +530,7 @@ class TestRemoveMember:
         with pytest.raises(HTTPException) as exc_info:
             await remove_member(
                 user_id=mock_user.id,
+                http_request=Mock(),
                 current_user=mock_user,
                 db=mock_db,
             )
@@ -550,6 +553,7 @@ class TestRemoveMember:
         with pytest.raises(HTTPException) as exc_info:
             await remove_member(
                 user_id=user_id,
+                http_request=Mock(),
                 current_user=mock_user,
                 db=mock_db,
             )
@@ -587,6 +591,7 @@ class TestCancelInvitation:
 
         await cancel_invitation(
             invitation_id=invitation_id,
+            http_request=Mock(),
             current_user=mock_user,
             db=mock_db,
         )
@@ -606,6 +611,7 @@ class TestCancelInvitation:
         with pytest.raises(HTTPException) as exc_info:
             await cancel_invitation(
                 invitation_id=invitation_id,
+                http_request=Mock(),
                 current_user=mock_user,
                 db=mock_db,
             )
@@ -738,8 +744,8 @@ class TestAcceptInvitation:
                 db=mock_db,
             )
 
-            assert result["message"] == "Invitation accepted successfully"
-            assert result["accounts_migrated"] == 0
+            assert result.message == "Invitation accepted successfully"
+            assert result.accounts_migrated == 0
             assert current_user.organization_id == invitation.organization_id
             assert current_user.is_org_admin is False  # Invited members are not admins
             assert invitation.status == InvitationStatus.ACCEPTED
@@ -972,9 +978,9 @@ class TestAcceptInvitation:
             )
 
             # Verify migration happened
-            assert result["message"] == "Invitation accepted successfully"
-            assert result["organization_id"] == str(new_org_id)
-            assert result["accounts_migrated"] == 2
+            assert result.message == "Invitation accepted successfully"
+            assert result.organization_id == str(new_org_id)
+            assert result.accounts_migrated == 2
 
             # Verify account migrations
             assert account1.organization_id == new_org_id
@@ -1048,7 +1054,7 @@ class TestAcceptInvitation:
                 db=mock_db,
             )
 
-            assert result["accounts_migrated"] == 0
+            assert result.accounts_migrated == 0
             assert current_user.organization_id == new_org_id
             assert current_user.is_org_admin is False  # Invited members are not admins
 
@@ -1103,7 +1109,7 @@ class TestAcceptInvitation:
             )
 
             # Should complete successfully even without old org
-            assert result["message"] == "Invitation accepted successfully"
+            assert result.message == "Invitation accepted successfully"
             # Delete should not be called if org not found
             assert not mock_db.delete.called
 
@@ -1737,7 +1743,7 @@ class TestUpdateMemberRole:
         mock_db.execute.return_value = result
 
         body = UpdateMemberRoleRequest(is_admin=True)
-        await update_member_role(user_id=target.id, body=body, current_user=admin_user, db=mock_db)
+        await update_member_role(user_id=target.id, body=body, http_request=Mock(), current_user=admin_user, db=mock_db)
 
         assert target.is_org_admin is True
         mock_db.commit.assert_awaited_once()
@@ -1756,7 +1762,7 @@ class TestUpdateMemberRole:
         mock_db.execute.return_value = result
 
         body = UpdateMemberRoleRequest(is_admin=False)
-        await update_member_role(user_id=target.id, body=body, current_user=admin_user, db=mock_db)
+        await update_member_role(user_id=target.id, body=body, http_request=Mock(), current_user=admin_user, db=mock_db)
 
         assert target.is_org_admin is False
 
@@ -1774,7 +1780,7 @@ class TestUpdateMemberRole:
         body = UpdateMemberRoleRequest(is_admin=False)
         with pytest.raises(HTTPException) as exc_info:
             await update_member_role(
-                user_id=admin_user.id, body=body, current_user=admin_user, db=mock_db
+                user_id=admin_user.id, body=body, http_request=Mock(), current_user=admin_user, db=mock_db
             )
         assert exc_info.value.status_code == 400
         assert "own role" in exc_info.value.detail
@@ -1795,7 +1801,7 @@ class TestUpdateMemberRole:
         body = UpdateMemberRoleRequest(is_admin=False)
         with pytest.raises(HTTPException) as exc_info:
             await update_member_role(
-                user_id=target.id, body=body, current_user=admin_user, db=mock_db
+                user_id=target.id, body=body, http_request=Mock(), current_user=admin_user, db=mock_db
             )
         assert exc_info.value.status_code == 400
         assert "primary" in exc_info.value.detail.lower()
@@ -1810,7 +1816,7 @@ class TestUpdateMemberRole:
         body = UpdateMemberRoleRequest(is_admin=True)
         with pytest.raises(HTTPException) as exc_info:
             await update_member_role(
-                user_id=uuid4(), body=body, current_user=admin_user, db=mock_db
+                user_id=uuid4(), body=body, http_request=Mock(), current_user=admin_user, db=mock_db
             )
         assert exc_info.value.status_code == 404
 
@@ -1847,7 +1853,7 @@ class TestRemoveMemberPermissionCleanup:
             "app.services.retirement.retirement_planner_service.RetirementPlannerService.archive_scenarios_for_departed_member",
             new_callable=AsyncMock,
         ):
-            await remove_member(user_id=user_id, current_user=admin, db=db)
+            await remove_member(user_id=user_id, http_request=Mock(), current_user=admin, db=db)
 
         # db.execute should have been called at least twice:
         # once for the SELECT, once for the DELETE of PermissionGrant rows

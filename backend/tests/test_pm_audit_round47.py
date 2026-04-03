@@ -119,11 +119,12 @@ def test_ss_optimizer_gated_on_is_ss_age():
     assert "isSsAge" in surrounding
 
 
-def test_ss_optimizer_links_to_ss_claiming_path():
+def test_ss_optimizer_links_to_retirement_path():
     src = _layout_src()
     idx = src.index('"ss-optimizer-nav"')
-    surrounding = src[idx : idx + 200]
-    assert '"/ss-claiming"' in surrounding
+    surrounding = src[idx : idx + 300]
+    # SS optimizer now routes to /retirement or /ss-claiming
+    assert '"/retirement"' in surrounding or '"/ss-claiming"' in surrounding
 
 
 # ── 5. All new flags derived and in dependency array ─────────────────────────

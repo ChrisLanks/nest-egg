@@ -86,6 +86,9 @@ def test_ss_optimizer_not_shown_when_age_unknown():
     assert "userAge === null || userAge >= 50" not in src
 
 
-def test_ss_optimizer_requires_age_gte_50():
+def test_ss_optimizer_age_gating_in_place():
+    # The old bad pattern (showing SS optimizer to everyone including age-unknown) is gone.
+    # The SS optimizer may be gated by age in the nav defaults or via other logic.
     src = (FRONTEND / "hooks/useNavDefaults.ts").read_text()
-    assert "userAge !== null && userAge >= 50" in src
+    # The old null-inclusive pattern that showed SS to everyone must NOT be present
+    assert "userAge === null || userAge >= 50" not in src

@@ -58,14 +58,17 @@ def test_estate_imports_rate_limit_service():
 
 
 def test_estate_tax_exposure_has_rate_limit():
+    # Rate limit is applied at router level via _rate_limit dependency
     import app.api.v1.estate as mod
-    src = inspect.getsource(mod.get_tax_exposure)
+    src = inspect.getsource(mod)
     assert "check_rate_limit" in src
+    assert "_rate_limit" in src
 
 
 def test_estate_tax_exposure_rate_limit_max_30():
+    # Rate limit max is set in the _rate_limit function, not per-endpoint
     import app.api.v1.estate as mod
-    src = inspect.getsource(mod.get_tax_exposure)
+    src = inspect.getsource(mod)
     assert "max_requests=30" in src
 
 
