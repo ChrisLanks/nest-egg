@@ -59,7 +59,7 @@ class TestUpdateMemberStatus:
 
         body = UpdateMemberStatusRequest(is_active=False)
         await update_member_status(
-            user_id=member_user.id, body=body, current_user=admin_user, db=mock_db
+            user_id=member_user.id, body=body, http_request=Mock(), current_user=admin_user, db=mock_db
         )
 
         assert member_user.is_active is False
@@ -78,7 +78,7 @@ class TestUpdateMemberStatus:
 
         body = UpdateMemberStatusRequest(is_active=True)
         await update_member_status(
-            user_id=member_user.id, body=body, current_user=admin_user, db=mock_db
+            user_id=member_user.id, body=body, http_request=Mock(), current_user=admin_user, db=mock_db
         )
 
         assert member_user.is_active is True
@@ -94,7 +94,7 @@ class TestUpdateMemberStatus:
         body = UpdateMemberStatusRequest(is_active=False)
         with pytest.raises(HTTPException) as exc_info:
             await update_member_status(
-                user_id=admin_user.id, body=body, current_user=admin_user, db=mock_db
+                user_id=admin_user.id, body=body, http_request=Mock(), current_user=admin_user, db=mock_db
             )
         assert exc_info.value.status_code == 400
         assert "your own" in exc_info.value.detail.lower()
@@ -116,7 +116,7 @@ class TestUpdateMemberStatus:
         body = UpdateMemberStatusRequest(is_active=False)
         with pytest.raises(HTTPException) as exc_info:
             await update_member_status(
-                user_id=primary.id, body=body, current_user=admin_user, db=mock_db
+                user_id=primary.id, body=body, http_request=Mock(), current_user=admin_user, db=mock_db
             )
         assert exc_info.value.status_code == 400
         assert "primary" in exc_info.value.detail.lower()
@@ -132,7 +132,7 @@ class TestUpdateMemberStatus:
         body = UpdateMemberStatusRequest(is_active=False)
         with pytest.raises(HTTPException) as exc_info:
             await update_member_status(
-                user_id=uuid4(), body=body, current_user=admin_user, db=mock_db
+                user_id=uuid4(), body=body, http_request=Mock(), current_user=admin_user, db=mock_db
             )
         assert exc_info.value.status_code == 404
 
