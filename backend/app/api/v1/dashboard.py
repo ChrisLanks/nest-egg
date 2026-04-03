@@ -81,6 +81,8 @@ class DashboardSummary(BaseModel):
     monthly_spending: float
     monthly_income: float
     monthly_net: float
+    estimated_monthly_income: Optional[float] = None
+    estimated_monthly_spending: Optional[float] = None
     spending_by_member: List[MemberSpending] = []
 
 
@@ -266,6 +268,14 @@ async def get_dashboard_summary(
                 for r in member_rows
             ]
 
+    # 3-month rolling average for pre-filling Financial Checkup fields
+    est_income = await service.get_estimated_monthly_income(
+        current_user.organization_id, account_ids=account_ids
+    )
+    est_spending = await service.get_estimated_monthly_spending(
+        current_user.organization_id, account_ids=account_ids
+    )
+
     summary = DashboardSummary(
         net_worth=float(net_worth),
         total_assets=float(total_assets),
@@ -273,6 +283,8 @@ async def get_dashboard_summary(
         monthly_spending=float(monthly_spending),
         monthly_income=float(monthly_income),
         monthly_net=float(monthly_income - monthly_spending),
+        estimated_monthly_income=float(est_income) if est_income else None,
+        estimated_monthly_spending=float(est_spending) if est_spending else None,
         spending_by_member=spending_by_member,
     )
     await cache_setex(cache_key, _CACHE_TTL_SUMMARY, summary.model_dump())

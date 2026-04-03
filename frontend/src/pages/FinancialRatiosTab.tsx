@@ -61,6 +61,8 @@ interface DashboardSummary {
   monthly_net: number;
   total_assets: number;
   total_debts: number;
+  estimated_monthly_income?: number;
+  estimated_monthly_spending?: number;
 }
 
 const gradeColorScheme = (grade: string): string => {
@@ -109,12 +111,19 @@ export const FinancialRatiosTab = () => {
     staleTime: 5 * 60_000,
   });
 
-  const estimatedIncome = summary?.monthly_income && summary.monthly_income > 0
-    ? summary.monthly_income
-    : undefined;
-  const estimatedSpending = summary?.monthly_spending && summary.monthly_spending > 0
-    ? summary.monthly_spending
-    : undefined;
+  // Prefer 3-month rolling average; fall back to current-month figure
+  const estimatedIncome =
+    (summary?.estimated_monthly_income && summary.estimated_monthly_income > 0)
+      ? summary.estimated_monthly_income
+      : (summary?.monthly_income && summary.monthly_income > 0)
+        ? summary.monthly_income
+        : undefined;
+  const estimatedSpending =
+    (summary?.estimated_monthly_spending && summary.estimated_monthly_spending > 0)
+      ? summary.estimated_monthly_spending
+      : (summary?.monthly_spending && summary.monthly_spending > 0)
+        ? summary.monthly_spending
+        : undefined;
 
   // Auto-populate fields from summary data when it first loads, unless user has edited
   useEffect(() => {
@@ -164,7 +173,9 @@ export const FinancialRatiosTab = () => {
               </NumberInput>
               {estimatedIncome && !incomeUserEdited && (
                 <FormHelperText fontSize="xs" color="text.secondary">
-                  Pre-filled from your recent transactions — edit to override
+                  {summary?.estimated_monthly_income
+                    ? "Pre-filled from your 3-month average — edit to override"
+                    : "Pre-filled from your recent transactions — edit to override"}
                 </FormHelperText>
               )}
             </FormControl>
@@ -187,7 +198,9 @@ export const FinancialRatiosTab = () => {
               </NumberInput>
               {estimatedSpending && !spendingUserEdited && (
                 <FormHelperText fontSize="xs" color="text.secondary">
-                  Pre-filled from your recent transactions — edit to override
+                  {summary?.estimated_monthly_spending
+                    ? "Pre-filled from your 3-month average — edit to override"
+                    : "Pre-filled from your recent transactions — edit to override"}
                 </FormHelperText>
               )}
             </FormControl>

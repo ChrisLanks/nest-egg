@@ -300,6 +300,89 @@ class DashboardService:
         income = row.income if row.income else Decimal(0)
         return spending, income
 
+    async def get_estimated_monthly_income(
+        self,
+        organization_id: str,
+        account_ids: Optional[List[UUID]] = None,
+        lookback_months: int = 3,
+    ) -> Optional[Decimal]:
+        """Return the average monthly income over the last *lookback_months* complete months.
+
+        Only complete calendar months are considered (the current partial month is
+        excluded) so the estimate isn't artificially low early in a month.
+
+        Returns ``None`` when there is no income data in the window.
+        """
+        now = utc_now()
+        # End of last complete month
+        first_of_current = date(now.year, now.month, 1)
+        end_date = first_of_current - timedelta(days=1)
+        # Start of the lookback window
+        month = first_of_current.month - lookback_months
+        year = first_of_current.year
+        while month <= 0:
+            month += 12
+            year -= 1
+        start_date = date(year, month, 1)
+
+        conditions = [
+            Transaction.organization_id == organization_id,
+            Transaction.date >= start_date,
+            Transaction.date <= end_date,
+            Transaction.amount > 0,
+        ]
+        if account_ids is not None:
+            conditions.append(Transaction.account_id.in_(account_ids))
+
+        result = await self.db.execute(
+            select(func.sum(Transaction.amount).label("total_income")).where(
+                and_(*conditions)
+            )
+        )
+        total = result.scalar()
+        if not total:
+            return None
+        return Decimal(str(total)) / lookback_months
+
+    async def get_estimated_monthly_spending(
+        self,
+        organization_id: str,
+        account_ids: Optional[List[UUID]] = None,
+        lookback_months: int = 3,
+    ) -> Optional[Decimal]:
+        """Return the average monthly spending over the last *lookback_months* complete months.
+
+        Mirrors ``get_estimated_monthly_income`` but for negative transactions.
+        """
+        now = utc_now()
+        first_of_current = date(now.year, now.month, 1)
+        end_date = first_of_current - timedelta(days=1)
+        month = first_of_current.month - lookback_months
+        year = first_of_current.year
+        while month <= 0:
+            month += 12
+            year -= 1
+        start_date = date(year, month, 1)
+
+        conditions = [
+            Transaction.organization_id == organization_id,
+            Transaction.date >= start_date,
+            Transaction.date <= end_date,
+            Transaction.amount < 0,
+        ]
+        if account_ids is not None:
+            conditions.append(Transaction.account_id.in_(account_ids))
+
+        result = await self.db.execute(
+            select(func.sum(Transaction.amount).label("total_spending")).where(
+                and_(*conditions)
+            )
+        )
+        total = result.scalar()
+        if not total:
+            return None
+        return abs(Decimal(str(total))) / lookback_months
+
     async def get_expense_by_category(
         self,
         organization_id: str,
