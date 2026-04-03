@@ -1190,6 +1190,31 @@ class HEALTH:
 
 
 # =========================================================================
+# NET WORTH MILESTONE TIERS
+# =========================================================================
+
+
+class NET_WORTH_MILESTONES:
+    """Milestone thresholds used in Year-in-Review and dashboard achievement badges.
+
+    A milestone fires when the user's net worth crosses one of these boundaries
+    during a period (e.g. was below $100k at start of year, is above at end).
+    Update as desired — these values are purely presentational.
+    """
+
+    TIERS: List[int] = [
+        50_000,
+        100_000,
+        250_000,
+        500_000,
+        750_000,
+        1_000_000,
+        2_000_000,
+        5_000_000,
+    ]
+
+
+# =========================================================================
 # SMART INSIGHTS THRESHOLDS
 # =========================================================================
 

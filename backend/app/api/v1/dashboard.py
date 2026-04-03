@@ -37,6 +37,7 @@ from app.services.insights_service import InsightsService
 from app.services.milestone_service import get_milestone_summary
 from app.services.net_worth_benchmark_service import compute_benchmark, get_all_age_group_medians
 from app.services.trend_analysis_service import TrendAnalysisService
+from app.constants.financial import NET_WORTH_MILESTONES
 from app.utils.date_validation import validate_date_range
 
 logger = logging.getLogger(__name__)
@@ -1118,8 +1119,7 @@ async def get_year_in_review(
     if savings_rate is not None and savings_rate >= 20:
         milestones.append(f"Achieved {savings_rate:.0f}% savings rate")
     if nw_end_val is not None:
-        thresholds = [50000, 100000, 250000, 500000, 750000, 1000000, 2000000, 5000000]
-        for t in thresholds:
+        for t in NET_WORTH_MILESTONES.TIERS:
             if nw_start_val is not None and nw_start_val < t <= nw_end_val:
                 milestones.append(f"Reached ${t:,.0f} net worth")
     if income_change_pct is not None and income_change_pct > 0:

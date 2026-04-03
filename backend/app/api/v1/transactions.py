@@ -315,8 +315,8 @@ async def list_transactions(
     end_date: Optional[str] = None,
     search: Optional[str] = None,
     flagged: Optional[bool] = Query(None, description="Filter by flagged_for_review status"),
-    min_amount: Optional[float] = Query(None, description="Minimum absolute transaction amount"),
-    max_amount: Optional[float] = Query(None, description="Maximum absolute transaction amount"),
+    min_amount: Optional[float] = Query(None, ge=0, le=999_999_999_999.99, description="Minimum absolute transaction amount"),
+    max_amount: Optional[float] = Query(None, ge=0, le=999_999_999_999.99, description="Maximum absolute transaction amount"),
     is_income: Optional[bool] = Query(
         None, description="True = income only, False = expenses only"
     ),

@@ -8,7 +8,7 @@ import logging
 from decimal import Decimal
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import and_, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,6 +24,7 @@ from app.models.retirement import RetirementScenario, RetirementSimulationResult
 from app.models.user import User
 from app.constants.financial import EDUCATION, ESTATE, FIRE, HEALTH, RETIREMENT, SAVINGS_GOALS
 from app.services.net_worth_service import NetWorthService
+from app.services.rate_limit_service import rate_limit_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -43,11 +44,16 @@ class FinancialPlanSummaryResponse(BaseModel):
 
 @router.get("/summary", response_model=FinancialPlanSummaryResponse)
 async def get_financial_plan_summary(
+    http_request: Request,
     user_id: Optional[str] = Query(default=None, description="Household member user ID; defaults to current user"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Return a unified financial plan summary with health score and action items."""
+    # This endpoint fans out to 7+ services — keep per-user rate modest.
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=10, window_seconds=60, identifier=str(current_user.id)
+    )
     import uuid as _uuid
 
     # Resolve subject user
@@ -68,12 +74,16 @@ async def get_financial_plan_summary(
 
     # ── Net Worth ────────────────────────────────────────────────────────
     nw_svc = NetWorthService()
-    nw_data = await nw_svc.get_current_breakdown(db, org_id)
-    net_worth_section = {
-        "total": nw_data["total_net_worth"],
-        "assets": nw_data["total_assets"],
-        "liabilities": nw_data["total_liabilities"],
-    }
+    try:
+        nw_data = await nw_svc.get_current_breakdown(db, org_id)
+        net_worth_section = {
+            "total": nw_data["total_net_worth"],
+            "assets": nw_data["total_assets"],
+            "liabilities": nw_data["total_liabilities"],
+        }
+    except Exception:
+        logger.exception("financial-plan: net worth section failed")
+        net_worth_section = {"total": 0, "assets": 0, "liabilities": 0}
 
     # ── Retirement ───────────────────────────────────────────────────────
     try:

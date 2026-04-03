@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +18,7 @@ from app.models.beneficiary import Beneficiary
 from app.models.estate_document import EstateDocument
 from app.models.user import User
 from app.services.estate_planning_service import EstatePlanningService
+from app.services.rate_limit_service import rate_limit_service
 from app.utils.account_type_groups import CORE_RETIREMENT_TYPES
 
 logger = logging.getLogger(__name__)
@@ -53,11 +54,15 @@ class EstateDocumentUpsert(BaseModel):
     description="Estimates federal estate tax above the exemption threshold.",
 )
 async def get_tax_exposure(
+    http_request: Request,
     net_worth: float = Query(..., description="Total net worth (USD)"),
     filing_status: str = Query("single", description="single or married"),
     current_user: User = Depends(get_current_user),
 ):
     """Returns estate tax exposure above the federal exemption."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=30, window_seconds=60, identifier=str(current_user.id)
+    )
     return EstatePlanningService.calculate_estate_tax_exposure(
         net_worth=Decimal(str(net_worth)),
         filing_status=filing_status,
