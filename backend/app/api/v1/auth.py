@@ -7,6 +7,7 @@ import secrets
 from datetime import timedelta
 
 import jwt
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
@@ -66,6 +67,10 @@ from app.utils.datetime_utils import utc_now
 # GC can cancel a task before it finishes.  Tasks remove themselves via the
 # done-callback once complete.
 _background_tasks: set[asyncio.Task] = set()
+
+
+class AuthMessageResponse(BaseModel):
+    message: str
 
 
 class MFAChallengeResponse(BaseModel):
@@ -903,7 +908,7 @@ async def verify_email(
     return {"message": "Email verified successfully"}
 
 
-@router.post("/resend-verification")
+@router.post("/resend-verification", response_model=Dict[str, Any])
 async def resend_verification(
     request: Request,
     current_user: User = Depends(get_current_user),
@@ -950,7 +955,7 @@ class ResetPasswordRequest(BaseModel):
     new_password: str = Field(min_length=8)
 
 
-@router.post("/forgot-password")
+@router.post("/forgot-password", response_model=Dict[str, Any])
 async def forgot_password(
     data: ForgotPasswordRequest,
     request: Request,
@@ -990,7 +995,7 @@ async def forgot_password(
     return response
 
 
-@router.post("/reset-password")
+@router.post("/reset-password", response_model=AuthMessageResponse)
 async def reset_password(
     data: ResetPasswordRequest,
     request: Request,
@@ -1039,7 +1044,7 @@ async def reset_password(
     await db.commit()
 
     logger.info("Password reset completed for user %s", user.id)
-    return {"message": "Password reset successfully. You can now log in with your new password."}
+    return AuthMessageResponse(message="Password reset successfully. You can now log in with your new password.")
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -1119,7 +1124,7 @@ async def get_current_user_info(
 
 if settings.DEBUG:
 
-    @router.post("/debug/check-refresh-token")
+    @router.post("/debug/check-refresh-token", response_model=Dict[str, Any])
     async def debug_check_refresh_token(
         data: RefreshTokenRequest,
         current_user: User = Depends(get_current_user),

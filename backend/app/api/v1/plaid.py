@@ -281,7 +281,7 @@ def _map_plaid_account_type(
         return AccountType.OTHER, None
 
 
-@router.post("/sync-holdings/{account_id}")
+@router.post("/sync-holdings/{account_id}", response_model=Dict[str, Any])
 async def sync_plaid_holdings(
     account_id: UUID,
     http_request: Request,
@@ -366,7 +366,7 @@ async def sync_plaid_holdings(
         raise HTTPException(status_code=500, detail="Holdings sync failed")
 
 
-@router.post("/webhook")
+@router.post("/webhook", response_model=Dict[str, Any])
 async def handle_plaid_webhook(
     request: Request,
     db: AsyncSession = Depends(get_db),
@@ -446,7 +446,7 @@ async def handle_plaid_webhook(
         raise HTTPException(status_code=500, detail="Webhook processing failed")
 
 
-@router.post("/sync-transactions/{plaid_item_id}")
+@router.post("/sync-transactions/{plaid_item_id}", response_model=Dict[str, Any])
 async def sync_transactions(
     plaid_item_id: UUID,
     http_request: Request,

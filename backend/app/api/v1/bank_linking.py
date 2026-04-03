@@ -40,6 +40,12 @@ logger = logging.getLogger(__name__)
 Provider = Literal["plaid", "teller", "mx"]
 
 
+class DisconnectResponse(BaseModel):
+    success: bool
+    account_id: str
+    status: str
+
+
 class LinkTokenRequest(BaseModel):
     """Request to create a link token for account linking."""
 
@@ -334,7 +340,7 @@ async def exchange_token(
         raise HTTPException(status_code=500, detail="Failed to exchange token")
 
 
-@router.post("/sync-transactions/{account_id}")
+@router.post("/sync-transactions/{account_id}", response_model=Dict[str, Any])
 async def sync_transactions(
     account_id: UUID,
     http_request: Request,
@@ -439,7 +445,7 @@ async def sync_transactions(
         raise HTTPException(status_code=500, detail="Sync failed")
 
 
-@router.post("/sync-holdings/{account_id}")
+@router.post("/sync-holdings/{account_id}", response_model=Dict[str, Any])
 async def sync_holdings(
     account_id: UUID,
     http_request: Request,
@@ -510,7 +516,7 @@ async def sync_holdings(
         raise HTTPException(status_code=500, detail="Holdings sync failed")
 
 
-@router.post("/disconnect/{account_id}")
+@router.post("/disconnect/{account_id}", response_model=DisconnectResponse)
 async def disconnect_account(
     account_id: UUID,
     http_request: Request,
@@ -609,7 +615,7 @@ async def disconnect_account(
         account.is_active = False
         await db.commit()
 
-        return {"success": True, "account_id": str(account_id), "status": "disconnected"}
+        return DisconnectResponse(success=True, account_id=str(account_id), status="disconnected")
 
     except HTTPException:
         raise
