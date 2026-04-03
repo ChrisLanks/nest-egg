@@ -16,11 +16,21 @@ from app.dependencies import get_current_user
 from app.models.account import Account, AccountType
 from app.models.pe_transaction import PETransaction, PETransactionType
 from app.models.user import User
+from app.services.input_sanitization_service import input_sanitization_service
 from app.services.pe_performance_service import compute_pe_metrics
 from app.services.rate_limit_service import rate_limit_service
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+
+
+async def _rate_limit(http_request: Request, current_user: User = Depends(get_current_user)):
+    """Shared rate-limit dependency for all endpoints in this module."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=30, window_seconds=60, identifier=str(current_user.id)
+    )
+
+
+router = APIRouter(dependencies=[Depends(_rate_limit)])
 
 
 class PETransactionCreate(BaseModel):
@@ -180,7 +190,7 @@ async def get_pe_performance(
     )
 
 
-@router.post("/{account_id}/transactions", status_code=201)
+@router.post("/{account_id}/transactions", status_code=201, response_model=PETransactionResponse)
 async def add_pe_transaction(
     account_id: UUID,
     txn_data: PETransactionCreate,
@@ -209,13 +219,14 @@ async def add_pe_transaction(
             detail=f"Invalid transaction_type. Must be one of: {[t.value for t in PETransactionType]}"
         )
 
+    notes = input_sanitization_service.sanitize_html(txn_data.notes) if txn_data.notes else txn_data.notes
     txn = PETransaction(
         account_id=account_id,
         transaction_type=txn_type,
         amount=Decimal(str(txn_data.amount)),
         date=txn_data.date,
         nav_after=Decimal(str(txn_data.nav_after)) if txn_data.nav_after else None,
-        notes=txn_data.notes,
+        notes=notes,
     )
     db.add(txn)
 
@@ -225,9 +236,11 @@ async def add_pe_transaction(
     await db.commit()
     await db.refresh(txn)
 
-    return {
-        "id": str(txn.id),
-        "transaction_type": txn.transaction_type.value,
-        "amount": float(txn.amount),
-        "date": txn.date.isoformat(),
-    }
+    return PETransactionResponse(
+        id=str(txn.id),
+        transaction_type=txn.transaction_type.value,
+        amount=float(txn.amount),
+        date=txn.date,
+        nav_after=float(txn.nav_after) if txn.nav_after is not None else None,
+        notes=txn.notes,
+    )

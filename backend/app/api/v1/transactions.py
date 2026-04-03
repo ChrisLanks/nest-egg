@@ -732,7 +732,11 @@ async def update_transaction(
     )
 
 
-@router.post("/{transaction_id}/labels/{label_id}", status_code=201)
+class LabelActionResponse(BaseModel):
+    message: str
+
+
+@router.post("/{transaction_id}/labels/{label_id}", status_code=201, response_model=LabelActionResponse)
 async def add_label_to_transaction(
     transaction_id: UUID,
     label_id: UUID,
@@ -770,7 +774,7 @@ async def add_label_to_transaction(
         )
     )
     if existing.scalar_one_or_none():
-        return {"message": "Label already applied"}
+        return LabelActionResponse(message="Label already applied")
 
     # Add label
     txn_label = TransactionLabel(
@@ -780,7 +784,7 @@ async def add_label_to_transaction(
     db.add(txn_label)
     await db.commit()
 
-    return {"message": "Label added successfully"}
+    return LabelActionResponse(message="Label added successfully")
 
 
 @router.delete("/{transaction_id}/labels/{label_id}", status_code=204)

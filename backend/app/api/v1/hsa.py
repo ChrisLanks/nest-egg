@@ -80,6 +80,12 @@ class HsaReceiptUpdateResponse(BaseModel):
     notes: Optional[str] = None
 
 
+class HsaAttachmentResponse(BaseModel):
+    id: str
+    file_name: Optional[str] = None
+    file_content_type: Optional[str] = None
+
+
 # ── Calculation endpoints ─────────────────────────────────────────────────────
 
 
@@ -329,6 +335,7 @@ async def get_ytd_summary(
     "/receipts/{receipt_id}/attachment",
     summary="Upload a file attachment for an HSA receipt",
     status_code=200,
+    response_model=HsaAttachmentResponse,
 )
 async def upload_receipt_attachment(
     receipt_id: UUID = Path(...),
@@ -369,11 +376,11 @@ async def upload_receipt_attachment(
     receipt.file_content_type = content_type
     await db.commit()
 
-    return {
-        "id": str(receipt.id),
-        "file_name": receipt.file_name,
-        "file_content_type": receipt.file_content_type,
-    }
+    return HsaAttachmentResponse(
+        id=str(receipt.id),
+        file_name=receipt.file_name,
+        file_content_type=receipt.file_content_type,
+    )
 
 
 @router.get(
