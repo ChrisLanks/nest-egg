@@ -306,43 +306,11 @@ class DashboardService:
         account_ids: Optional[List[UUID]] = None,
         lookback_months: int = 3,
     ) -> Optional[Decimal]:
-        """Return the average monthly income over the last *lookback_months* complete months.
-
-        Only complete calendar months are considered (the current partial month is
-        excluded) so the estimate isn't artificially low early in a month.
-
-        Returns ``None`` when there is no income data in the window.
-        """
-        now = utc_now()
-        # End of last complete month
-        first_of_current = date(now.year, now.month, 1)
-        end_date = first_of_current - timedelta(days=1)
-        # Start of the lookback window
-        month = first_of_current.month - lookback_months
-        year = first_of_current.year
-        while month <= 0:
-            month += 12
-            year -= 1
-        start_date = date(year, month, 1)
-
-        conditions = [
-            Transaction.organization_id == organization_id,
-            Transaction.date >= start_date,
-            Transaction.date <= end_date,
-            Transaction.amount > 0,
-        ]
-        if account_ids is not None:
-            conditions.append(Transaction.account_id.in_(account_ids))
-
-        result = await self.db.execute(
-            select(func.sum(Transaction.amount).label("total_income")).where(
-                and_(*conditions)
-            )
+        """Return the average monthly income over the last *lookback_months* complete months."""
+        income, _ = await self.get_estimated_monthly_totals(
+            organization_id, account_ids, lookback_months
         )
-        total = result.scalar()
-        if not total:
-            return None
-        return Decimal(str(total)) / lookback_months
+        return income
 
     async def get_estimated_monthly_spending(
         self,
@@ -350,9 +318,23 @@ class DashboardService:
         account_ids: Optional[List[UUID]] = None,
         lookback_months: int = 3,
     ) -> Optional[Decimal]:
-        """Return the average monthly spending over the last *lookback_months* complete months.
+        """Return the average monthly spending over the last *lookback_months* complete months."""
+        _, spending = await self.get_estimated_monthly_totals(
+            organization_id, account_ids, lookback_months
+        )
+        return spending
 
-        Mirrors ``get_estimated_monthly_income`` but for negative transactions.
+    async def get_estimated_monthly_totals(
+        self,
+        organization_id: str,
+        account_ids: Optional[List[UUID]] = None,
+        lookback_months: int = 3,
+    ) -> tuple[Optional[Decimal], Optional[Decimal]]:
+        """Return (avg_monthly_income, avg_monthly_spending) from the last
+        *lookback_months* complete calendar months in a single query.
+
+        Uses CASE WHEN to avoid two round-trips. Returns ``None`` for either
+        value when there is no data in the window.
         """
         now = utc_now()
         first_of_current = date(now.year, now.month, 1)
@@ -368,20 +350,32 @@ class DashboardService:
             Transaction.organization_id == organization_id,
             Transaction.date >= start_date,
             Transaction.date <= end_date,
-            Transaction.amount < 0,
         ]
         if account_ids is not None:
             conditions.append(Transaction.account_id.in_(account_ids))
 
         result = await self.db.execute(
-            select(func.sum(Transaction.amount).label("total_spending")).where(
-                and_(*conditions)
-            )
+            select(
+                func.sum(case((Transaction.amount > 0, Transaction.amount), else_=0)).label(
+                    "total_income"
+                ),
+                func.sum(case((Transaction.amount < 0, Transaction.amount), else_=0)).label(
+                    "total_spending"
+                ),
+            ).where(and_(*conditions))
         )
-        total = result.scalar()
-        if not total:
-            return None
-        return abs(Decimal(str(total))) / lookback_months
+        row = result.one()
+        income = (
+            Decimal(str(row.total_income)) / lookback_months
+            if row.total_income
+            else None
+        )
+        spending = (
+            abs(Decimal(str(row.total_spending))) / lookback_months
+            if row.total_spending
+            else None
+        )
+        return income, spending
 
     async def get_expense_by_category(
         self,

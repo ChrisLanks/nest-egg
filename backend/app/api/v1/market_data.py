@@ -25,6 +25,7 @@ from app.models.user import User
 from app.services.market_data import (
     get_market_data_provider,
 )
+from app.services.market_data.cache import invalidate_quotes
 from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
@@ -330,6 +331,7 @@ async def refresh_holding_price(
             )
         )
         await db.commit()
+        await invalidate_quotes(holding.ticker)
 
         # Refresh holding
         await db.refresh(holding)
@@ -408,6 +410,7 @@ async def refresh_all_holdings(
         updated_count += result.rowcount
 
     await db.commit()
+    await invalidate_quotes(*symbols)
 
     return {
         "updated": updated_count,

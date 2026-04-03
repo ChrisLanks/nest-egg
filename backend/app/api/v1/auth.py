@@ -57,6 +57,7 @@ from app.services.email_service import (
 )
 from app.services.input_sanitization_service import input_sanitization_service
 from app.services.market_data import get_market_data_provider
+from app.services.market_data.cache import invalidate_quotes
 from app.services.mfa_service import mfa_service
 from app.services.password_validation_service import password_validation_service
 from app.services.rate_limit_service import get_rate_limit_service
@@ -503,19 +504,25 @@ async def _maybe_refresh_prices_on_login(organization_id) -> None:
             market_data = get_market_data_provider()
             quotes = await market_data.get_quotes_batch(symbols)
 
+            # Batch UPDATE per ticker (not per holding) for efficiency
             updated = 0
             now = utc_now()
-            for h in stale_holdings:
-                if h.ticker and h.ticker in quotes:
-                    q = quotes[h.ticker]
-                    await db.execute(
+            for ticker in symbols:
+                if ticker in quotes:
+                    q = quotes[ticker]
+                    result = await db.execute(
                         sa_update(Holding)
-                        .where(Holding.id == h.id)
+                        .where(
+                            Holding.organization_id == organization_id,
+                            Holding.ticker == ticker,
+                        )
                         .values(current_price_per_share=q.price, price_as_of=now)
                     )
-                    updated += 1
+                    updated += result.rowcount
 
             await db.commit()
+            # Invalidate cached quotes so dashboard sees fresh prices immediately
+            await invalidate_quotes(*symbols)
             logger.info(
                 "login_price_refresh: org=%s updated=%d stale=%d provider=%s",
                 organization_id,

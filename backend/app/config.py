@@ -65,6 +65,7 @@ class Settings(BaseSettings):
 
     # Market Data Provider (for investment prices)
     MARKET_DATA_PROVIDER: str = "yahoo_finance"  # yahoo_finance, alpha_vantage, finnhub, coingecko
+    MARKET_DATA_FALLBACK_PROVIDERS: str = ""  # Comma-separated fallback chain, e.g. "alpha_vantage,finnhub"
     ALPHA_VANTAGE_API_KEY: Optional[str] = None  # Free: 500 calls/day, 25/min
     FINNHUB_API_KEY: Optional[str] = None  # Free: 60 calls/min
     COINGECKO_API_KEY: Optional[str] = None  # Optional: 500 calls/min (free key tier)

@@ -18,6 +18,7 @@ Design constraints
 * Manual refresh endpoints can bypass the cache by calling the provider directly.
 """
 
+import asyncio
 import json
 import logging
 from datetime import date
@@ -25,6 +26,7 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 from app.core import cache as redis_cache
+from app.services.circuit_breaker import get_circuit_breaker
 
 from .base_provider import (
     HistoricalPrice,
@@ -106,6 +108,8 @@ class CachedMarketDataProvider(MarketDataProvider):
 
     def __init__(self, provider: MarketDataProvider):
         self._provider = provider
+        self._cb = get_circuit_breaker()
+        self._cb_service = provider.get_provider_name().lower().replace(" ", "_")
 
     # ------------------------------------------------------------------
     # Single quote
@@ -118,7 +122,9 @@ class CachedMarketDataProvider(MarketDataProvider):
             return cached
 
         logger.debug("quote cache MISS: %s", symbol)
-        quote = await self._provider.get_quote(symbol)
+        quote = await self._cb.call(
+            self._cb_service, self._provider.get_quote, symbol
+        )
         await _cache_set_quote(symbol, quote)
         return quote
 
@@ -130,8 +136,11 @@ class CachedMarketDataProvider(MarketDataProvider):
         result: Dict[str, QuoteData] = {}
         missing: List[str] = []
 
-        for sym in symbols:
-            cached = await _cache_get_quote(sym)
+        # Parallel cache lookups instead of sequential awaits
+        cached_results = await asyncio.gather(
+            *[_cache_get_quote(sym) for sym in symbols]
+        )
+        for sym, cached in zip(symbols, cached_results):
             if cached is not None:
                 result[sym] = cached
             else:
@@ -143,10 +152,14 @@ class CachedMarketDataProvider(MarketDataProvider):
             )
 
         if missing:
-            fetched = await self._provider.get_quotes_batch(missing)
-            for sym, quote in fetched.items():
-                await _cache_set_quote(sym, quote)
-                result[sym] = quote
+            fetched = await self._cb.call(
+                self._cb_service, self._provider.get_quotes_batch, missing
+            )
+            # Parallel cache writes
+            await asyncio.gather(
+                *[_cache_set_quote(sym, quote) for sym, quote in fetched.items()]
+            )
+            result.update(fetched)
 
         return result
 
@@ -165,8 +178,10 @@ class CachedMarketDataProvider(MarketDataProvider):
             except Exception:
                 pass
 
-        prices = await self._provider.get_historical_prices(
-            symbol, start_date, end_date, interval
+        prices = await self._cb.call(
+            self._cb_service,
+            self._provider.get_historical_prices,
+            symbol, start_date, end_date, interval,
         )
         serialized = json.loads(
             json.dumps([p.model_dump() for p in prices], cls=_DecimalEncoder)
@@ -184,7 +199,9 @@ class CachedMarketDataProvider(MarketDataProvider):
             logger.debug("metadata cache HIT: %s", symbol)
             return cached
 
-        meta = await self._provider.get_holding_metadata(symbol)
+        meta = await self._cb.call(
+            self._cb_service, self._provider.get_holding_metadata, symbol
+        )
         await _cache_set_metadata(symbol, meta)
         return meta
 
@@ -203,3 +220,15 @@ class CachedMarketDataProvider(MarketDataProvider):
 
     def get_provider_name(self) -> str:
         return self._provider.get_provider_name()
+
+
+# ------------------------------------------------------------------
+# Public cache invalidation helpers (for refresh endpoints)
+# ------------------------------------------------------------------
+
+
+async def invalidate_quotes(*symbols: str) -> None:
+    """Delete cached quotes for the given symbols so the next fetch hits the provider."""
+    await asyncio.gather(
+        *[redis_cache.delete(_quote_key(sym)) for sym in symbols]
+    )

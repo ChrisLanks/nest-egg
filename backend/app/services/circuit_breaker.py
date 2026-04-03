@@ -33,7 +33,7 @@ DEFAULT_COOLDOWN_SECONDS = 60
 DEFAULT_HALF_OPEN_SUCCESSES = 2
 
 # All known service names — used by the monitoring endpoint to enumerate breakers.
-KNOWN_SERVICES = ("plaid", "teller", "mx")
+KNOWN_SERVICES = ("plaid", "teller", "mx", "yahoo_finance", "alpha_vantage", "finnhub", "coingecko")
 
 
 class CircuitOpenError(Exception):

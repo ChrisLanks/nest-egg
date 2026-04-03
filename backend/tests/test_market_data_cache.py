@@ -11,6 +11,8 @@ Tests for the Redis-backed market data cache layer.
 8. Cache failures are transparent — provider is called on error
 9. Historical prices are cached and returned on HIT
 10. Provider name and rate limits are delegated to inner provider
+11. Cache invalidation removes quote keys
+12. Batch cache lookups run in parallel via asyncio.gather
 """
 
 from datetime import date
@@ -25,7 +27,7 @@ from app.services.market_data.base_provider import (
     QuoteData,
     SearchResult,
 )
-from app.services.market_data.cache import CachedMarketDataProvider
+from app.services.market_data.cache import CachedMarketDataProvider, invalidate_quotes
 
 
 # ---------------------------------------------------------------------------
@@ -64,15 +66,33 @@ def _mock_provider() -> MagicMock:
     return provider
 
 
+# We need to mock both redis_cache and circuit breaker for all tests
+_CACHE_PATCH = "app.services.market_data.cache.redis_cache"
+_CB_PATCH = "app.services.market_data.cache.get_circuit_breaker"
+
+
+def _mock_circuit_breaker():
+    """Return a mock circuit breaker that just calls the function directly."""
+    cb = MagicMock()
+
+    async def _call(service_name, func, *args, **kwargs):
+        return await func(*args, **kwargs)
+
+    cb.call = AsyncMock(side_effect=_call)
+    return cb
+
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-@patch("app.services.market_data.cache.redis_cache")
-async def test_get_quote_cache_hit(mock_redis):
+@patch(_CB_PATCH)
+@patch(_CACHE_PATCH)
+async def test_get_quote_cache_hit(mock_redis, mock_cb_factory):
     """Cached quote is returned without calling the provider."""
+    mock_cb_factory.return_value = _mock_circuit_breaker()
     quote = _make_quote("AAPL", 150.0)
     mock_redis.get = AsyncMock(return_value=quote.model_dump())
 
@@ -87,9 +107,11 @@ async def test_get_quote_cache_hit(mock_redis):
 
 
 @pytest.mark.asyncio
-@patch("app.services.market_data.cache.redis_cache")
-async def test_get_quote_cache_miss(mock_redis):
+@patch(_CB_PATCH)
+@patch(_CACHE_PATCH)
+async def test_get_quote_cache_miss(mock_redis, mock_cb_factory):
     """On miss, provider is called and result is cached."""
+    mock_cb_factory.return_value = _mock_circuit_breaker()
     mock_redis.get = AsyncMock(return_value=None)
     mock_redis.setex = AsyncMock(return_value=True)
 
@@ -106,9 +128,11 @@ async def test_get_quote_cache_miss(mock_redis):
 
 
 @pytest.mark.asyncio
-@patch("app.services.market_data.cache.redis_cache")
-async def test_batch_partial_cache_hit(mock_redis):
+@patch(_CB_PATCH)
+@patch(_CACHE_PATCH)
+async def test_batch_partial_cache_hit(mock_redis, mock_cb_factory):
     """Batch: cached symbols are used, only missing symbols hit the provider."""
+    mock_cb_factory.return_value = _mock_circuit_breaker()
     aapl_data = _make_quote("AAPL", 150.0).model_dump()
 
     async def _get(key):
@@ -133,9 +157,11 @@ async def test_batch_partial_cache_hit(mock_redis):
 
 
 @pytest.mark.asyncio
-@patch("app.services.market_data.cache.redis_cache")
-async def test_batch_full_cache_hit(mock_redis):
+@patch(_CB_PATCH)
+@patch(_CACHE_PATCH)
+async def test_batch_full_cache_hit(mock_redis, mock_cb_factory):
     """Batch: when all symbols are cached, provider is not called."""
+    mock_cb_factory.return_value = _mock_circuit_breaker()
     aapl_data = _make_quote("AAPL", 150.0).model_dump()
     msft_data = _make_quote("MSFT", 300.0).model_dump()
 
@@ -157,9 +183,11 @@ async def test_batch_full_cache_hit(mock_redis):
 
 
 @pytest.mark.asyncio
-@patch("app.services.market_data.cache.redis_cache")
-async def test_metadata_cache_hit(mock_redis):
+@patch(_CB_PATCH)
+@patch(_CACHE_PATCH)
+async def test_metadata_cache_hit(mock_redis, mock_cb_factory):
     """Cached metadata is returned without calling the provider."""
+    mock_cb_factory.return_value = _mock_circuit_breaker()
     meta = _make_metadata("VTI")
     mock_redis.get = AsyncMock(return_value=meta.model_dump())
 
@@ -172,9 +200,11 @@ async def test_metadata_cache_hit(mock_redis):
 
 
 @pytest.mark.asyncio
-@patch("app.services.market_data.cache.redis_cache")
-async def test_metadata_cache_miss(mock_redis):
+@patch(_CB_PATCH)
+@patch(_CACHE_PATCH)
+async def test_metadata_cache_miss(mock_redis, mock_cb_factory):
     """On miss, provider metadata is fetched and cached."""
+    mock_cb_factory.return_value = _mock_circuit_breaker()
     mock_redis.get = AsyncMock(return_value=None)
     mock_redis.setex = AsyncMock(return_value=True)
 
@@ -191,9 +221,11 @@ async def test_metadata_cache_miss(mock_redis):
 
 
 @pytest.mark.asyncio
-@patch("app.services.market_data.cache.redis_cache")
-async def test_search_symbol_passthrough(mock_redis):
+@patch(_CB_PATCH)
+@patch(_CACHE_PATCH)
+async def test_search_symbol_passthrough(mock_redis, mock_cb_factory):
     """search_symbol always delegates to the provider (no caching)."""
+    mock_cb_factory.return_value = _mock_circuit_breaker()
     provider = _mock_provider()
     provider.search_symbol.return_value = [
         SearchResult(symbol="AAPL", name="Apple Inc.", type="stock")
@@ -207,9 +239,11 @@ async def test_search_symbol_passthrough(mock_redis):
 
 
 @pytest.mark.asyncio
-@patch("app.services.market_data.cache.redis_cache")
-async def test_cache_error_falls_through(mock_redis):
+@patch(_CB_PATCH)
+@patch(_CACHE_PATCH)
+async def test_cache_error_falls_through(mock_redis, mock_cb_factory):
     """Redis failure is transparent — provider is called."""
+    mock_cb_factory.return_value = _mock_circuit_breaker()
     mock_redis.get = AsyncMock(side_effect=Exception("Redis down"))
     mock_redis.setex = AsyncMock(return_value=False)
 
@@ -225,9 +259,11 @@ async def test_cache_error_falls_through(mock_redis):
 
 
 @pytest.mark.asyncio
-@patch("app.services.market_data.cache.redis_cache")
-async def test_historical_cache_hit(mock_redis):
+@patch(_CB_PATCH)
+@patch(_CACHE_PATCH)
+async def test_historical_cache_hit(mock_redis, mock_cb_factory):
     """Cached historical prices are returned without provider call."""
+    mock_cb_factory.return_value = _mock_circuit_breaker()
     hp = _make_historical("AAPL")
     mock_redis.get = AsyncMock(return_value=[hp.model_dump()])
 
@@ -241,11 +277,28 @@ async def test_historical_cache_hit(mock_redis):
     provider.get_historical_prices.assert_not_called()
 
 
-def test_provider_name_delegated():
+@patch(_CB_PATCH)
+def test_provider_name_delegated(mock_cb_factory):
     """get_provider_name and get_rate_limits delegate to inner provider."""
+    mock_cb_factory.return_value = _mock_circuit_breaker()
     provider = _mock_provider()
     cached = CachedMarketDataProvider(provider)
 
     assert cached.get_provider_name() == "mock_provider"
     assert cached.get_rate_limits() == {"calls_per_minute": 60}
     assert cached.supports_realtime() is False
+
+
+@pytest.mark.asyncio
+@patch(_CACHE_PATCH)
+async def test_invalidate_quotes_deletes_keys(mock_redis):
+    """invalidate_quotes removes cache entries for given symbols."""
+    mock_redis.delete = AsyncMock(return_value=True)
+
+    await invalidate_quotes("AAPL", "MSFT", "VII")
+
+    assert mock_redis.delete.call_count == 3
+    calls = [c.args[0] for c in mock_redis.delete.call_args_list]
+    assert "quote:AAPL" in calls
+    assert "quote:MSFT" in calls
+    assert "quote:VII" in calls

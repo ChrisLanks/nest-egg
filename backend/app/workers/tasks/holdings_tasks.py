@@ -78,10 +78,27 @@ async def _enrich_metadata_async():
             er_enriched_count = 0
             failed_tickers: list[str] = []
 
-            for ticker in tickers:
-                try:
-                    metadata = await market_data.get_holding_metadata(ticker)
+            # Fetch metadata with bounded concurrency (5 at a time)
+            _CONCURRENCY = 5
+            semaphore = asyncio.Semaphore(_CONCURRENCY)
 
+            async def _fetch_metadata(ticker: str):
+                async with semaphore:
+                    return ticker, await market_data.get_holding_metadata(ticker)
+
+            metadata_results = await asyncio.gather(
+                *[_fetch_metadata(t) for t in tickers],
+                return_exceptions=True,
+            )
+
+            for result_item in metadata_results:
+                if isinstance(result_item, Exception):
+                    failed_count += 1
+                    continue
+
+                ticker, metadata = result_item
+
+                try:
                     # Build update dict — only include fields the API returned a value for
                     updates: dict = {"updated_at": utc_now()}
                     if metadata.name is not None:

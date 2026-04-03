@@ -16,9 +16,23 @@ from time import time
 from typing import Dict, List
 
 import yfinance as yf
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 # Timeout for all external API calls (seconds)
 REQUEST_TIMEOUT = 5.0
+
+# Retry config: 3 attempts with exponential backoff (0.2s, 0.4s, 0.8s)
+_RETRY_KWARGS = dict(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=0.2, min=0.2, max=5),
+    retry=retry_if_exception_type((asyncio.TimeoutError, ConnectionError, OSError)),
+    reraise=True,
+)
 
 from .base_provider import (
     HistoricalPrice,
@@ -52,6 +66,11 @@ class YahooFinanceProvider(MarketDataProvider):
             logger.error(f"Symbol validation failed: {e}")
             raise ValueError(str(e))
 
+        return await self._get_quote_with_retry(symbol)
+
+    @retry(**_RETRY_KWARGS)
+    async def _get_quote_with_retry(self, symbol: str) -> QuoteData:
+        """Inner get_quote with retry on transient failures."""
         # Log API call
         logger.info(
             "external_api_call",
@@ -158,6 +177,7 @@ class YahooFinanceProvider(MarketDataProvider):
             )
             raise ValueError(f"Failed to fetch quote for {symbol}: {str(e)}")
 
+    @retry(**_RETRY_KWARGS)
     async def get_quotes_batch(self, symbols: List[str]) -> Dict[str, QuoteData]:
         """Get multiple quotes efficiently."""
         logger.info(

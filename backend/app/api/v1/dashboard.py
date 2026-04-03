@@ -268,11 +268,8 @@ async def get_dashboard_summary(
                 for r in member_rows
             ]
 
-    # 3-month rolling average for pre-filling Financial Checkup fields
-    est_income = await service.get_estimated_monthly_income(
-        current_user.organization_id, account_ids=account_ids
-    )
-    est_spending = await service.get_estimated_monthly_spending(
+    # 3-month rolling average (single query) for pre-filling Financial Checkup
+    est_income, est_spending = await service.get_estimated_monthly_totals(
         current_user.organization_id, account_ids=account_ids
     )
 
