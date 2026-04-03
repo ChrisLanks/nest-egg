@@ -13,11 +13,16 @@ from app.config import settings
 from app.dependencies import get_current_admin_user, get_current_user, get_db
 from app.models.notification import Notification, NotificationPriority, NotificationType
 from app.models.user import User
+from pydantic import BaseModel
 from app.schemas.notification import (
     NotificationCreate,
     NotificationResponse,
     UnreadCountResponse,
 )
+
+
+class MarkAllReadResponse(BaseModel):
+    marked_read: int
 from app.services.notification_service import NotificationService, notification_service
 from app.services.rate_limit_service import rate_limit_service as _rate_limit_svc
 from app.utils.datetime_utils import utc_now
@@ -116,7 +121,7 @@ async def get_household_digest(
     }
 
 
-@router.patch("/{notification_id}/read")
+@router.patch("/{notification_id}/read", response_model=NotificationResponse)
 async def mark_notification_read(
     notification_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -135,7 +140,7 @@ async def mark_notification_read(
     return notification
 
 
-@router.patch("/{notification_id}/dismiss")
+@router.patch("/{notification_id}/dismiss", response_model=NotificationResponse)
 async def dismiss_notification(
     notification_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -154,7 +159,7 @@ async def dismiss_notification(
     return notification
 
 
-@router.post("/mark-all-read")
+@router.post("/mark-all-read", response_model=MarkAllReadResponse)
 async def mark_all_notifications_read(
     http_request: Request,
     current_user: User = Depends(get_current_user),
@@ -169,7 +174,7 @@ async def mark_all_notifications_read(
         identifier=str(current_user.id),
     )
     count = await notification_service.mark_all_as_read(db=db, user=current_user)
-    return {"marked_read": count}
+    return MarkAllReadResponse(marked_read=count)
 
 
 @router.post("/", response_model=NotificationResponse)

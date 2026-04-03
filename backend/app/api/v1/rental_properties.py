@@ -36,6 +36,15 @@ class RentalFieldsUpdate(BaseModel):
     rental_type: Optional[str] = None  # "buy_and_hold", "long_term_rental", "short_term_rental"
 
 
+class RentalFieldsResponse(BaseModel):
+    account_id: str
+    name: str
+    is_rental_property: Optional[bool] = None
+    rental_monthly_income: float
+    rental_address: str
+    rental_type: Optional[str] = None
+
+
 @router.get("")
 async def list_rental_properties(
     user_id: Optional[UUID] = Query(None, description="Filter by user"),
@@ -107,7 +116,7 @@ async def get_property_pnl(
     return result
 
 
-@router.patch("/{account_id}")
+@router.patch("/{account_id}", response_model=RentalFieldsResponse)
 async def update_rental_fields(
     account_id: UUID,
     body: RentalFieldsUpdate,

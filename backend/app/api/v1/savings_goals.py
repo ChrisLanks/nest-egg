@@ -49,7 +49,33 @@ class ContributionRequest(BaseModel):
     amount: Decimal = Field(..., gt=0, description="Contribution amount (must be positive)")
 
 
-router = APIRouter()
+class ContributionResponse(BaseModel):
+    goal_id: str
+    goal_name: str
+    contribution_amount: float
+    user_total_contributions: float
+    current_amount: float
+    target_amount: float
+    member_contributions: dict
+
+
+class RetirementLinkResponse(BaseModel):
+    life_event_id: str
+    scenario_id: str
+    goal_name: str
+    target_age: int
+    one_time_cost: float
+    message: str
+
+
+async def _rate_limit(http_request: Request, current_user: User = Depends(get_current_user)):
+    """Shared rate-limit dependency for all endpoints in this module."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=30, window_seconds=60, identifier=str(current_user.id)
+    )
+
+
+router = APIRouter(dependencies=[Depends(_rate_limit)])
 
 
 @router.post("/", response_model=SavingsGoalResponse, status_code=201)
@@ -320,7 +346,7 @@ async def get_goal_progress(
     return progress
 
 
-@router.post("/{goal_id}/contributions")
+@router.post("/{goal_id}/contributions", response_model=ContributionResponse)
 async def record_contribution(
     goal_id: UUID,
     body: ContributionRequest,
@@ -355,18 +381,18 @@ async def record_contribution(
     await db.commit()
     await db.refresh(goal)
 
-    return {
-        "goal_id": str(goal.id),
-        "goal_name": goal.name,
-        "contribution_amount": float(body.amount),
-        "user_total_contributions": float(Decimal(contributions[user_key])),
-        "current_amount": float(goal.current_amount),
-        "target_amount": float(goal.target_amount),
-        "member_contributions": {k: float(Decimal(v)) for k, v in contributions.items()},
-    }
+    return ContributionResponse(
+        goal_id=str(goal.id),
+        goal_name=goal.name,
+        contribution_amount=float(body.amount),
+        user_total_contributions=float(Decimal(contributions[user_key])),
+        current_amount=float(goal.current_amount),
+        target_amount=float(goal.target_amount),
+        member_contributions={k: float(Decimal(v)) for k, v in contributions.items()},
+    )
 
 
-@router.post("/{goal_id}/add-to-retirement-plan")
+@router.post("/{goal_id}/add-to-retirement-plan", response_model=RetirementLinkResponse)
 async def add_goal_to_retirement_plan(
     goal_id: UUID,
     body: LinkToRetirementRequest,
@@ -425,11 +451,11 @@ async def add_goal_to_retirement_plan(
     await db.commit()
     await db.refresh(life_event)
 
-    return {
-        "life_event_id": str(life_event.id),
-        "scenario_id": str(body.scenario_id),
-        "goal_name": goal.name,
-        "target_age": target_age,
-        "one_time_cost": float(goal.target_amount),
-        "message": f"Savings goal '{goal.name}' added as life event at age {target_age}",
-    }
+    return RetirementLinkResponse(
+        life_event_id=str(life_event.id),
+        scenario_id=str(body.scenario_id),
+        goal_name=goal.name,
+        target_age=target_age,
+        one_time_cost=float(goal.target_amount),
+        message=f"Savings goal '{goal.name}' added as life event at age {target_age}",
+    )
