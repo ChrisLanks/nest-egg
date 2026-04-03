@@ -311,6 +311,11 @@ const TransactionDesktopRow = memo(
               </Tooltip>
             )}
             {txn.is_transfer && <Badge colorScheme="purple">Transfer</Badge>}
+            {txn.is_split && (
+              <Tooltip label="This transaction has been split across multiple line items or household members.">
+                <Badge colorScheme="teal" cursor="help">Split</Badge>
+              </Tooltip>
+            )}
             {txn.flagged_for_review && <Badge colorScheme="red">Flagged</Badge>}
           </HStack>
         </Td>
@@ -492,6 +497,7 @@ const TransactionMobileCard = memo(
             {(showStatusColumn ||
               txn.is_pending ||
               txn.is_transfer ||
+              txn.is_split ||
               txn.flagged_for_review) && (
               <HStack justify="flex-end" spacing={1}>
                 {txn.is_pending && (
@@ -502,6 +508,11 @@ const TransactionMobileCard = memo(
                 {txn.is_transfer && (
                   <Badge colorScheme="purple" fontSize="xs">
                     Transfer
+                  </Badge>
+                )}
+                {txn.is_split && (
+                  <Badge colorScheme="teal" fontSize="xs">
+                    Split
                   </Badge>
                 )}
                 {txn.flagged_for_review && (

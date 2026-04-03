@@ -26,7 +26,7 @@ from app.dependencies import (
 from app.models.account import Account
 from app.models.net_worth_snapshot import NetWorthSnapshot
 from app.models.recurring_transaction import RecurringFrequency, RecurringTransaction
-from app.models.transaction import Transaction
+from app.models.transaction import Transaction, TransactionSplit
 from app.models.user import User
 from app.schemas.transaction import CategorySummary, TransactionDetail
 from app.services.dashboard_service import DashboardService
@@ -44,8 +44,22 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# Cache TTLs (seconds) — centralised so they can be tuned in one place
+_CACHE_TTL_SUMMARY = 300       # 5 min: dashboard summary stats
+_CACHE_TTL_DASHBOARD = 60      # 60 s: full dashboard data (more volatile)
+_CACHE_TTL_HEALTH = 3600       # 1 hr: financial health score (expensive, slow-changing)
+_CACHE_TTL_INSIGHTS = 300      # 5 min: smart insights / spending analysis
+
 # Initialize deduplication service
 deduplication_service = DeduplicationService()
+
+
+class MemberSpending(BaseModel):
+    """Per-member spending breakdown for the summary period."""
+
+    member_id: str
+    member_name: str
+    spending: float
 
 
 class DashboardSummary(BaseModel):
@@ -57,6 +71,7 @@ class DashboardSummary(BaseModel):
     monthly_spending: float
     monthly_income: float
     monthly_net: float
+    spending_by_member: List[MemberSpending] = []
 
 
 class ExpenseCategory(BaseModel):
@@ -197,6 +212,49 @@ async def get_dashboard_summary(
         current_user.organization_id, start_date, end_date, account_ids
     )
 
+    # Per-member spending breakdown (only meaningful in combined household view)
+    spending_by_member: List[MemberSpending] = []
+    if not user_id:
+        # Sum spending per account owner by joining accounts→transactions
+        member_spending_rows = await db.execute(
+            select(Account.user_id, func.sum(Transaction.amount).label("total"))
+            .join(Transaction, Transaction.account_id == Account.id)
+            .where(
+                Account.organization_id == current_user.organization_id,
+                Account.id.in_(account_ids),
+                Transaction.is_transfer.is_(False),
+                Transaction.is_pending.is_(False),
+                Transaction.amount < 0,
+                *(
+                    [Transaction.date >= start_date] if start_date else []
+                ),
+                *(
+                    [Transaction.date <= end_date] if end_date else []
+                ),
+            )
+            .group_by(Account.user_id)
+        )
+        member_rows = member_spending_rows.all()
+        if member_rows:
+            member_user_ids = [r.user_id for r in member_rows]
+            users_result = await db.execute(
+                select(User.id, User.display_name, User.first_name, User.email).where(
+                    User.id.in_(member_user_ids)
+                )
+            )
+            users_map = {
+                u.id: (u.display_name or u.first_name or u.email or str(u.id))
+                for u in users_result.all()
+            }
+            spending_by_member = [
+                MemberSpending(
+                    member_id=str(r.user_id),
+                    member_name=users_map.get(r.user_id, str(r.user_id)),
+                    spending=abs(float(r.total)),
+                )
+                for r in member_rows
+            ]
+
     summary = DashboardSummary(
         net_worth=float(net_worth),
         total_assets=float(total_assets),
@@ -204,8 +262,9 @@ async def get_dashboard_summary(
         monthly_spending=float(monthly_spending),
         monthly_income=float(monthly_income),
         monthly_net=float(monthly_income - monthly_spending),
+        spending_by_member=spending_by_member,
     )
-    await cache_setex(cache_key, 300, summary.model_dump())  # 5 min TTL
+    await cache_setex(cache_key, _CACHE_TTL_SUMMARY, summary.model_dump())
     return summary
 
 
@@ -337,10 +396,10 @@ async def get_dashboard_data(
         ],
     )
 
-    # Cache the response with 60-second TTL
+    # Cache the response
     try:
         response_dict = response.model_dump(mode="json")
-        await cache_setex(cache_key, 60, response_dict)
+        await cache_setex(cache_key, _CACHE_TTL_DASHBOARD, response_dict)
     except Exception:
         logger.debug("Failed to write dashboard cache for key %s", cache_key)
 
@@ -536,9 +595,9 @@ async def get_financial_health(
         account_ids=account_ids,
     )
 
-    # Cache with 1-hour TTL
+    # Cache with health TTL (changes slowly — expensive to compute)
     try:
-        await cache_setex(cache_key, 3600, result)
+        await cache_setex(cache_key, _CACHE_TTL_HEALTH, result)
     except Exception:
         logger.debug("Failed to write financial-health cache for key %s", cache_key)
 
@@ -1098,9 +1157,9 @@ async def get_year_in_review(
         ),
     )
 
-    # Cache for 5 minutes
+    # Cache with summary TTL (5 min)
     try:
-        await cache_setex(cache_key, 300, response.model_dump(mode="json"))
+        await cache_setex(cache_key, _CACHE_TTL_SUMMARY, response.model_dump(mode="json"))
     except Exception:
         logger.debug("Failed to cache year-in-review for key %s", cache_key)
 

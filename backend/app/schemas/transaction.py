@@ -99,6 +99,7 @@ class Transaction(TransactionBase):
     external_transaction_id: Optional[str] = None
     is_pending: bool
     is_transfer: bool
+    is_split: bool = False
     notes: Optional[str] = None
     flagged_for_review: bool = False
     created_at: datetime

@@ -36,6 +36,7 @@ export interface Transaction {
   category_detailed: string | null;
   is_pending: boolean;
   is_transfer: boolean;
+  is_split: boolean;
   notes: string | null;
   flagged_for_review: boolean;
   account_name: string | null;

@@ -443,6 +443,7 @@ export const ADVANCED_LAYOUT: LayoutItem[] = [
   { id: "contribution-headroom", span: 1 },
   { id: "net-worth-attribution", span: 2 },
   { id: "rebalancing", span: 1 },
+  { id: "member-settlement", span: 2 },
 ];
 
 /** Default layout for users who skipped onboarding or came from an older version. */
