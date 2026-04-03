@@ -1,7 +1,7 @@
 """Portfolio stress testing API endpoints."""
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -23,7 +23,7 @@ router = APIRouter()
     "/scenarios",
     summary="List available stress test scenarios",
     description="Returns all hardcoded stress scenario keys and labels. No DB required.",
-    response_model=Dict[str, Any],
+    response_model=List[Any],
 )
 async def list_scenarios(
     current_user: User = Depends(get_current_user),

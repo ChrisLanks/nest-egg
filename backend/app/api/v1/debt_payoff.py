@@ -1,7 +1,7 @@
 """Debt Payoff API endpoints."""
 
 from decimal import Decimal
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -24,7 +24,7 @@ async def _rate_limit(http_request: Request, current_user: User = Depends(get_cu
 router = APIRouter(dependencies=[Depends(_rate_limit)])
 
 
-@router.get("/debts", response_model=Dict[str, Any])
+@router.get("/debts", response_model=List[Any])
 async def list_debt_accounts(
     user_id: Optional[UUID] = Query(None, description="Filter by user"),
     current_user: User = Depends(get_current_user),

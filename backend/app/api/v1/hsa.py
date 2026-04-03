@@ -3,7 +3,7 @@
 import logging
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Path, Query, Request, UploadFile
@@ -145,7 +145,7 @@ async def get_hsa_projection(
 @router.get(
     "/receipts",
     summary="List HSA receipts",
-    response_model=Dict[str, Any],
+    response_model=List[Any],
 )
 async def list_receipts(
     tax_year: Optional[int] = Query(None, description="Filter by tax year"),

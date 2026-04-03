@@ -241,7 +241,7 @@ async def get_beneficiary_audit(
 # ── Beneficiary CRUD ──────────────────────────────────────────────────────────
 
 
-@router.get("/beneficiaries", summary="List beneficiaries", response_model=Dict[str, Any])
+@router.get("/beneficiaries", summary="List beneficiaries", response_model=List[Any])
 async def list_beneficiaries(
     account_id: Optional[UUID] = Query(None),
     current_user: User = Depends(get_current_user),
@@ -318,7 +318,7 @@ async def delete_beneficiary(
 # ── Estate documents ──────────────────────────────────────────────────────────
 
 
-@router.get("/documents", summary="List estate planning documents", response_model=Dict[str, Any])
+@router.get("/documents", summary="List estate planning documents", response_model=List[Any])
 async def list_documents(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

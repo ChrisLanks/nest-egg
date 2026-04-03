@@ -3,7 +3,7 @@
 import datetime
 import logging
 from decimal import Decimal
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -37,7 +37,7 @@ QCD_ANNUAL_LIMIT = QCD.QCD_MAX_ANNUAL  # Year-resolved from constants
 QCD_AGE_THRESHOLD = 70  # age 70.5 — we check >= 70 as a proxy
 
 
-@router.get("/labels", response_model=Dict[str, Any])
+@router.get("/labels", response_model=List[Any])
 async def list_charitable_labels(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
