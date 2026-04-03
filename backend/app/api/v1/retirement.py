@@ -1,1086 +1,713 @@
-"""Retirement planning API endpoints."""
+"""Reports API endpoints."""
 
-import csv
-import io
-import json
-from typing import List, Optional
+import re
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
-from sqlalchemy import func
-from sqlalchemy import select as sa_select
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_db, verify_household_member
-from app.models.retirement import LifeEvent
+from app.core.database import get_db
+from app.dependencies import (
+    get_all_household_accounts,
+    get_current_user,
+    get_user_accounts,
+    verify_household_member,
+)
+from app.models.account import Account, AccountType
+from app.models.report_template import ReportTemplate
 from app.models.user import User
-from app.schemas.retirement import (
-    HealthcareCostBreakdown,
-    HealthcareCostEstimateResponse,
-    LifeEventCreate,
-    LifeEventPreset,
-    LifeEventPresetRequest,
-    LifeEventResponse,
-    LifeEventUpdate,
-    ProjectionDataPoint,
-    QuickSimulationRequest,
-    QuickSimulationResponse,
-    RetirementAccountDataResponse,
-    RetirementScenarioCreate,
-    RetirementScenarioResponse,
-    RetirementScenarioSummary,
-    RetirementScenarioUpdate,
-    ScenarioComparisonItem,
-    ScenarioComparisonRequest,
-    ScenarioComparisonResponse,
-    SimulationResultResponse,
-    SocialSecurityEstimateResponse,
+from app.schemas.tax_harvesting import (
+    TaxLossHarvestingSummaryResponse,
+    TaxLossOpportunityResponse,
 )
-from app.services.input_sanitization_service import input_sanitization_service
-from app.services.retirement.healthcare_cost_estimator import (
-    estimate_annual_healthcare_cost,
+from app.services.deduplication_service import DeduplicationService
+from app.services.rate_limit_service import rate_limit_service
+from app.services.report_service import ReportService
+from app.services.tax_loss_harvesting_service import tax_loss_harvesting_service
+from app.utils.datetime_utils import utc_now
+
+# Allowed characters in Content-Disposition filenames
+_SAFE_FILENAME_RE = re.compile(r"[^a-zA-Z0-9_.\-]")
+
+_GUEST_USER_ID_FILTER_FORBIDDEN = HTTPException(
+    status_code=403,
+    detail="Guests cannot filter reports by individual member",
 )
-from app.services.retirement.life_event_presets import (
-    create_life_event_from_preset,
-    get_all_presets,
-)
-from app.services.retirement.monte_carlo_service import RetirementMonteCarloService
-from app.services.retirement.retirement_planner_service import RetirementPlannerService
-from app.services.retirement.social_security_estimator import estimate_social_security
-from app.utils.rmd_calculator import calculate_age
 
 router = APIRouter()
+deduplication_service = DeduplicationService()
 
 
-# --- Scenario CRUD ---
+# Pydantic schemas
 
 
-@router.post("/scenarios", response_model=RetirementScenarioResponse, status_code=201)
-async def create_scenario(
-    data: RetirementScenarioCreate,
+VALID_REPORT_TYPES = {
+    "income_expense",
+    "cash_flow",
+    "net_worth",
+    "category_breakdown",
+    "tax_summary",
+    "investment_performance",
+    "custom",
+}
+
+VALID_DELIVERY_FREQUENCIES = {"daily", "weekly", "monthly"}
+
+# Required config keys per report type.  "custom" has no mandatory keys.
+_REQUIRED_CONFIG_KEYS: Dict[str, set] = {
+    "income_expense": {"start_date", "end_date"},
+    "cash_flow": {"start_date", "end_date"},
+    "net_worth": set(),
+    "category_breakdown": {"start_date", "end_date"},
+    "tax_summary": {"tax_year"},
+    "investment_performance": set(),
+    "custom": set(),
+}
+
+
+def _validate_config(report_type: str, config: Dict[str, Any]) -> None:
+    """Raise ValueError if config is missing required keys for report_type."""
+    required = _REQUIRED_CONFIG_KEYS.get(report_type, set())
+    missing = required - config.keys()
+    if missing:
+        raise ValueError(
+            f"config is missing required keys for report_type '{report_type}': "
+            f"{', '.join(sorted(missing))}"
+        )
+    # Reject suspiciously large configs (DoS guard)
+    import json as _json
+    if len(_json.dumps(config)) > 4096:
+        raise ValueError("config must not exceed 4096 characters")
+
+
+class ReportTemplateCreate(BaseModel):
+    """Schema for creating a report template."""
+
+    name: str = Field(..., max_length=255)
+    description: Optional[str] = None
+    report_type: str
+    config: Dict[str, Any]
+    is_shared: bool = False
+
+    @field_validator("report_type")
+    @classmethod
+    def validate_report_type(cls, v: str) -> str:
+        """Validate report_type is a known type."""
+        if v not in VALID_REPORT_TYPES:
+            raise ValueError(
+                f"report_type must be one of: {', '.join(sorted(VALID_REPORT_TYPES))}"
+            )
+        return v
+
+    @field_validator("config")
+    @classmethod
+    def validate_config_not_empty(cls, v: Dict[str, Any]) -> Dict[str, Any]:
+        """Config must be a dict (non-null); per-type key validation runs in model_validator."""
+        if not isinstance(v, dict):
+            raise ValueError("config must be a JSON object")
+        return v
+
+    def model_post_init(self, __context: Any) -> None:
+        """Cross-field validation: check required config keys for the given report_type."""
+        _validate_config(self.report_type, self.config)
+
+
+class ReportTemplateUpdate(BaseModel):
+    """Schema for updating a report template."""
+
+    name: Optional[str] = Field(None, max_length=255)
+    description: Optional[str] = None
+    config: Optional[Dict[str, Any]] = None
+    report_type: Optional[str] = None
+    is_shared: Optional[bool] = None
+    scheduled_delivery: Optional[Dict[str, Any]] = None
+
+    @field_validator("scheduled_delivery")
+    @classmethod
+    def validate_scheduled_delivery(cls, v: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Validate scheduled_delivery frequency when present."""
+        if v is None:
+            return v
+        frequency = v.get("frequency")
+        if frequency is not None and frequency not in VALID_DELIVERY_FREQUENCIES:
+            raise ValueError(
+                f"scheduled_delivery.frequency must be one of: {', '.join(sorted(VALID_DELIVERY_FREQUENCIES))}"
+            )
+        return v
+
+    @field_validator("config")
+    @classmethod
+    def validate_config_size(cls, v: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Reject suspiciously large config payloads on update."""
+        if v is None:
+            return v
+        import json as _json
+        if len(_json.dumps(v)) > 4096:
+            raise ValueError("config must not exceed 4096 characters")
+        return v
+
+
+class ReportTemplateResponse(BaseModel):
+    """Schema for report template response."""
+
+    id: str
+    organization_id: str
+    name: str
+    description: Optional[str]
+    report_type: str
+    config: Dict[str, Any]
+    is_shared: bool
+    created_by_user_id: str
+    created_at: str
+    updated_at: str
+    scheduled_delivery: Optional[Dict[str, Any]] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ExecuteReportRequest(BaseModel):
+    """Schema for executing a report."""
+
+    config: Dict[str, Any]
+
+
+# Endpoints
+
+
+@router.get("/templates", response_model=List[ReportTemplateResponse])
+async def list_report_templates(
+    after: Optional[str] = Query(
+        None, description="Cursor: return templates updated before this ISO datetime"
+    ),
+    limit: int = Query(50, ge=1, le=200),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a new retirement scenario."""
-    # Sanitize user text input
-    sanitized = data.model_dump()
-    if sanitized.get("name"):
-        sanitized["name"] = input_sanitization_service.sanitize_html(sanitized["name"])
-    if sanitized.get("description"):
-        sanitized["description"] = input_sanitization_service.sanitize_html(
-            sanitized["description"]
-        )
-    # Serialize spending_phases to JSON for DB storage
-    if sanitized.get("spending_phases") is not None:
-        sanitized["spending_phases"] = json.dumps(
-            [p if isinstance(p, dict) else p.dict() for p in sanitized["spending_phases"]],
-            default=str,
-        )
+    """
+    List all report templates for the organization.
 
-    # Extract member_ids before passing to service; validate they belong to this org
-    member_ids = sanitized.pop("member_ids", None)
-    if member_ids:
-        valid_ids_result = await db.execute(
-            sa_select(User.id).where(
-                User.id.in_(member_ids),
-                User.organization_id == current_user.organization_id,
-            )
-        )
-        valid_ids = {str(row[0]) for row in valid_ids_result.all()}
-        invalid = [mid for mid in member_ids if mid not in valid_ids]
-        if invalid:
-            raise HTTPException(
-                status_code=403,
-                detail="One or more member_ids do not belong to your organization",
-            )
+    Returns templates created by the current user and shared templates.
+    Uses keyset pagination on updated_at (descending).
+    """
+    from datetime import datetime
 
-    # Serialize excluded_account_ids to JSON for storage
-    excluded_account_ids = sanitized.pop("excluded_account_ids", None)
-    if excluded_account_ids is not None:
-        sanitized["excluded_account_ids"] = json.dumps(excluded_account_ids)
-
-    scenario = await RetirementPlannerService.create_scenario(
-        db=db,
-        organization_id=str(current_user.organization_id),
-        user_id=str(current_user.id),
-        member_ids=member_ids,
-        **sanitized,
-    )
-    await db.commit()
-    return scenario
-
-
-@router.get("/scenarios", response_model=List[RetirementScenarioSummary])
-async def list_scenarios(
-    user_id: Optional[str] = None,
-    include_archived: bool = Query(False),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """List retirement scenarios for a specific user or all org members."""
-    target_user = user_id  # None means all org scenarios
-    # Verify target user belongs to the same organization
-    if user_id and user_id != str(current_user.id):
-        from app.models.user import User as UserModel
-
-        target = await db.get(UserModel, user_id)
-        if not target or str(target.organization_id) != str(current_user.organization_id):
-            raise HTTPException(
-                status_code=403,
-                detail="Cannot access another organization's data",
-            )
-    scenarios = await RetirementPlannerService.list_scenarios(
-        db=db,
-        organization_id=str(current_user.organization_id),
-        user_id=target_user,
-        include_archived=include_archived,
-    )
-    summaries = await RetirementPlannerService.get_scenario_summary_with_scores(db, scenarios)
-
-    # Compute staleness for household-wide scenarios
-    has_household = any(s.include_all_members for s in scenarios)
-    current_hash = None
-    if has_household:
-        current_hash, _ = await RetirementPlannerService.compute_household_member_hash(
-            db, str(current_user.organization_id)
-        )
-
-    # Get active user IDs for selective staleness check
-    active_user_ids = None
-    has_selective = any(not s.include_all_members and s.household_member_ids for s in scenarios)
-    if has_selective:
-        active_result = await db.execute(
-            sa_select(User.id).where(
-                User.organization_id == current_user.organization_id,
-                User.is_active.is_(True),
-            )
-        )
-        active_user_ids = {str(r[0]) for r in active_result.all()}
-
-    for summary, scenario in zip(summaries, scenarios):
-        summary["include_all_members"] = scenario.include_all_members
-        summary["is_archived"] = scenario.is_archived
+    conditions = [
+        ReportTemplate.organization_id == current_user.organization_id,
+        (
+            (ReportTemplate.created_by_user_id == current_user.id)
+            | (ReportTemplate.is_shared.is_(True))
+        ),
+    ]
+    if after:
         try:
-            summary["household_member_ids"] = (
-                json.loads(scenario.household_member_ids) if scenario.household_member_ids else None
-            )
-        except (json.JSONDecodeError, ValueError):
-            summary["household_member_ids"] = None
+            cursor_dt = datetime.fromisoformat(after)
+        except ValueError:
+            from fastapi import HTTPException
 
-        if scenario.is_archived:
-            summary["is_stale"] = False
-        elif scenario.include_all_members and scenario.household_member_hash and current_hash:
-            summary["is_stale"] = current_hash != scenario.household_member_hash
-        elif (
-            not scenario.include_all_members
-            and scenario.household_member_ids
-            and active_user_ids is not None
-        ):
-            # Selective scenario: stale if any member is inactive
-            try:
-                stored = set(json.loads(scenario.household_member_ids))
-            except (json.JSONDecodeError, ValueError):
-                stored = set()
-            summary["is_stale"] = not stored.issubset(active_user_ids)
-        else:
-            summary["is_stale"] = False
+            raise HTTPException(status_code=400, detail="Invalid cursor format")
+        conditions.append(ReportTemplate.updated_at < cursor_dt)
 
-    return summaries
+    result = await db.execute(
+        select(ReportTemplate)
+        .where(and_(*conditions))
+        .order_by(ReportTemplate.updated_at.desc())
+        .limit(limit)
+    )
+
+    templates = result.scalars().all()
+
+    return [
+        ReportTemplateResponse(
+            id=str(template.id),
+            organization_id=str(template.organization_id),
+            name=template.name,
+            description=template.description,
+            report_type=template.report_type,
+            config=template.config,
+            is_shared=template.is_shared,
+            created_by_user_id=str(template.created_by_user_id),
+            created_at=template.created_at.isoformat(),
+            updated_at=template.updated_at.isoformat(),
+            scheduled_delivery=template.scheduled_delivery,
+        )
+        for template in templates
+    ]
 
 
-# Static paths MUST come before parameterized {scenario_id} routes
-# to prevent FastAPI from matching "default" as a UUID parameter.
-@router.post("/scenarios/default", response_model=RetirementScenarioResponse, status_code=201)
-async def create_default_scenario(
+@router.post("/templates", response_model=ReportTemplateResponse, status_code=201)
+async def create_report_template(
+    template_data: ReportTemplateCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Auto-generate a default scenario from user profile and accounts."""
-    if not current_user.birthdate:
-        raise HTTPException(
-            status_code=400, detail="Please set your birthdate in preferences first"
-        )
+    """Create a new report template."""
+    template = ReportTemplate(
+        organization_id=current_user.organization_id,
+        name=template_data.name,
+        description=template_data.description,
+        report_type=template_data.report_type,
+        config=template_data.config,
+        is_shared=template_data.is_shared,
+        created_by_user_id=current_user.id,
+        created_at=utc_now(),
+        updated_at=utc_now(),
+    )
 
-    scenario = await RetirementPlannerService.create_default_scenario(db=db, user=current_user)
+    db.add(template)
     await db.commit()
-    return scenario
+    await db.refresh(template)
+
+    return ReportTemplateResponse(
+        id=str(template.id),
+        organization_id=str(template.organization_id),
+        name=template.name,
+        description=template.description,
+        report_type=template.report_type,
+        config=template.config,
+        is_shared=template.is_shared,
+        created_by_user_id=str(template.created_by_user_id),
+        created_at=template.created_at.isoformat(),
+        updated_at=template.updated_at.isoformat(),
+        scheduled_delivery=template.scheduled_delivery,
+    )
 
 
-@router.get("/scenarios/{scenario_id}", response_model=RetirementScenarioResponse)
-async def get_scenario(
-    scenario_id: UUID,
+@router.get("/templates/{template_id}", response_model=ReportTemplateResponse)
+async def get_report_template(
+    template_id: UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get a scenario with all life events."""
-    scenario = await RetirementPlannerService.get_scenario(
-        db=db, scenario_id=scenario_id, organization_id=str(current_user.organization_id)
-    )
-    if not scenario:
-        raise HTTPException(status_code=404, detail="Scenario not found")
-
-    # Compute staleness
-    is_stale = False
-    if scenario.is_archived:
-        is_stale = False
-    elif scenario.include_all_members and scenario.household_member_hash:
-        current_hash, _ = await RetirementPlannerService.compute_household_member_hash(
-            db, str(current_user.organization_id)
-        )
-        is_stale = current_hash != scenario.household_member_hash
-    elif not scenario.include_all_members and scenario.household_member_ids:
-        # Selective: stale if any stored member is now inactive
-        try:
-            stored = json.loads(scenario.household_member_ids)
-        except (json.JSONDecodeError, ValueError):
-            stored = []
-        active_result = await db.execute(
-            sa_select(func.count(User.id)).where(
-                User.id.in_(stored),
-                User.is_active.is_(True),
+    """Get a specific report template."""
+    result = await db.execute(
+        select(ReportTemplate).where(
+            and_(
+                ReportTemplate.id == template_id,
+                ReportTemplate.organization_id == current_user.organization_id,
             )
         )
-        active_count = active_result.scalar() or 0
-        is_stale = active_count < len(stored)
+    )
 
-    # Parse household_member_ids from JSON
-    household_member_ids = None
-    if scenario.household_member_ids:
-        try:
-            household_member_ids = json.loads(scenario.household_member_ids)
-        except (json.JSONDecodeError, ValueError):
-            household_member_ids = None
+    template = result.scalar_one_or_none()
 
-    # Parse excluded_account_ids from JSON
-    excluded_account_ids = None
-    raw_excluded = getattr(scenario, "excluded_account_ids", None)
-    if raw_excluded:
-        try:
-            excluded_account_ids = json.loads(raw_excluded) if isinstance(raw_excluded, str) else raw_excluded
-        except (json.JSONDecodeError, ValueError):
-            excluded_account_ids = None
+    if not template:
+        raise HTTPException(status_code=404, detail="Report template not found")
 
-    response = RetirementScenarioResponse.model_validate(scenario)
-    response.is_stale = is_stale
-    response.household_member_ids = household_member_ids
-    response.excluded_account_ids = excluded_account_ids
-    return response
+    # Check access: must be creator or template must be shared
+    if template.created_by_user_id != current_user.id and not template.is_shared:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    return ReportTemplateResponse(
+        id=str(template.id),
+        organization_id=str(template.organization_id),
+        name=template.name,
+        description=template.description,
+        report_type=template.report_type,
+        config=template.config,
+        is_shared=template.is_shared,
+        created_by_user_id=str(template.created_by_user_id),
+        created_at=template.created_at.isoformat(),
+        updated_at=template.updated_at.isoformat(),
+        scheduled_delivery=template.scheduled_delivery,
+    )
 
 
-@router.patch("/scenarios/{scenario_id}", response_model=RetirementScenarioResponse)
-async def update_scenario(
-    scenario_id: UUID,
-    data: RetirementScenarioUpdate,
+@router.patch("/templates/{template_id}", response_model=ReportTemplateResponse)
+async def update_report_template(
+    template_id: UUID,
+    template_data: ReportTemplateUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update a retirement scenario."""
-    scenario = await RetirementPlannerService.get_scenario(
-        db=db, scenario_id=scenario_id, organization_id=str(current_user.organization_id)
+    """Update a report template."""
+    result = await db.execute(
+        select(ReportTemplate).where(
+            and_(
+                ReportTemplate.id == template_id,
+                ReportTemplate.organization_id == current_user.organization_id,
+            )
+        )
     )
-    if not scenario:
-        raise HTTPException(status_code=404, detail="Scenario not found")
-    if str(scenario.user_id) != str(current_user.id):
-        raise HTTPException(status_code=403, detail="Cannot edit another user's scenario")
 
-    # Sanitize user text input
-    updates = data.model_dump(exclude_unset=True)
-    if updates.get("name"):
-        updates["name"] = input_sanitization_service.sanitize_html(updates["name"])
-    if updates.get("description"):
-        updates["description"] = input_sanitization_service.sanitize_html(updates["description"])
+    template = result.scalar_one_or_none()
 
-    # Serialize spending_phases to JSON for DB storage
-    if "spending_phases" in updates:
-        sp = updates["spending_phases"]
-        if sp is not None:
-            updates["spending_phases"] = json.dumps(
-                [p if isinstance(p, dict) else p.dict() for p in sp],
-                default=str,
-            )
+    if not template:
+        raise HTTPException(status_code=404, detail="Report template not found")
 
-    # Handle excluded_account_ids update — serialize to JSON
-    new_excluded = updates.pop("excluded_account_ids", None)
-    if new_excluded is not None:
-        updates["excluded_account_ids"] = json.dumps(new_excluded) if new_excluded else None
+    # Only creator can update
+    if template.created_by_user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the creator can update this template")
 
-    # Handle member_ids update
-    new_member_ids = updates.pop("member_ids", None)
-    if new_member_ids is not None:
-        # Validate all member_ids belong to the same household
-        if new_member_ids:
-            valid_result = await db.execute(
-                sa_select(func.count(User.id)).where(
-                    User.id.in_(new_member_ids),
-                    User.organization_id == current_user.organization_id,
-                    User.is_active.is_(True),
-                )
-            )
-            valid_count = valid_result.scalar() or 0
-            if valid_count != len(new_member_ids):
-                raise HTTPException(
-                    status_code=400,
-                    detail="One or more member_ids do not belong to this household",
-                )
+    # Update fields
+    if template_data.name is not None:
+        template.name = template_data.name
+    if template_data.description is not None:
+        template.description = template_data.description
+    if template_data.config is not None:
+        template.config = template_data.config
+    if template_data.is_shared is not None:
+        template.is_shared = template_data.is_shared
+    if template_data.scheduled_delivery is not None:
+        template.scheduled_delivery = template_data.scheduled_delivery
 
-        if len(new_member_ids) >= 2:
-            sorted_ids = sorted(new_member_ids)
-            updates["household_member_ids"] = json.dumps(sorted_ids)
-            updates["household_member_hash"] = (
-                RetirementPlannerService.compute_selective_member_hash(sorted_ids)
-            )
-            updates["include_all_members"] = False
-        else:
-            # Single or no member: revert to personal plan
-            updates["household_member_ids"] = None
-            updates["household_member_hash"] = None
-            updates["include_all_members"] = False
+    template.updated_at = utc_now()
 
-    # Handle include_all_members toggle (when not setting member_ids)
-    if new_member_ids is None and updates.get("include_all_members") is True:
-        updates["household_member_ids"] = None
-        updates["household_member_hash"] = None
-
-    updated = await RetirementPlannerService.update_scenario(
-        db=db, scenario=scenario, updates=updates
-    )
     await db.commit()
-    return updated
+    await db.refresh(template)
+
+    return ReportTemplateResponse(
+        id=str(template.id),
+        organization_id=str(template.organization_id),
+        name=template.name,
+        description=template.description,
+        report_type=template.report_type,
+        config=template.config,
+        is_shared=template.is_shared,
+        created_by_user_id=str(template.created_by_user_id),
+        created_at=template.created_at.isoformat(),
+        updated_at=template.updated_at.isoformat(),
+        scheduled_delivery=template.scheduled_delivery,
+    )
 
 
-@router.delete("/scenarios/{scenario_id}", status_code=204)
-async def delete_scenario(
-    scenario_id: UUID,
+@router.delete("/templates/{template_id}", status_code=204)
+async def delete_report_template(
+    template_id: UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete a retirement scenario."""
-    scenario = await RetirementPlannerService.get_scenario(
-        db=db, scenario_id=scenario_id, organization_id=str(current_user.organization_id)
+    """Delete a report template."""
+    result = await db.execute(
+        select(ReportTemplate).where(
+            and_(
+                ReportTemplate.id == template_id,
+                ReportTemplate.organization_id == current_user.organization_id,
+            )
+        )
     )
-    if not scenario:
-        raise HTTPException(status_code=404, detail="Scenario not found")
-    if str(scenario.user_id) != str(current_user.id):
-        raise HTTPException(status_code=403, detail="Cannot delete another user's scenario")
 
-    await RetirementPlannerService.delete_scenario(db=db, scenario=scenario)
+    template = result.scalar_one_or_none()
+
+    if not template:
+        raise HTTPException(status_code=404, detail="Report template not found")
+
+    # Only creator can delete
+    if template.created_by_user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the creator can delete this template")
+
+    await db.delete(template)
     await db.commit()
 
 
-@router.post(
-    "/scenarios/{scenario_id}/duplicate", response_model=RetirementScenarioResponse, status_code=201
-)
-async def duplicate_scenario(
-    scenario_id: UUID,
-    name: Optional[str] = None,
+@router.post("/execute", response_model=Dict[str, Any])
+async def execute_report(
+    request: ExecuteReportRequest,
+    http_request: Request,
+    user_id: Optional[UUID] = Query(None, description="Filter by user"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Duplicate a scenario for what-if exploration."""
-    scenario = await RetirementPlannerService.get_scenario(
-        db=db, scenario_id=scenario_id, organization_id=str(current_user.organization_id)
+    """
+    Execute a report with given configuration.
+
+    Does not save the report - use for preview/one-time reports.
+    """
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=20,
+        window_seconds=60,
+        identifier=str(current_user.id),
     )
-    if not scenario:
-        raise HTTPException(status_code=404, detail="Scenario not found")
-
-    # Sanitize user text input
-    sanitized_name = input_sanitization_service.sanitize_html(name) if name else name
-    dup = await RetirementPlannerService.duplicate_scenario(
-        db=db, scenario=scenario, new_name=sanitized_name
-    )
-    await db.commit()
-    return dup
-
-
-@router.post(
-    "/scenarios/{scenario_id}/refresh-household",
-    response_model=RetirementScenarioResponse,
-)
-async def refresh_household(
-    scenario_id: UUID,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Recompute the household member hash for a multi-user scenario."""
-    scenario = await RetirementPlannerService.get_scenario(
-        db=db,
-        scenario_id=scenario_id,
-        organization_id=str(current_user.organization_id),
-    )
-    if not scenario:
-        raise HTTPException(status_code=404, detail="Scenario not found")
-    if not scenario.include_all_members and not scenario.household_member_ids:
-        raise HTTPException(
-            status_code=400,
-            detail="Scenario is not a multi-user scenario",
-        )
-
-    if scenario.include_all_members:
-        # Dynamic: recompute from all active members
-        hash_str, member_ids = await RetirementPlannerService.compute_household_member_hash(
-            db, str(current_user.organization_id)
-        )
-        scenario.household_member_hash = hash_str
-        scenario.household_member_ids = json.dumps(member_ids)
+    # Get accounts based on user filter
+    if user_id:
+        if getattr(current_user, "_is_guest", False):
+            raise _GUEST_USER_ID_FILTER_FORBIDDEN
+        await verify_household_member(db, user_id, current_user.organization_id)
+        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
     else:
-        # Selective: recompute hash for the stored member list
-        try:
-            member_ids = json.loads(scenario.household_member_ids)
-        except (json.JSONDecodeError, ValueError):
-            member_ids = []
-        scenario.household_member_hash = RetirementPlannerService.compute_selective_member_hash(
-            member_ids
+        accounts = await get_all_household_accounts(db, current_user.organization_id)
+        accounts = deduplication_service.deduplicate_accounts(accounts)
+
+    account_ids = [acc.id for acc in accounts]
+
+    # Execute report
+    result = await ReportService.execute_report(
+        db,
+        current_user.organization_id,
+        request.config,
+        user_id,
+        account_ids,
+    )
+
+    return result
+
+
+@router.get("/templates/{template_id}/execute", response_model=Dict[str, Any])
+async def execute_saved_report(
+    template_id: UUID,
+    http_request: Request,
+    user_id: Optional[UUID] = Query(None, description="Filter by user"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Execute a saved report template."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=20,
+        window_seconds=60,
+        identifier=str(current_user.id),
+    )
+    # Load template
+    result = await db.execute(
+        select(ReportTemplate).where(
+            and_(
+                ReportTemplate.id == template_id,
+                ReportTemplate.organization_id == current_user.organization_id,
+            )
         )
-
-    await db.flush()
-    await db.commit()
-
-    # Re-fetch to get fresh life_events
-    scenario = await RetirementPlannerService.get_scenario(
-        db=db,
-        scenario_id=scenario_id,
-        organization_id=str(current_user.organization_id),
     )
 
-    response = RetirementScenarioResponse.model_validate(scenario)
-    response.is_stale = False
-    response.household_member_ids = member_ids if isinstance(member_ids, list) else None
-    return response
+    template = result.scalar_one_or_none()
+
+    if not template:
+        raise HTTPException(status_code=404, detail="Report template not found")
+
+    # Check access
+    if template.created_by_user_id != current_user.id and not template.is_shared:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Get accounts based on user filter
+    if user_id:
+        if getattr(current_user, "_is_guest", False):
+            raise _GUEST_USER_ID_FILTER_FORBIDDEN
+        await verify_household_member(db, user_id, current_user.organization_id)
+        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+    else:
+        accounts = await get_all_household_accounts(db, current_user.organization_id)
+        accounts = deduplication_service.deduplicate_accounts(accounts)
+
+    account_ids = [acc.id for acc in accounts]
+
+    # Execute report
+    report_result = await ReportService.execute_report(
+        db,
+        current_user.organization_id,
+        template.config,
+        user_id,
+        account_ids,
+    )
+
+    return {
+        **report_result,
+        "template": {
+            "id": str(template.id),
+            "name": template.name,
+            "description": template.description,
+        },
+    }
 
 
-# --- Archive / Unarchive ---
-
-
-@router.post(
-    "/scenarios/{scenario_id}/archive",
-    response_model=RetirementScenarioResponse,
-)
-async def archive_scenario(
-    scenario_id: UUID,
+@router.get("/templates/{template_id}/export")
+async def export_report_csv(
+    template_id: UUID,
+    http_request: Request,
+    user_id: Optional[UUID] = Query(None, description="Filter by user"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Manually archive a retirement scenario."""
-    scenario = await RetirementPlannerService.get_scenario(
-        db=db,
-        scenario_id=scenario_id,
-        organization_id=str(current_user.organization_id),
+    """Export a saved report as CSV."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=10,
+        window_seconds=3600,
+        identifier=str(current_user.id),
     )
-    if not scenario:
-        raise HTTPException(status_code=404, detail="Scenario not found")
-    if scenario.is_archived:
-        raise HTTPException(status_code=400, detail="Scenario is already archived")
-
-    from app.utils.datetime_utils import utc_now
-
-    scenario.is_archived = True
-    scenario.archived_at = utc_now()
-    scenario.archived_reason = "Manually archived"
-    await db.flush()
-    await db.commit()
-
-    response = RetirementScenarioResponse.model_validate(scenario)
-    if scenario.household_member_ids:
-        try:
-            response.household_member_ids = json.loads(scenario.household_member_ids)
-        except (json.JSONDecodeError, ValueError):
-            response.household_member_ids = None
-    return response
-
-
-@router.post(
-    "/scenarios/{scenario_id}/unarchive",
-    response_model=RetirementScenarioResponse,
-)
-async def unarchive_scenario(
-    scenario_id: UUID,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Reactivate an archived retirement scenario."""
-    scenario = await RetirementPlannerService.get_scenario(
-        db=db,
-        scenario_id=scenario_id,
-        organization_id=str(current_user.organization_id),
+    # Load and authorize template first
+    result = await db.execute(
+        select(ReportTemplate).where(
+            and_(
+                ReportTemplate.id == template_id,
+                ReportTemplate.organization_id == current_user.organization_id,
+            )
+        )
     )
-    if not scenario:
-        raise HTTPException(status_code=404, detail="Scenario not found")
-    if not scenario.is_archived:
-        raise HTTPException(status_code=400, detail="Scenario is not archived")
+    template = result.scalar_one_or_none()
 
+    if not template:
+        raise HTTPException(status_code=404, detail="Report template not found")
+
+    # Check access: must be creator or template must be shared
+    if template.created_by_user_id != current_user.id and not template.is_shared:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Get accounts based on user filter
+    if user_id:
+        if getattr(current_user, "_is_guest", False):
+            raise _GUEST_USER_ID_FILTER_FORBIDDEN
+        await verify_household_member(db, user_id, current_user.organization_id)
+        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+    else:
+        accounts = await get_all_household_accounts(db, current_user.organization_id)
+        accounts = deduplication_service.deduplicate_accounts(accounts)
+
+    account_ids = [acc.id for acc in accounts]
+
+    # Generate CSV
     try:
-        scenario = await RetirementPlannerService.unarchive_scenario(db=db, scenario=scenario)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    await db.commit()
-
-    response = RetirementScenarioResponse.model_validate(scenario)
-    response.is_stale = False
-    if scenario.household_member_ids:
-        try:
-            response.household_member_ids = json.loads(scenario.household_member_ids)
-        except (json.JSONDecodeError, ValueError):
-            response.household_member_ids = None
-    return response
-
-
-# --- Life Events ---
-
-
-@router.post(
-    "/scenarios/{scenario_id}/life-events", response_model=LifeEventResponse, status_code=201
-)
-async def add_life_event(
-    scenario_id: UUID,
-    data: LifeEventCreate,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Add a life event to a scenario."""
-    scenario = await RetirementPlannerService.get_scenario(
-        db=db, scenario_id=scenario_id, organization_id=str(current_user.organization_id)
-    )
-    if not scenario:
-        raise HTTPException(status_code=404, detail="Scenario not found")
-    if str(scenario.user_id) != str(current_user.id):
-        raise HTTPException(status_code=403, detail="Cannot modify another user's scenario")
-
-    # Sanitize user text input
-    sanitized = data.model_dump()
-    if sanitized.get("name"):
-        sanitized["name"] = input_sanitization_service.sanitize_html(sanitized["name"])
-    event = LifeEvent(scenario_id=scenario.id, **sanitized)
-    db.add(event)
-    await db.flush()
-    await db.commit()
-    return event
-
-
-@router.patch("/life-events/{event_id}", response_model=LifeEventResponse)
-async def update_life_event(
-    event_id: UUID,
-    data: LifeEventUpdate,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Update a life event."""
-    event = await db.get(LifeEvent, event_id)
-    if not event:
-        raise HTTPException(status_code=404, detail="Life event not found")
-
-    # Verify ownership through scenario
-    scenario = await RetirementPlannerService.get_scenario(
-        db=db, scenario_id=event.scenario_id, organization_id=str(current_user.organization_id)
-    )
-    if not scenario:
-        raise HTTPException(status_code=404, detail="Scenario not found")
-    if str(scenario.user_id) != str(current_user.id):
-        raise HTTPException(status_code=403, detail="Cannot modify another user's scenario")
-
-    for key, value in data.model_dump(exclude_unset=True).items():
-        if value is not None:
-            # Sanitize text fields
-            if key == "name":
-                value = input_sanitization_service.sanitize_html(value)
-            setattr(event, key, value)
-    await db.flush()
-    await db.commit()
-    return event
-
-
-@router.post(
-    "/scenarios/{scenario_id}/life-events/from-preset",
-    response_model=LifeEventResponse,
-    status_code=201,
-)
-async def add_life_event_from_preset(
-    scenario_id: UUID,
-    data: LifeEventPresetRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Add a life event from a preset template."""
-    scenario = await RetirementPlannerService.get_scenario(
-        db=db, scenario_id=scenario_id, organization_id=str(current_user.organization_id)
-    )
-    if not scenario:
-        raise HTTPException(status_code=404, detail="Scenario not found")
-    if str(scenario.user_id) != str(current_user.id):
-        raise HTTPException(status_code=403, detail="Cannot modify another user's scenario")
-
-    start_age = data.start_age or scenario.retirement_age
-    event_data = create_life_event_from_preset(data.preset_key, start_age)
-    if not event_data:
-        raise HTTPException(status_code=400, detail=f"Unknown preset: {data.preset_key}")
-
-    event = LifeEvent(scenario_id=scenario.id, **event_data)
-    db.add(event)
-    await db.flush()
-    await db.commit()
-    return event
-
-
-@router.delete("/life-events/{event_id}", status_code=204)
-async def delete_life_event(
-    event_id: UUID,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Delete a life event."""
-    event = await db.get(LifeEvent, event_id)
-    if not event:
-        raise HTTPException(status_code=404, detail="Life event not found")
-
-    scenario = await RetirementPlannerService.get_scenario(
-        db=db, scenario_id=event.scenario_id, organization_id=str(current_user.organization_id)
-    )
-    if not scenario:
-        raise HTTPException(status_code=404, detail="Scenario not found")
-    if str(scenario.user_id) != str(current_user.id):
-        raise HTTPException(status_code=403, detail="Cannot modify another user's scenario")
-
-    await db.delete(event)
-    await db.flush()
-    await db.commit()
-
-
-# --- Life Event Presets ---
-
-
-@router.get("/life-event-presets", response_model=List[LifeEventPreset])
-async def list_life_event_presets(
-    current_user: User = Depends(get_current_user),
-):
-    """List all available life event preset templates."""
-    presets = get_all_presets()
-    return [LifeEventPreset(**p) for p in presets]
-
-
-# --- Social Security ---
-
-
-@router.get("/social-security-estimate", response_model=SocialSecurityEstimateResponse)
-async def get_social_security_estimate(
-    claiming_age: int = Query(default=67, ge=62, le=70),
-    override_salary: Optional[float] = Query(default=None, ge=0),
-    override_pia: Optional[float] = Query(default=None, ge=0),
-    user_id: Optional[UUID] = Query(None, description="Filter by user. None = current user"),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Estimate Social Security benefits based on user profile or overrides."""
-    target_user = current_user
-    if user_id and user_id != current_user.id:
-        target_user = await verify_household_member(db, user_id, current_user.organization_id)
-
-    if not target_user.birthdate:
-        raise HTTPException(
-            status_code=400, detail="Please set your birthdate in preferences first"
+        csv_data = await ReportService.generate_export_csv(
+            db,
+            current_user.organization_id,
+            template_id,
+            user_id,
+            account_ids,
         )
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Report template not found")
 
-    current_age = calculate_age(target_user.birthdate)
-    birth_year = target_user.birthdate.year
+    # Sanitize filename for Content-Disposition header
+    raw_name = template.name.lower().replace(" ", "_") if template else "report"
+    safe_name = _SAFE_FILENAME_RE.sub("", raw_name)[:80] or "report"
+    filename = f"{safe_name}_report.csv"
 
-    # Determine salary for estimation: explicit override > user profile income > $75k fallback
-    salary = override_salary or getattr(target_user, "current_annual_income", None) or 75000
-
-    result = estimate_social_security(
-        current_salary=salary,
-        current_age=current_age,
-        birth_year=birth_year,
-        claiming_age=claiming_age,
-        manual_pia_override=override_pia,
-    )
-
-    return SocialSecurityEstimateResponse(**result, birth_year=birth_year)
-
-
-# --- Healthcare Cost Estimate ---
-
-
-@router.get("/healthcare-estimate", response_model=HealthcareCostEstimateResponse)
-async def get_healthcare_estimate(
-    retirement_income: float = Query(default=50000, ge=0),
-    medical_inflation_rate: float = Query(default=6.0, ge=0, le=20),
-    include_ltc: bool = Query(default=True),
-    user_id: Optional[UUID] = Query(None, description="Filter by user. None = current user"),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Estimate healthcare costs across retirement phases."""
-    target_user = current_user
-    if user_id and user_id != current_user.id:
-        target_user = await verify_household_member(db, user_id, current_user.organization_id)
-
-    if not target_user.birthdate:
-        raise HTTPException(
-            status_code=400, detail="Please set your birthdate in preferences first"
-        )
-
-    current_age = calculate_age(target_user.birthdate)
-
-    # Sample ages for the response
-    sample_ages_list = [55, 60, 65, 70, 75, 80, 85, 90, 95]
-    sample_ages_list = [a for a in sample_ages_list if a >= current_age]
-
-    samples = []
-    pre_65_total = 0.0
-    medicare_total = 0.0
-    ltc_total = 0.0
-
-    for age in sample_ages_list:
-        costs = estimate_annual_healthcare_cost(
-            age=age,
-            retirement_income=retirement_income,
-            current_age=current_age,
-            medical_inflation_rate=medical_inflation_rate,
-            include_ltc=include_ltc,
-        )
-        samples.append(HealthcareCostBreakdown(age=age, **costs))
-
-        if age < 65:
-            pre_65_total += costs["total"]
-        elif age < 85:
-            medicare_total += costs["total"]
-        else:
-            ltc_total += costs["total"]
-
-    # Rough lifetime total (sample * gap years)
-    total_lifetime = pre_65_total + medicare_total + ltc_total
-
-    return HealthcareCostEstimateResponse(
-        pre_65_annual=samples[0].total if samples and samples[0].age < 65 else 0,
-        medicare_annual=next((s.total for s in samples if 65 <= s.age < 85), 0),
-        ltc_annual=next((s.total for s in samples if s.age >= 85), 0),
-        total_lifetime=round(total_lifetime, 2),
-        sample_ages=samples,
+    return Response(
+        content=csv_data,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
-# --- Account Data ---
-
-
-@router.get("/account-data", response_model=RetirementAccountDataResponse)
-async def get_account_data(
-    user_id: Optional[str] = None,
-    include_all_members: bool = False,
-    member_ids: Optional[str] = Query(
-        None, description="Comma-separated member UUIDs for selective aggregation"
+@router.get("/tax-loss-harvesting", response_model=TaxLossHarvestingSummaryResponse)
+async def get_tax_loss_harvesting(
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
     ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get current account balances and contributions for the retirement planner."""
-    target_user = user_id or str(current_user.id)
-    # Verify target user belongs to the same organization
-    if user_id and user_id != str(current_user.id):
-        target = await db.get(User, user_id)
-        if not target or str(target.organization_id) != str(current_user.organization_id):
-            raise HTTPException(
-                status_code=403,
-                detail="Cannot access another organization's data",
-            )
+    """Get tax-loss harvesting opportunities."""
+    account_ids = None
+    if user_id:
+        if getattr(current_user, "_is_guest", False):
+            raise _GUEST_USER_ID_FILTER_FORBIDDEN
+        await verify_household_member(db, user_id, current_user.organization_id)
+        user_accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+        account_ids = {acc.id for acc in user_accounts}
 
-    # Determine which user IDs to aggregate
-    household_user_ids = None
-    if member_ids:
-        # Selective multi-user
-        household_user_ids = [mid.strip() for mid in member_ids.split(",") if mid.strip()]
-    elif include_all_members:
-        _, household_user_ids = await RetirementPlannerService.compute_household_member_hash(
-            db, str(current_user.organization_id)
-        )
-
-    data = await RetirementMonteCarloService._gather_account_data(
-        db,
-        str(current_user.organization_id),
-        target_user,
-        user_ids=household_user_ids,
+    opportunities = await tax_loss_harvesting_service.get_opportunities(
+        db=db,
+        organization_id=current_user.organization_id,
+        account_ids=account_ids,
     )
-    return RetirementAccountDataResponse(
-        total_portfolio=float(data["total_portfolio"]),
-        taxable_balance=float(data["taxable_balance"]),
-        pre_tax_balance=float(data["pre_tax_balance"]),
-        roth_balance=float(data["roth_balance"]),
-        hsa_balance=float(data["hsa_balance"]),
-        cash_balance=float(data.get("cash_balance", 0)),
-        pension_monthly=float(data["pension_monthly"]),
-        annual_contributions=float(data["annual_contributions"]),
-        employer_match_annual=float(data["employer_match_annual"]),
-        annual_income=float(data["annual_income"]),
-        accounts=data.get("accounts", []),
+
+    total_losses = sum(o.unrealized_loss for o in opportunities)
+    total_savings = sum(o.estimated_tax_savings for o in opportunities)
+
+    return TaxLossHarvestingSummaryResponse(
+        opportunities=[TaxLossOpportunityResponse(**vars(o)) for o in opportunities],
+        total_harvestable_losses=total_losses,
+        total_estimated_tax_savings=total_savings,
     )
 
 
-# --- Simulation ---
-
-
-@router.post("/scenarios/{scenario_id}/simulate", response_model=SimulationResultResponse)
-async def run_simulation(
-    scenario_id: UUID,
-    http_request: Request,
+@router.get("/household-summary", response_model=Dict[str, Any])
+async def get_household_summary(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Run Monte Carlo simulation for a scenario (or return cached if unchanged)."""
-    from app.services.rate_limit_service import rate_limit_service as _rls
-    await _rls.check_rate_limit(
-        request=http_request,
-        max_requests=10,
-        window_seconds=60,
-        identifier=str(current_user.id),
-    )
-    scenario = await RetirementPlannerService.get_scenario(
-        db=db, scenario_id=scenario_id, organization_id=str(current_user.organization_id)
-    )
-    if not scenario:
-        raise HTTPException(status_code=404, detail="Scenario not found")
-
-    if not current_user.birthdate:
-        raise HTTPException(
-            status_code=400, detail="Please set your birthdate in preferences first"
-        )
-
-    result = await RetirementPlannerService.run_or_get_cached_simulation(
-        db=db, scenario=scenario, user=current_user
-    )
-    await db.commit()
-    return _format_simulation_result(result)
-
-
-@router.get("/scenarios/{scenario_id}/results", response_model=SimulationResultResponse)
-async def get_latest_results(
-    scenario_id: UUID,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Get the latest simulation results for a scenario."""
-    # Verify access
-    scenario = await RetirementPlannerService.get_scenario(
-        db=db, scenario_id=scenario_id, organization_id=str(current_user.organization_id)
-    )
-    if not scenario:
-        raise HTTPException(status_code=404, detail="Scenario not found")
-
-    result = await RetirementPlannerService.get_latest_result(db=db, scenario_id=scenario_id)
-    if not result:
-        raise HTTPException(
-            status_code=404, detail="No simulation results yet. Run a simulation first."
-        )
-
-    return _format_simulation_result(result)
-
-
-# --- Quick Simulate (no DB save) ---
-
-
-@router.post("/quick-simulate", response_model=QuickSimulationResponse)
-async def quick_simulate(
-    data: QuickSimulationRequest,
-    http_request: Request,
-    current_user: User = Depends(get_current_user),
-):
-    """Lightweight simulation for real-time slider exploration. No DB persistence."""
-    from app.services.rate_limit_service import rate_limit_service as _rls
-    await _rls.check_rate_limit(
-        request=http_request,
-        max_requests=30,
-        window_seconds=60,
-        identifier=str(current_user.id),
-    )
-    result = RetirementMonteCarloService.run_quick_simulation(
-        current_portfolio=float(data.current_portfolio),
-        annual_contributions=float(data.annual_contributions),
-        current_age=data.current_age,
-        retirement_age=data.retirement_age,
-        life_expectancy=data.life_expectancy,
-        annual_spending=float(data.annual_spending),
-        pre_retirement_return=data.pre_retirement_return,
-        post_retirement_return=data.post_retirement_return,
-        volatility=data.volatility,
-        inflation_rate=data.inflation_rate,
-        social_security_monthly=data.social_security_monthly or 0,
-        social_security_start_age=data.social_security_start_age,
-    )
-
-    return QuickSimulationResponse(
-        success_rate=result["success_rate"],
-        readiness_score=result["readiness_score"],
-        projections=[ProjectionDataPoint(**p) for p in result["projections"]],
-        median_depletion_age=result["median_depletion_age"],
-    )
-
-
-# --- Scenario Comparison ---
-
-
-@router.post("/compare", response_model=ScenarioComparisonResponse)
-async def compare_scenarios(
-    data: ScenarioComparisonRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Compare multiple scenarios side-by-side.
-
-    Scenarios without simulation results are skipped (partial comparison).
-    Returns 400 only if ALL requested scenarios lack results or are not found.
     """
-    items = []
-    skipped: list[str] = []
-    not_found: list[str] = []
-    for scenario_id in data.scenario_ids:
-        scenario = await RetirementPlannerService.get_scenario(
-            db=db, scenario_id=scenario_id, organization_id=str(current_user.organization_id)
+    Get a household financial summary aggregating all members' accounts.
+
+    Returns total net worth, assets, liabilities, member count,
+    and a per-member breakdown.
+
+    Guests are blocked: this endpoint exposes every member's individual
+    net worth, which guests should not be able to see.
+    """
+    if getattr(current_user, "_is_guest", False):
+        raise HTTPException(
+            status_code=403,
+            detail="Guests cannot access household financial summaries.",
         )
-        if not scenario:
-            not_found.append(str(scenario_id))
-            skipped.append(str(scenario_id))
-            continue
 
-        # Enforce ownership — compare is read-only but still must not expose
-        # another household member's scenario data to the current user.
-        if str(scenario.user_id) != str(current_user.id):
-            skipped.append(str(scenario_id))
-            continue
+    org_id = current_user.organization_id
 
-        result = await RetirementPlannerService.get_latest_result(db=db, scenario_id=scenario_id)
-        if not result:
-            skipped.append(scenario.name)
-            continue
+    # Debt account types for liability classification
+    debt_types = {
+        AccountType.CREDIT_CARD,
+        AccountType.LOAN,
+        AccountType.STUDENT_LOAN,
+        AccountType.MORTGAGE,
+    }
 
-        try:
-            projections = json.loads(result.projections_json)
-        except (json.JSONDecodeError, ValueError):
-            skipped.append(scenario.name)
-            continue
-
-        items.append(
-            ScenarioComparisonItem(
-                scenario_id=scenario.id,
-                scenario_name=scenario.name,
-                retirement_age=scenario.retirement_age,
-                readiness_score=result.readiness_score,
-                success_rate=float(result.success_rate),
-                median_portfolio_at_end=float(result.median_portfolio_at_end)
-                if result.median_portfolio_at_end
-                else None,
-                projections=[ProjectionDataPoint(**p) for p in projections],
+    # Fetch all active accounts for the household (organization)
+    result = await db.execute(
+        select(Account).where(
+            and_(
+                Account.organization_id == org_id,
+                Account.is_active.is_(True),
             )
         )
-
-    if not_found and len(not_found) == len(data.scenario_ids):
-        raise HTTPException(status_code=404, detail="Scenario not found")
-
-    if not items:
-        raise HTTPException(
-            status_code=400,
-            detail="None of the selected scenarios have simulation results. Run simulations first.",
-        )
-
-    return ScenarioComparisonResponse(scenarios=items)
-
-
-# --- CSV Export ---
-
-
-@router.get("/scenarios/{scenario_id}/export-csv")
-async def export_projections_csv(
-    scenario_id: UUID,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Export year-by-year projections as CSV."""
-    scenario = await RetirementPlannerService.get_scenario(
-        db=db, scenario_id=scenario_id, organization_id=str(current_user.organization_id)
     )
-    if not scenario:
-        raise HTTPException(status_code=404, detail="Scenario not found")
+    accounts = result.scalars().all()
 
-    result = await RetirementPlannerService.get_latest_result(db=db, scenario_id=scenario_id)
-    if not result:
-        raise HTTPException(
-            status_code=404, detail="No simulation results yet. Run a simulation first."
+    # Get all household members
+    member_result = await db.execute(
+        select(User).where(
+            and_(
+                User.organization_id == org_id,
+                User.is_active.is_(True),
+            )
         )
-
-    try:
-        projections = json.loads(result.projections_json)
-    except (json.JSONDecodeError, ValueError):
-        raise HTTPException(status_code=500, detail="Simulation result data is corrupted")
-
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(
-        [
-            "Age",
-            "10th Percentile",
-            "25th Percentile",
-            "Median (50th)",
-            "75th Percentile",
-            "90th Percentile",
-            "Depletion Probability %",
-        ]
     )
-    for p in projections:
-        writer.writerow(
-            [
-                p["age"],
-                round(p["p10"], 2),
-                round(p["p25"], 2),
-                round(p["p50"], 2),
-                round(p["p75"], 2),
-                round(p["p90"], 2),
-                round(p["depletion_pct"], 1),
-            ]
-        )
+    members = member_result.scalars().all()
 
-    output.seek(0)
-    import re
-    safe_name = re.sub(r'[^\w\-]', '_', scenario.name)[:50]
-    filename = f"retirement_{safe_name}_projections.csv"
+    # Aggregate per-member
+    from collections import defaultdict
+    from decimal import Decimal
 
-    return StreamingResponse(
-        iter([output.getvalue()]),
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    member_stats: Dict[UUID, Dict[str, Any]] = defaultdict(
+        lambda: {"net_worth": Decimal("0"), "accounts_count": 0}
     )
 
+    total_assets = Decimal("0")
+    total_liabilities = Decimal("0")
 
-# --- Helpers ---
+    for account in accounts:
+        balance = account.current_balance or Decimal("0")
+        uid = account.user_id
 
+        if account.account_type in debt_types:
+            # Debt balances are stored as positive values but represent liabilities
+            total_liabilities += abs(balance)
+            member_stats[uid]["net_worth"] -= abs(balance)
+        else:
+            total_assets += balance
+            member_stats[uid]["net_worth"] += balance
 
-def _format_simulation_result(result) -> SimulationResultResponse:
-    """Format a DB result into the API response."""
-    try:
-        projections = json.loads(result.projections_json)
-    except (json.JSONDecodeError, ValueError, AttributeError):
-        projections = []
-    try:
-        withdrawal_comparison = (
-            json.loads(result.withdrawal_comparison_json) if result.withdrawal_comparison_json else None
+        member_stats[uid]["accounts_count"] += 1
+
+    total_net_worth = total_assets - total_liabilities
+
+    per_member_breakdown = []
+    for member in members:
+        stats = member_stats.get(member.id, {"net_worth": Decimal("0"), "accounts_count": 0})
+        per_member_breakdown.append(
+            {
+                "user_id": str(member.id),
+                "display_name": member.display_name or member.email,
+                "net_worth": float(stats["net_worth"]),
+                "accounts_count": stats["accounts_count"],
+            }
         )
-    except (json.JSONDecodeError, ValueError):
-        withdrawal_comparison = None
 
-    return SimulationResultResponse(
-        id=result.id,
-        scenario_id=result.scenario_id,
-        computed_at=result.computed_at,
-        num_simulations=result.num_simulations,
-        compute_time_ms=result.compute_time_ms,
-        success_rate=float(result.success_rate),
-        readiness_score=result.readiness_score,
-        median_portfolio_at_retirement=(
-            float(result.median_portfolio_at_retirement)
-            if result.median_portfolio_at_retirement
-            else None
-        ),
-        median_portfolio_at_end=float(result.median_portfolio_at_end)
-        if result.median_portfolio_at_end
-        else None,
-        median_depletion_age=result.median_depletion_age,
-        estimated_pia=float(result.estimated_pia) if result.estimated_pia else None,
-        projections=[ProjectionDataPoint(**p) for p in projections],
-        withdrawal_comparison=withdrawal_comparison,
-    )
+    return {
+        "total_household_net_worth": float(total_net_worth),
+        "total_household_assets": float(total_assets),
+        "total_household_liabilities": float(total_liabilities),
+        "member_count": len(members),
+        "per_member_breakdown": per_member_breakdown,
+    }

@@ -24,6 +24,7 @@ from app.schemas.tax_harvesting import (
     TaxLossOpportunityResponse,
 )
 from app.services.deduplication_service import DeduplicationService
+from app.services.rate_limit_service import rate_limit_service
 from app.services.report_service import ReportService
 from app.services.tax_loss_harvesting_service import tax_loss_harvesting_service
 from app.utils.datetime_utils import utc_now
@@ -415,8 +416,7 @@ async def execute_report(
 
     Does not save the report - use for preview/one-time reports.
     """
-    from app.services.rate_limit_service import rate_limit_service as _rls
-    await _rls.check_rate_limit(
+    await rate_limit_service.check_rate_limit(
         request=http_request,
         max_requests=20,
         window_seconds=60,
@@ -455,8 +455,7 @@ async def execute_saved_report(
     db: AsyncSession = Depends(get_db),
 ):
     """Execute a saved report template."""
-    from app.services.rate_limit_service import rate_limit_service as _rls
-    await _rls.check_rate_limit(
+    await rate_limit_service.check_rate_limit(
         request=http_request,
         max_requests=20,
         window_seconds=60,
@@ -521,8 +520,7 @@ async def export_report_csv(
     db: AsyncSession = Depends(get_db),
 ):
     """Export a saved report as CSV."""
-    from app.services.rate_limit_service import rate_limit_service as _rls
-    await _rls.check_rate_limit(
+    await rate_limit_service.check_rate_limit(
         request=http_request,
         max_requests=10,
         window_seconds=3600,

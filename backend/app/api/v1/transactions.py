@@ -42,6 +42,7 @@ from app.schemas.transaction import (
 )
 from app.services.input_sanitization_service import input_sanitization_service
 from app.services.nlp_search_service import parse_natural_query
+from app.services.rate_limit_service import rate_limit_service
 from app.utils.csv_sanitize import sanitize_csv_row
 from app.utils.datetime_utils import utc_now
 
@@ -840,9 +841,7 @@ async def export_transactions_csv(
     """
     # Rate limit: 10 exports per hour per user
     if request is not None:
-        from app.services.rate_limit_service import rate_limit_service as _rls
-
-        await _rls.check_rate_limit(
+        await rate_limit_service.check_rate_limit(
             request=request,
             max_requests=10,
             window_seconds=3600,
@@ -1029,8 +1028,7 @@ async def natural_language_search(
     - "rent over $1000"            → search=rent, min_amount=1000
     """
     # Rate limit: 60 NLP parses per minute per user (lightweight regex parsing, but cap abuse)
-    from app.services.rate_limit_service import rate_limit_service as _rls
-    await _rls.check_rate_limit(
+    await rate_limit_service.check_rate_limit(
         request=http_request,
         max_requests=60,
         window_seconds=60,
