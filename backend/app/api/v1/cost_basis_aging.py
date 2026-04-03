@@ -4,22 +4,32 @@ import datetime
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.constants.financial import SMART_INSIGHTS
 from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import Account
 from app.models.holding import Holding
 from app.models.tax_lot import TaxLot
 from app.models.user import User
+from app.services.rate_limit_service import rate_limit_service
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["Cost Basis Aging"])
+
+async def _rate_limit(http_request: Request, current_user: User = Depends(get_current_user)):
+    """Shared rate-limit dependency for cost basis aging endpoints."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=20, window_seconds=60, identifier=str(current_user.id)
+    )
+
+
+router = APIRouter(tags=["Cost Basis Aging"], dependencies=[Depends(_rate_limit)])
 
 
 # ---------------------------------------------------------------------------
@@ -119,7 +129,7 @@ async def get_cost_basis_aging(
         # Bucket assignment
         if is_long_term:
             bucket = "long_term"
-        elif days_to_long_term <= 30:
+        elif days_to_long_term <= SMART_INSIGHTS.DAYS_TO_LONG_TERM_WARNING:
             bucket = "approaching"
         else:
             bucket = "short_term"
@@ -194,7 +204,7 @@ async def get_cost_basis_aging(
             f"{approaching_count} lot(s) become long-term within 30 days — "
             "consider holding to avoid short-term tax rates."
         )
-    elif st_loss < -1000:
+    elif st_loss < -SMART_INSIGHTS.TAX_LOSS_HARVEST_MIN_USD:
         summary_tip = (
             f"${abs(st_loss):,.0f} in short-term losses available for tax-loss harvesting."
         )

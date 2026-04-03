@@ -3,7 +3,7 @@
 import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import func, select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,8 +14,17 @@ from app.models.account import Account, AccountType
 from app.models.contribution import AccountContribution, ContributionFrequency, ContributionType
 from app.models.transaction import Transaction
 from app.models.user import User
+from app.services.rate_limit_service import rate_limit_service
 
-router = APIRouter()
+
+async def _rate_limit(http_request: Request, current_user: User = Depends(get_current_user)):
+    """Shared rate-limit dependency for employer match endpoints."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=20, window_seconds=60, identifier=str(current_user.id)
+    )
+
+
+router = APIRouter(dependencies=[Depends(_rate_limit)])
 
 
 # ---------------------------------------------------------------------------

@@ -1233,6 +1233,11 @@ class SMART_INSIGHTS:
     # (avoids noise from floating-point rounding on small household splits)
     SETTLEMENT_EVEN_BAND = 0.005  # $0.005 — half a cent
 
+    # Cost basis aging: days before long-term threshold at which to warn
+    DAYS_TO_LONG_TERM_WARNING = 30
+    # Tax-loss harvesting: minimum short-term loss ($) to recommend harvesting
+    TAX_LOSS_HARVEST_MIN_USD = 1_000
+
 
 # =========================================================================
 # LIQUIDITY / EMERGENCY FUND THRESHOLDS

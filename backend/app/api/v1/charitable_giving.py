@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,10 +16,19 @@ from app.models.account import Account
 from app.models.transaction import Label, Transaction, TransactionLabel
 from app.constants.financial import TAX, QCD
 from app.models.user import User
+from app.services.rate_limit_service import rate_limit_service
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["Charitable Giving"])
+
+async def _rate_limit(http_request: Request, current_user: User = Depends(get_current_user)):
+    """Shared rate-limit dependency for all charitable giving endpoints."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=30, window_seconds=60, identifier=str(current_user.id)
+    )
+
+
+router = APIRouter(tags=["Charitable Giving"], dependencies=[Depends(_rate_limit)])
 
 # Standard deductions sourced from year-keyed constants
 STANDARD_DEDUCTION_SINGLE = TAX.STANDARD_DEDUCTION_SINGLE

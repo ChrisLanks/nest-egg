@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Optional
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Body, Depends, File, HTTPException, Path, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Path, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select, and_
@@ -19,6 +19,7 @@ from app.models.hsa_receipt import HsaReceipt
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.services.hsa_optimization_service import HsaOptimizationService
+from app.services.rate_limit_service import rate_limit_service
 from app.services.storage_service import StorageService, get_storage_service
 
 # Allowed MIME types for receipt attachments
@@ -32,7 +33,15 @@ _ALLOWED_CONTENT_TYPES = {
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["HSA Optimization"])
+
+async def _rate_limit(http_request: Request, current_user: User = Depends(get_current_user)):
+    """Shared rate-limit dependency for all HSA endpoints."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=30, window_seconds=60, identifier=str(current_user.id)
+    )
+
+
+router = APIRouter(tags=["HSA Optimization"], dependencies=[Depends(_rate_limit)])
 
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────────

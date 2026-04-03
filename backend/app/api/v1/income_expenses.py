@@ -5,7 +5,7 @@ from datetime import date
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import and_, case, exists, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,10 +22,19 @@ from app.models.account import Account
 from app.models.transaction import Category, Label, Transaction, transaction_labels
 from app.models.user import User
 from app.services.deduplication_service import DeduplicationService
+from app.services.rate_limit_service import rate_limit_service
 from app.services.trend_analysis_service import TrendAnalysisService
 from app.utils.date_validation import validate_date_range
 
-router = APIRouter()
+
+async def _rate_limit(http_request: Request, current_user: User = Depends(get_current_user)):
+    """Shared rate-limit dependency for all income/expense analytics endpoints."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=30, window_seconds=60, identifier=str(current_user.id)
+    )
+
+
+router = APIRouter(dependencies=[Depends(_rate_limit)])
 
 # Cap on category breakdown rows returned.  Prevents unbounded responses for
 # orgs with hundreds of distinct categories.
