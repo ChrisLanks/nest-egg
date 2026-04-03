@@ -57,6 +57,11 @@ class SubscriptionSummary(BaseModel):
     yearly_cost: float
 
 
+class DeactivateResponse(BaseModel):
+    success: bool
+    message: str
+
+
 @router.get("/", response_model=SubscriptionSummary)
 async def get_subscriptions(
     user_id: Optional[UUID] = None,
@@ -97,7 +102,7 @@ async def get_subscriptions(
     )
 
 
-@router.patch("/{subscription_id}/deactivate")
+@router.patch("/{subscription_id}/deactivate", response_model=DeactivateResponse)
 async def deactivate_subscription(
     subscription_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -126,4 +131,4 @@ async def deactivate_subscription(
     subscription.is_active = False
     await db.commit()
 
-    return {"success": True, "message": "Subscription marked as inactive"}
+    return DeactivateResponse(success=True, message="Subscription marked as inactive")

@@ -18,12 +18,20 @@ from app.models.beneficiary import Beneficiary
 from app.models.estate_document import EstateDocument
 from app.models.user import User
 from app.services.estate_planning_service import EstatePlanningService
+from app.services.input_sanitization_service import input_sanitization_service
 from app.services.rate_limit_service import rate_limit_service
 from app.utils.account_type_groups import CORE_RETIREMENT_TYPES
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["Estate Planning"])
+
+async def _rate_limit(http_request: Request, current_user: User = Depends(get_current_user)):
+    """Shared rate-limit dependency for all endpoints in this module."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=30, window_seconds=60, identifier=str(current_user.id)
+    )
+
+router = APIRouter(tags=["Estate Planning"], dependencies=[Depends(_rate_limit)])
 
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
@@ -45,6 +53,18 @@ class EstateDocumentUpsert(BaseModel):
     notes: Optional[str] = None
 
 
+class BeneficiaryResponse(BaseModel):
+    id: str
+    name: str
+    percentage: float
+
+
+class EstateDocumentResponse(BaseModel):
+    id: str
+    document_type: str
+    last_reviewed_date: Optional[str] = None
+
+
 # ── Calculation endpoints ─────────────────────────────────────────────────────
 
 
@@ -54,15 +74,11 @@ class EstateDocumentUpsert(BaseModel):
     description="Estimates federal estate tax above the exemption threshold.",
 )
 async def get_tax_exposure(
-    http_request: Request,
     net_worth: float = Query(..., description="Total net worth (USD)"),
     filing_status: str = Query("single", description="single or married"),
     current_user: User = Depends(get_current_user),
 ):
     """Returns estate tax exposure above the federal exemption."""
-    await rate_limit_service.check_rate_limit(
-        request=http_request, max_requests=30, window_seconds=60, identifier=str(current_user.id)
-    )
     return EstatePlanningService.calculate_estate_tax_exposure(
         net_worth=Decimal(str(net_worth)),
         filing_status=filing_status,
@@ -252,27 +268,30 @@ async def list_beneficiaries(
     ]
 
 
-@router.post("/beneficiaries", summary="Add beneficiary", status_code=201)
+@router.post("/beneficiaries", summary="Add beneficiary", status_code=201, response_model=BeneficiaryResponse)
 async def create_beneficiary(
     body: BeneficiaryCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    name = input_sanitization_service.sanitize_html(body.name)
+    relationship = input_sanitization_service.sanitize_html(body.relationship)
+    notes = input_sanitization_service.sanitize_html(body.notes) if body.notes else body.notes
     ben = Beneficiary(
         organization_id=current_user.organization_id,
         user_id=current_user.id,
         account_id=body.account_id,
-        name=body.name,
-        relationship=body.relationship,
+        name=name,
+        relationship=relationship,
         designation_type=body.designation_type,
         percentage=body.percentage,
         dob=body.dob,
-        notes=body.notes,
+        notes=notes,
     )
     db.add(ben)
     await db.commit()
     await db.refresh(ben)
-    return {"id": str(ben.id), "name": ben.name, "percentage": float(ben.percentage)}
+    return BeneficiaryResponse(id=str(ben.id), name=ben.name, percentage=float(ben.percentage))
 
 
 @router.delete("/beneficiaries/{beneficiary_id}", summary="Remove beneficiary", status_code=204)
@@ -321,13 +340,14 @@ async def list_documents(
     ]
 
 
-@router.post("/documents", summary="Create or update estate document record", status_code=201)
+@router.post("/documents", summary="Create or update estate document record", status_code=201, response_model=EstateDocumentResponse)
 async def upsert_document(
     body: EstateDocumentUpsert,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     # Upsert by document_type per user
+    notes = input_sanitization_service.sanitize_html(body.notes) if body.notes else body.notes
     result = await db.execute(
         select(EstateDocument).where(
             EstateDocument.organization_id == current_user.organization_id,
@@ -338,23 +358,23 @@ async def upsert_document(
     doc = result.scalar_one_or_none()
     if doc:
         doc.last_reviewed_date = body.last_reviewed_date
-        doc.notes = body.notes
+        doc.notes = notes
     else:
         doc = EstateDocument(
             organization_id=current_user.organization_id,
             user_id=current_user.id,
             document_type=body.document_type,
             last_reviewed_date=body.last_reviewed_date,
-            notes=body.notes,
+            notes=notes,
         )
         db.add(doc)
     await db.commit()
     await db.refresh(doc)
-    return {
-        "id": str(doc.id),
-        "document_type": doc.document_type,
-        "last_reviewed_date": doc.last_reviewed_date.isoformat() if doc.last_reviewed_date else None,
-    }
+    return EstateDocumentResponse(
+        id=str(doc.id),
+        document_type=doc.document_type,
+        last_reviewed_date=doc.last_reviewed_date.isoformat() if doc.last_reviewed_date else None,
+    )
 
 
 # ── Beneficiary Audit ─────────────────────────────────────────────────────────

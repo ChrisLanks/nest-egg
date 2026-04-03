@@ -19,6 +19,7 @@ from app.models.hsa_receipt import HsaReceipt
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.services.hsa_optimization_service import HsaOptimizationService
+from app.services.input_sanitization_service import input_sanitization_service
 from app.services.rate_limit_service import rate_limit_service
 from app.services.storage_service import StorageService, get_storage_service
 
@@ -60,6 +61,22 @@ class HsaReceiptCreate(BaseModel):
 class HsaReceiptUpdate(BaseModel):
     is_reimbursed: Optional[bool] = None
     reimbursed_at: Optional[date] = None
+    notes: Optional[str] = None
+
+
+class HsaReceiptCreateResponse(BaseModel):
+    id: str
+    amount: float
+    description: str
+    tax_year: int
+    is_reimbursed: bool
+    created_at: str
+
+
+class HsaReceiptUpdateResponse(BaseModel):
+    id: str
+    is_reimbursed: bool
+    reimbursed_at: Optional[str] = None
     notes: Optional[str] = None
 
 
@@ -165,6 +182,7 @@ async def list_receipts(
     "/receipts",
     summary="Create HSA receipt",
     status_code=201,
+    response_model=HsaReceiptCreateResponse,
 )
 async def create_receipt(
     body: HsaReceiptCreate,
@@ -172,34 +190,37 @@ async def create_receipt(
     db: AsyncSession = Depends(get_db),
 ):
     """Creates a new HSA receipt record."""
+    description = input_sanitization_service.sanitize_html(body.description)
+    notes = input_sanitization_service.sanitize_html(body.notes) if body.notes else body.notes
     receipt = HsaReceipt(
         organization_id=current_user.organization_id,
         user_id=current_user.id,
         account_id=body.account_id,
         expense_date=body.expense_date,
         amount=body.amount,
-        description=body.description,
+        description=description,
         category=body.category,
         tax_year=body.tax_year,
-        notes=body.notes,
+        notes=notes,
         is_reimbursed=False,
     )
     db.add(receipt)
     await db.commit()
     await db.refresh(receipt)
-    return {
-        "id": str(receipt.id),
-        "amount": float(receipt.amount),
-        "description": receipt.description,
-        "tax_year": receipt.tax_year,
-        "is_reimbursed": receipt.is_reimbursed,
-        "created_at": receipt.created_at.isoformat(),
-    }
+    return HsaReceiptCreateResponse(
+        id=str(receipt.id),
+        amount=float(receipt.amount),
+        description=receipt.description,
+        tax_year=receipt.tax_year,
+        is_reimbursed=receipt.is_reimbursed,
+        created_at=receipt.created_at.isoformat(),
+    )
 
 
 @router.patch(
     "/receipts/{receipt_id}",
     summary="Update HSA receipt reimbursement status",
+    response_model=HsaReceiptUpdateResponse,
 )
 async def update_receipt(
     receipt_id: UUID = Path(...),
@@ -224,16 +245,16 @@ async def update_receipt(
     if body.reimbursed_at is not None:
         receipt.reimbursed_at = body.reimbursed_at
     if body.notes is not None:
-        receipt.notes = body.notes
+        receipt.notes = input_sanitization_service.sanitize_html(body.notes)
 
     await db.commit()
     await db.refresh(receipt)
-    return {
-        "id": str(receipt.id),
-        "is_reimbursed": receipt.is_reimbursed,
-        "reimbursed_at": receipt.reimbursed_at.isoformat() if receipt.reimbursed_at else None,
-        "notes": receipt.notes,
-    }
+    return HsaReceiptUpdateResponse(
+        id=str(receipt.id),
+        is_reimbursed=receipt.is_reimbursed,
+        reimbursed_at=receipt.reimbursed_at.isoformat() if receipt.reimbursed_at else None,
+        notes=receipt.notes,
+    )
 
 
 # ── YTD summary ───────────────────────────────────────────────────────────────

@@ -15,6 +15,7 @@ from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.gift_record import GiftRecord
 from app.models.user import User
+from app.services.input_sanitization_service import input_sanitization_service
 from app.services.rate_limit_service import rate_limit_service
 
 
@@ -78,16 +79,23 @@ async def create_gift(
 ):
     """Record a new gift."""
     gift_date = datetime.date.fromisoformat(gift.date)
+    recipient_name = input_sanitization_service.sanitize_html(gift.recipient_name)
+    recipient_relationship = (
+        input_sanitization_service.sanitize_html(gift.recipient_relationship)
+        if gift.recipient_relationship
+        else gift.recipient_relationship
+    )
+    notes = input_sanitization_service.sanitize_html(gift.notes) if gift.notes else gift.notes
     record = GiftRecord(
         organization_id=current_user.organization_id,
         donor_user_id=current_user.id,
         year=gift_date.year,
-        recipient_name=gift.recipient_name,
-        recipient_relationship=gift.recipient_relationship,
+        recipient_name=recipient_name,
+        recipient_relationship=recipient_relationship,
         amount=Decimal(str(gift.amount)),
         date=gift_date,
         is_529_superfunding=gift.is_529_superfunding,
-        notes=gift.notes,
+        notes=notes,
     )
     db.add(record)
     await db.commit()
