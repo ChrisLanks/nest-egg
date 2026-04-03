@@ -11,15 +11,24 @@ import math
 from decimal import Decimal
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from app.constants.financial import FICA, FIRE, SS, TAX
 from app.dependencies import get_current_user
+from app.services.rate_limit_service import rate_limit_service
 from app.models.user import User
 from app.services.state_tax_service import StateTaxService
 
-router = APIRouter()
+
+
+async def _rate_limit(http_request: Request, current_user: User = Depends(get_current_user)):
+    """Shared rate-limit dependency for all endpoints in this module."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=30, window_seconds=60, identifier=str(current_user.id)
+    )
+
+router = APIRouter(dependencies=[Depends(_rate_limit)])
 
 
 # ── C1: Mortgage Payoff vs Invest ────────────────────────────────────────────

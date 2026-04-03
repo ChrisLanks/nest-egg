@@ -6,7 +6,7 @@ import logging
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import and_, extract, select
 from sqlalchemy.orm import selectinload
@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.dependencies import get_current_user
+from app.services.rate_limit_service import rate_limit_service
 from app.models.account import Account
 from app.models.holding import Holding
 from app.models.tax_lot import CostBasisMethod, TaxLot
@@ -31,7 +32,15 @@ from app.services.tax_lot_service import tax_lot_service
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+
+
+async def _rate_limit(http_request: Request, current_user: User = Depends(get_current_user)):
+    """Shared rate-limit dependency for all endpoints in this module."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=30, window_seconds=60, identifier=str(current_user.id)
+    )
+
+router = APIRouter(dependencies=[Depends(_rate_limit)])
 
 
 async def _get_verified_holding(

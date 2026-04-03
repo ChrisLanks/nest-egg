@@ -4,13 +4,14 @@ import logging
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from pydantic import BaseModel
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.dependencies import get_current_user
+from app.services.rate_limit_service import rate_limit_service
 from app.models.bulk_operation_log import BulkOperationLog
 from app.models.transaction import Transaction
 from app.models.user import User
@@ -18,7 +19,15 @@ from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+
+
+async def _rate_limit(http_request: Request, current_user: User = Depends(get_current_user)):
+    """Shared rate-limit dependency for all endpoints in this module."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=30, window_seconds=60, identifier=str(current_user.id)
+    )
+
+router = APIRouter(dependencies=[Depends(_rate_limit)])
 
 
 # --- Schemas ---

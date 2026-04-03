@@ -5,16 +5,25 @@ from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.financial import FIRE
 from app.core.database import get_db
 from app.dependencies import get_current_user, verify_household_member
+from app.services.rate_limit_service import rate_limit_service
 from app.models.user import User
 from app.services.tax_bucket_service import TaxBucketService
 
-router = APIRouter(prefix="/tax-buckets", tags=["Tax Buckets"])
+
+
+async def _rate_limit(http_request: Request, current_user: User = Depends(get_current_user)):
+    """Shared rate-limit dependency for all endpoints in this module."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=30, window_seconds=60, identifier=str(current_user.id)
+    )
+
+router = APIRouter(prefix="/tax-buckets", tags=["Tax Buckets"], dependencies=[Depends(_rate_limit)])
 
 
 @router.get("/summary")

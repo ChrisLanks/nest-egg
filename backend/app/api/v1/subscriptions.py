@@ -4,7 +4,7 @@ from datetime import date
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,13 +14,22 @@ from app.dependencies import (
     get_current_user,
     verify_household_member,
 )
+from app.services.rate_limit_service import rate_limit_service
 from app.models.account import Account
 from app.models.user import User
 from app.models.recurring_transaction import RecurringTransaction
 from app.services.recurring_detection_service import RecurringDetectionService
 from app.services.deduplication_service import DeduplicationService
 
-router = APIRouter()
+
+
+async def _rate_limit(http_request: Request, current_user: User = Depends(get_current_user)):
+    """Shared rate-limit dependency for all endpoints in this module."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=30, window_seconds=60, identifier=str(current_user.id)
+    )
+
+router = APIRouter(dependencies=[Depends(_rate_limit)])
 
 # Initialize deduplication service
 deduplication_service = DeduplicationService()

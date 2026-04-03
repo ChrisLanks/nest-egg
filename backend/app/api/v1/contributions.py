@@ -3,18 +3,27 @@
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db, get_verified_account
+from app.services.rate_limit_service import rate_limit_service
 from app.models.account import Account
 from app.models.contribution import AccountContribution
 from app.models.user import User
 from app.schemas.contribution import Contribution, ContributionCreate, ContributionUpdate
 from app.services.input_sanitization_service import input_sanitization_service
 
-router = APIRouter()
+
+
+async def _rate_limit(http_request: Request, current_user: User = Depends(get_current_user)):
+    """Shared rate-limit dependency for all endpoints in this module."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=30, window_seconds=60, identifier=str(current_user.id)
+    )
+
+router = APIRouter(dependencies=[Depends(_rate_limit)])
 
 
 @router.post(
