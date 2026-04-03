@@ -1422,7 +1422,7 @@ async def get_account_merchant_breakdown(
 # Trend Analysis Endpoints
 
 
-@router.get("/year-over-year", response_model=Dict[str, Any])
+@router.get("/year-over-year", response_model=List[Dict[str, Any]])
 async def get_year_over_year_comparison(
     years: List[int] = Query(..., description="Years to compare (e.g., [2024, 2023, 2022])"),
     user_id: Optional[UUID] = Query(
@@ -1460,7 +1460,7 @@ async def get_year_over_year_comparison(
     return comparison
 
 
-@router.get("/quarterly-summary", response_model=Dict[str, Any])
+@router.get("/quarterly-summary", response_model=List[Dict[str, Any]])
 async def get_quarterly_summary(
     years: List[int] = Query(..., description="Years to compare (e.g., [2024, 2023])"),
     user_id: Optional[UUID] = Query(
@@ -1498,7 +1498,7 @@ async def get_quarterly_summary(
     return summary
 
 
-@router.get("/category-trends", response_model=Dict[str, Any])
+@router.get("/category-trends", response_model=List[Dict[str, Any]])
 async def get_category_trends(
     category: str = Query(..., description="Category name to analyze"),
     start_date: date = Query(...),
@@ -1580,7 +1580,7 @@ async def get_annual_summary(
     return summary
 
 
-@router.get("/available-years", response_model=Dict[str, Any])
+@router.get("/available-years", response_model=List[int])
 async def get_available_years(
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = combined household view"
