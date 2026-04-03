@@ -180,7 +180,7 @@ async def auto_sync_goals(
     return updated
 
 
-@router.put("/reorder", status_code=204)
+@router.put("/reorder", status_code=204, response_model=None)
 async def reorder_goals(
     request: ReorderRequest,
     current_user: User = Depends(get_current_user),

@@ -1047,7 +1047,7 @@ async def reset_password(
     return AuthMessageResponse(message="Password reset successfully. You can now log in with your new password.")
 
 
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def logout(
     request: Request,
     response: Response,
@@ -1079,7 +1079,7 @@ async def logout(
     return None
 
 
-@router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def logout_all_devices(
     response: Response,
     db: AsyncSession = Depends(get_db),

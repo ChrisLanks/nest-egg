@@ -351,7 +351,7 @@ async def update_user_profile(
     )
 
 
-@router.put("/dashboard-layout", status_code=204)
+@router.put("/dashboard-layout", status_code=204, response_model=None)
 async def update_dashboard_layout(
     body: DashboardLayoutUpdate,
     current_user: User = Depends(get_current_user),

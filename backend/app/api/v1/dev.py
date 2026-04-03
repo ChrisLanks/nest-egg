@@ -7,7 +7,7 @@ import string
 import uuid
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -232,7 +232,7 @@ async def seed_mock_data_internal(db: AsyncSession, user: User) -> dict:
     }
 
 
-@router.post("/seed-mock-data")
+@router.post("/seed-mock-data", response_model=Dict[str, Any])
 async def seed_mock_data(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -663,7 +663,7 @@ async def seed_planning_data_internal(db: AsyncSession, user: "User") -> dict:
     return summary
 
 
-@router.post("/seed-planning-data")
+@router.post("/seed-planning-data", response_model=Dict[str, Any])
 async def seed_planning_data(
     current_user: "User" = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
