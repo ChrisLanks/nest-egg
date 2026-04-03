@@ -190,16 +190,43 @@ class ForecastService:
         Aggregate the full forecast into summary totals and breakdowns.
 
         Returns total projected income, expenses, and net, plus ranked
-        breakdowns by category, merchant, label, and account.
+        breakdowns by category, merchant, label, account, and member.
         """
         forecast = await ForecastService.generate_forecast(
             db, organization_id, user_id, days_ahead
         )
 
+        # Build account_id → member display name map for by-member breakdown
+        accounts_result = await db.execute(
+            select(Account.id, Account.user_id, Account.name).where(
+                Account.organization_id == organization_id,
+                Account.is_active.is_(True),
+            )
+        )
+        account_rows = accounts_result.all()
+        member_user_ids = list({r.user_id for r in account_rows if r.user_id})
+        if member_user_ids:
+            users_result = await db.execute(
+                select(User.id, User.display_name, User.first_name, User.email).where(
+                    User.id.in_(member_user_ids)
+                )
+            )
+            users_map: Dict = {
+                u.id: (u.display_name or u.first_name or u.email or str(u.id))
+                for u in users_result.all()
+            }
+        else:
+            users_map = {}
+        # account_id (str) → member display name
+        account_to_member: Dict[str, str] = {
+            str(r.id): users_map.get(r.user_id, "Unknown") for r in account_rows
+        }
+
         by_category: Dict[str, float] = defaultdict(float)
         by_merchant: Dict[str, float] = defaultdict(float)
         by_label: Dict[str, float] = defaultdict(float)
         by_account: Dict[str, float] = defaultdict(float)
+        by_member: Dict[str, float] = defaultdict(float)
         total_income = 0.0
         total_expenses = 0.0
 
@@ -210,12 +237,15 @@ class ForecastService:
                 merchant = txn.get("merchant") or "Unknown"
                 label = txn.get("label")
                 account = txn.get("account_name") or "Unknown Account"
+                acct_id = txn.get("account_id")
+                member_name = account_to_member.get(str(acct_id), "Unknown") if acct_id else "Unknown"
 
                 by_category[cat] += amount
                 by_merchant[merchant] += amount
                 if label:
                     by_label[label] += amount
                 by_account[account] += amount
+                by_member[member_name] += amount
 
                 if amount > 0:
                     total_income += amount
@@ -237,6 +267,7 @@ class ForecastService:
             "by_merchant": to_ranked(by_merchant),
             "by_label": to_ranked(by_label),
             "by_account": to_ranked(by_account),
+            "by_member": to_ranked(by_member),
         }
 
     @staticmethod

@@ -28,7 +28,7 @@ from app.models.rule import Rule
 from app.models.transaction import Transaction, TransactionLabel
 from app.models.user import Organization, RefreshToken, User
 from app.schemas.user import OrganizationUpdate, UserUpdate
-from app.constants.financial import FIRE, RETIREMENT, TAX, VARIABLE_INCOME
+from app.constants.financial import CASH_FLOW_TIMING, FIRE, RETIREMENT, TAX, VARIABLE_INCOME
 from app.constants.state_tax_rates import STATE_NAMES, STATE_TAX_RATES
 from app.services.email_service import create_verification_token, email_service
 from app.services.fx_service import SUPPORTED_CURRENCIES
@@ -1024,4 +1024,8 @@ async def get_financial_defaults(
         # Safe-harbour withholding
         "safe_harbor_current_year_rate": float(VARIABLE_INCOME.SAFE_HARBOR_CURRENT_YEAR_RATE),
         "safe_harbor_high_income_threshold": VARIABLE_INCOME.SAFE_HARBOR_110_PCT_INCOME_THRESHOLD,
+        # Cash flow / forecast UI defaults
+        "low_balance_warning_usd": float(CASH_FLOW_TIMING.LOW_BALANCE_WARNING_USD),
+        # Household limits
+        "max_household_members": 5,  # mirrors MAX_HOUSEHOLD_MEMBERS in household.py
     }

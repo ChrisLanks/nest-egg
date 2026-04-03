@@ -155,6 +155,7 @@ class ForecastSummary(BaseModel):
     by_merchant: list[ForecastBreakdownItem]
     by_label: list[ForecastBreakdownItem]
     by_account: list[ForecastBreakdownItem]
+    by_member: list[ForecastBreakdownItem] = []
 
 
 class DashboardData(BaseModel):

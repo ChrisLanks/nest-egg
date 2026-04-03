@@ -200,6 +200,17 @@ export const HouseholdSettingsPage: React.FC = () => {
     onConfirmOpen();
   };
 
+  // Fetch planning defaults for household limits (avoids hardcoding "5" in UI)
+  const { data: planningDefaults } = useQuery<{ max_household_members: number }>({
+    queryKey: ["financial-defaults"],
+    queryFn: async () => {
+      const response = await api.get("/settings/financial-defaults");
+      return response.data;
+    },
+    staleTime: Infinity,
+  });
+  const maxMembers = planningDefaults?.max_household_members ?? 5;
+
   // Fetch household members
   const { data: members, isLoading: loadingMembers, isError: membersError } = useQuery<
     HouseholdMember[]
@@ -604,13 +615,13 @@ export const HouseholdSettingsPage: React.FC = () => {
         </Box>
 
         {/* Household limit alert */}
-        {members && members.length >= 5 && (
+        {members && members.length >= maxMembers && (
           <Alert status="warning">
             <AlertIcon />
             <Box>
               <AlertTitle>Household limit reached</AlertTitle>
               <AlertDescription>
-                You have reached the maximum of 5 household members. Remove a
+                You have reached the maximum of {maxMembers} household members. Remove a
                 member before inviting new ones.
               </AlertDescription>
             </Box>
@@ -621,14 +632,24 @@ export const HouseholdSettingsPage: React.FC = () => {
         <Card>
           <CardHeader>
             <HStack justify="space-between">
-              <Heading size="md">Household Members</Heading>
+              <HStack spacing={3}>
+                <Heading size="md">Household Members</Heading>
+                {members && (
+                  <Badge
+                    colorScheme={members.length >= maxMembers ? "red" : "gray"}
+                    fontSize="sm"
+                  >
+                    {members.length}/{maxMembers}
+                  </Badge>
+                )}
+              </HStack>
               {user?.is_org_admin && (
                 <Button
                   leftIcon={<EmailIcon />}
                   colorScheme="blue"
                   size="sm"
                   onClick={onOpen}
-                  isDisabled={members && members.length >= 5}
+                  isDisabled={members && members.length >= maxMembers}
                 >
                   Invite Member
                 </Button>

@@ -94,9 +94,10 @@ interface ForecastSummary {
   by_merchant: ForecastBreakdownItem[];
   by_label: ForecastBreakdownItem[];
   by_account: ForecastBreakdownItem[];
+  by_member: ForecastBreakdownItem[];
 }
 
-type GroupBy = "category" | "merchant" | "label" | "account";
+type GroupBy = "category" | "merchant" | "label" | "account" | "member";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -215,6 +216,16 @@ const ForecastTab = () => {
     enabled: !!forecast && forecast.length > 0,
   });
 
+  // Fetch planning defaults so low-balance threshold isn't hardcoded in the UI
+  const { data: planningDefaults } = useQuery<{ low_balance_warning_usd: number }>({
+    queryKey: ["financial-defaults"],
+    queryFn: async () => {
+      const response = await api.get("/settings/financial-defaults");
+      return response.data;
+    },
+    staleTime: Infinity,
+  });
+
   // Derived values
   const currentBalance = forecast?.[0]?.projected_balance ?? null;
   const lowestDay = forecast?.reduce(
@@ -226,7 +237,7 @@ const ForecastTab = () => {
     forecast[0],
   );
 
-  const LOW_BALANCE_THRESHOLD = 500;
+  const LOW_BALANCE_THRESHOLD = planningDefaults?.low_balance_warning_usd ?? 500;
   const warningDays = forecast?.filter((d) => d.projected_balance < LOW_BALANCE_THRESHOLD) ?? [];
   const negativeDays = warningDays.filter((d) => d.projected_balance < 0);
   const transactionDays = forecast?.filter((d) => d.transaction_count > 0) ?? [];
@@ -493,7 +504,7 @@ const ForecastTab = () => {
             <HStack justify="space-between" mb={4} flexWrap="wrap" gap={2}>
               <Heading size="sm">Breakdown</Heading>
               <ButtonGroup size="xs" isAttached variant="outline">
-                {(["category", "merchant", "label", "account"] as GroupBy[]).map((g) => (
+                {(["category", "merchant", "label", "account", "member"] as GroupBy[]).map((g) => (
                   <Button
                     key={g}
                     onClick={() => setGroupBy(g)}

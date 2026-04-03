@@ -7,6 +7,7 @@ import {
   Heading,
   HStack,
   Text,
+  Tooltip,
   VStack,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
@@ -60,6 +61,8 @@ const RecentTransactionsWidgetBase: React.FC = () => {
               merchant_name: string;
               category_primary: string;
               is_pending: boolean;
+              is_transfer: boolean;
+              is_split: boolean;
             }) => (
               <Box key={txn.id}>
                 <HStack justify="space-between" mb={1}>
@@ -67,14 +70,26 @@ const RecentTransactionsWidgetBase: React.FC = () => {
                     <Text fontWeight="medium">
                       {txn.merchant_name || "Unknown"}
                     </Text>
-                    <HStack spacing={2}>
+                    <HStack spacing={1} flexWrap="wrap">
                       <Text fontSize="sm" color="text.secondary">
                         {formatDate(txn.date)}
                       </Text>
                       {txn.is_pending && (
-                        <Badge colorScheme="orange" size="sm">
+                        <Badge colorScheme="orange" fontSize="xs">
                           Pending
                         </Badge>
+                      )}
+                      {txn.is_transfer && (
+                        <Badge colorScheme="purple" fontSize="xs">
+                          Transfer
+                        </Badge>
+                      )}
+                      {txn.is_split && (
+                        <Tooltip label="Split between household members">
+                          <Badge colorScheme="teal" fontSize="xs" cursor="default">
+                            Split
+                          </Badge>
+                        </Tooltip>
                       )}
                     </HStack>
                   </VStack>

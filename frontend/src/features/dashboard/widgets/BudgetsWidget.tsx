@@ -110,7 +110,10 @@ const BudgetsWidgetBase: React.FC = () => {
               const pct = spending
                 ? Math.min(100, spending.percentage * 100)
                 : 0;
-              const isOver = pct >= 80;
+              // Use budget's own alert_threshold (0–1 range) rather than a
+              // hardcoded 80% — respects per-budget configuration
+              const alertPct = (budget.alert_threshold ?? 0.8) * 100;
+              const isOver = pct >= alertPct;
 
               return (
                 <Box key={budget.id}>
