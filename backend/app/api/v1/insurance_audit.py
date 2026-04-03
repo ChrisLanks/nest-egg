@@ -182,7 +182,7 @@ async def get_insurance_audit(
     life_conditions = [
         Account.organization_id == current_user.organization_id,
         Account.account_type == AccountType.LIFE_INSURANCE_CASH_VALUE,
-        Account.is_active.is_(True),  # noqa: E712
+        Account.is_active.is_(True),
     ]
     if subject_user_id:
         life_conditions.append(Account.user_id == subject_user_id)
@@ -226,7 +226,7 @@ async def get_insurance_audit(
         ).where(
             and_(
                 Account.organization_id == current_user.organization_id,
-                Account.is_active.is_(True),  # noqa: E712
+                Account.is_active.is_(True),
                 Transaction.date >= _12m_ago,
                 Transaction.amount > 0,
                 Transaction.is_transfer.is_(False),

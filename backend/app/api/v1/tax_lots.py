@@ -312,7 +312,7 @@ async def export_form_8949(
         .where(
             and_(
                 TaxLot.organization_id == current_user.organization_id,
-                TaxLot.is_closed == True,  # noqa: E712
+                TaxLot.is_closed.is_(True),
                 extract("year", TaxLot.closed_at) == year,
             )
         )

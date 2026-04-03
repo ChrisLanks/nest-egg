@@ -100,7 +100,7 @@ async def get_cost_basis_aging(
         select(TaxLot)
         .where(
             TaxLot.organization_id == current_user.organization_id,
-            TaxLot.is_closed == False,  # noqa: E712
+            TaxLot.is_closed.is_(False),
         )
         .options(selectinload(TaxLot.holding))
     )

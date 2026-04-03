@@ -92,7 +92,7 @@ class CapitalGainsHarvestingService:
                 .join(Account, TaxLot.account_id == Account.id)
                 .where(
                     TaxLot.organization_id == organization_id,
-                    TaxLot.is_closed == False,
+                    TaxLot.is_closed.is_(False),
                     TaxLot.acquisition_date <= ltcg_cutoff,
                     Account.user_id == user_id,
                 )
@@ -100,7 +100,7 @@ class CapitalGainsHarvestingService:
         else:
             stmt = select(TaxLot).where(
                 TaxLot.organization_id == organization_id,
-                TaxLot.is_closed == False,
+                TaxLot.is_closed.is_(False),
                 TaxLot.acquisition_date <= ltcg_cutoff,
             )
 
@@ -190,14 +190,14 @@ class CapitalGainsHarvestingService:
                 .join(Account, TaxLot.account_id == Account.id)
                 .where(
                     TaxLot.organization_id == organization_id,
-                    TaxLot.is_closed == True,
+                    TaxLot.is_closed.is_(True),
                     Account.user_id == user_id,
                 )
             )
         else:
             stmt = select(TaxLot).where(
                 TaxLot.organization_id == organization_id,
-                TaxLot.is_closed == True,
+                TaxLot.is_closed.is_(True),
             )
 
         result = await db.execute(stmt)

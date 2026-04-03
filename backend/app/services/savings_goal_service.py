@@ -44,8 +44,8 @@ class SavingsGoalService:
             select(func.count(SavingsGoal.id)).where(
                 and_(
                     SavingsGoal.organization_id == user.organization_id,
-                    SavingsGoal.is_completed == False,  # noqa: E712
-                    SavingsGoal.is_funded == False,  # noqa: E712
+                    SavingsGoal.is_completed.is_(False),
+                    SavingsGoal.is_funded.is_(False),
                 )
             )
         )
@@ -91,14 +91,14 @@ class SavingsGoalService:
             if is_completed:
                 # Completed = reached target OR funded
                 query = query.where(
-                    or_(SavingsGoal.is_completed == True, SavingsGoal.is_funded == True)  # noqa: E712
+                    or_(SavingsGoal.is_completed.is_(True), SavingsGoal.is_funded.is_(True))
                 )
             else:
                 # Active = not completed AND not funded
                 query = query.where(
                     and_(
-                        SavingsGoal.is_completed == False,  # noqa: E712
-                        SavingsGoal.is_funded == False,  # noqa: E712
+                        SavingsGoal.is_completed.is_(False),
+                        SavingsGoal.is_funded.is_(False),
                     )
                 )
 
@@ -372,9 +372,9 @@ class SavingsGoalService:
             .where(
                 and_(
                     SavingsGoal.organization_id == user.organization_id,
-                    SavingsGoal.is_completed == False,  # noqa: E712
-                    SavingsGoal.is_funded == False,  # noqa: E712
-                    SavingsGoal.auto_sync == True,  # noqa: E712
+                    SavingsGoal.is_completed.is_(False),
+                    SavingsGoal.is_funded.is_(False),
+                    SavingsGoal.auto_sync.is_(True),
                     SavingsGoal.account_id.is_not(None),
                     or_(
                         SavingsGoal.user_id == user.id,
@@ -602,7 +602,7 @@ class SavingsGoalService:
                 and_(
                     Account.organization_id == user.organization_id,
                     Account.account_type.in_([AccountType.CHECKING, AccountType.SAVINGS]),
-                    Account.is_active.is_(True),  # noqa: E712
+                    Account.is_active.is_(True),
                 )
             )
             .order_by(Account.current_balance.desc())
@@ -681,7 +681,7 @@ class SavingsGoalService:
                             AccountType.MORTGAGE,
                         ]
                     ),
-                    Account.is_active.is_(True),  # noqa: E712
+                    Account.is_active.is_(True),
                 )
             )
         )

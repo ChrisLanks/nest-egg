@@ -104,7 +104,7 @@ class FinancialTemplatesService:
             select(func.lower(SavingsGoal.name)).where(
                 and_(
                     SavingsGoal.organization_id == org_id,
-                    SavingsGoal.is_completed == False,  # noqa: E712
+                    SavingsGoal.is_completed.is_(False),
                 )
             )
         )
@@ -115,7 +115,7 @@ class FinancialTemplatesService:
             select(func.lower(Rule.name)).where(
                 and_(
                     Rule.organization_id == org_id,
-                    Rule.is_active.is_(True),  # noqa: E712
+                    Rule.is_active.is_(True),
                 )
             )
         )
@@ -134,7 +134,7 @@ class FinancialTemplatesService:
             select(func.count(Budget.id)).where(
                 and_(
                     Budget.organization_id == org_id,
-                    Budget.is_active.is_(True),  # noqa: E712
+                    Budget.is_active.is_(True),
                 )
             )
         )

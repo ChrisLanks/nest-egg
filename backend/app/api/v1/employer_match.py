@@ -221,7 +221,7 @@ async def get_employer_match(
             and_(
                 Account.organization_id == org_id,
                 Account.account_type.in_(_EMPLOYER_PLAN_TYPES),
-                Account.is_active.is_(True),  # noqa: E712
+                Account.is_active.is_(True),
             )
         )
         .order_by(Account.name)
@@ -245,7 +245,7 @@ async def get_employer_match(
         select(AccountContribution).where(
             and_(
                 AccountContribution.account_id.in_(account_ids),
-                AccountContribution.is_active.is_(True),  # noqa: E712
+                AccountContribution.is_active.is_(True),
             )
         )
     )
@@ -344,7 +344,7 @@ async def get_salary_estimate(
 
     conditions = [
         Account.organization_id == org_id,
-        Account.is_active.is_(True),  # noqa: E712
+        Account.is_active.is_(True),
         Transaction.date >= cutoff,
         Transaction.amount > 0,
         Transaction.is_transfer.is_(False),

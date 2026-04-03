@@ -161,7 +161,7 @@ async def get_pension_model(
     conditions = [
         Account.organization_id == current_user.organization_id,
         Account.account_type.in_([t.value for t in _PENSION_TYPES]),
-        Account.is_active.is_(True),  # noqa: E712
+        Account.is_active.is_(True),
     ]
     if user_id:
         if user_id != str(current_user.id):

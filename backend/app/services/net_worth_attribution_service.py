@@ -101,7 +101,7 @@ class NetWorthAttributionService:
             Transaction.date >= first_day,
             Transaction.date <= last_day,
             Transaction.account_id.in_(account_ids),
-            Transaction.is_pending == False,
+            Transaction.is_pending.is_(False),
         )
         txn_result = await db.execute(txn_stmt)
         transactions = txn_result.scalars().all()
