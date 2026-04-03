@@ -4,13 +4,14 @@ import logging
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.financial import STRESS_TEST
 from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
+from app.services.rate_limit_service import rate_limit_service
 from app.services.stress_test_service import StressTestService
 
 logger = logging.getLogger(__name__)
@@ -42,12 +43,16 @@ async def list_scenarios(
     ),
 )
 async def run_scenario(
+    http_request: Request,
     scenario_key: str = Query(..., description="Scenario key (e.g. gfc_2008, dot_com_2000)"),
     user_id: Optional[UUID] = Query(None, description="Filter to a specific user (household member)"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Runs a single stress scenario against the portfolio."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=30, window_seconds=60, identifier=str(current_user.id)
+    )
     portfolio = await StressTestService.get_portfolio_composition(
         db=db,
         organization_id=current_user.organization_id,
@@ -68,11 +73,15 @@ async def run_scenario(
     ),
 )
 async def run_all_scenarios(
+    http_request: Request,
     user_id: Optional[UUID] = Query(None, description="Filter to a specific user (household member)"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Runs all stress scenarios against the portfolio, sorted worst to best."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=10, window_seconds=60, identifier=str(current_user.id)
+    )
     return await StressTestService.run_all_scenarios(
         db=db,
         organization_id=current_user.organization_id,

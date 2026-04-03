@@ -3,15 +3,17 @@
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.financial import LIQUIDITY
 from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import Account, AccountType
 from app.models.user import User
+from app.services.rate_limit_service import rate_limit_service
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +34,7 @@ _IMMEDIATE_TYPES = frozenset({
     AccountType.MONEY_MARKET,
 })
 
-_TARGET_MONTHS = 6.0
+_TARGET_MONTHS = LIQUIDITY.TARGET_EMERGENCY_FUND_MONTHS
 
 
 # ---------------------------------------------------------------------------
@@ -127,10 +129,11 @@ def _recommendations(
 
 @router.get("/liquidity", response_model=LiquidityDashboardResponse)
 async def get_liquidity_dashboard(
+    http_request: Request,
     monthly_spending: Optional[float] = Query(
         None,
         ge=0,
-        description="Monthly spending estimate (USD). Defaults to $5,000 if not provided.",
+        description="Monthly spending estimate (USD). Defaults to configured default if not provided.",
     ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -140,8 +143,14 @@ async def get_liquidity_dashboard(
     Queries checking, savings, money-market, and CD accounts. Grades
     the user's emergency fund coverage and provides targeted recommendations.
     """
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=20, window_seconds=60, identifier=str(current_user.id)
+    )
     spending_is_estimated = monthly_spending is None
-    effective_spending = monthly_spending if monthly_spending is not None else 5_000.0
+    effective_spending = (
+        monthly_spending if monthly_spending is not None
+        else LIQUIDITY.DEFAULT_MONTHLY_SPENDING_ESTIMATE
+    )
 
     result = await db.execute(
         select(Account).where(

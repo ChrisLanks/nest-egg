@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +17,7 @@ from app.models.account import Account, AccountType
 from app.models.pe_transaction import PETransaction, PETransactionType
 from app.models.user import User
 from app.services.pe_performance_service import compute_pe_metrics
+from app.services.rate_limit_service import rate_limit_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -56,10 +57,14 @@ class PEMetricsResponse(BaseModel):
 
 @router.get("/portfolio", summary="Aggregate PE metrics across all PE accounts")
 async def get_pe_portfolio(
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Aggregate PE performance across all PE/PD accounts."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=20, window_seconds=60, identifier=str(current_user.id)
+    )
     result = await db.execute(
         select(Account).where(
             and_(

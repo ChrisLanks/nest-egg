@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import Column, String, DateTime, ForeignKey, Numeric
+from sqlalchemy import Column, Index, String, DateTime, ForeignKey, Numeric
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -71,6 +71,16 @@ class Holding(Base):
     # Timestamps
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
     updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)
+
+    # Composite indexes for common hot-path queries
+    __table_args__ = (
+        # Price-refresh jobs: find all holdings for an org by ticker
+        Index("ix_holdings_org_ticker", "organization_id", "ticker"),
+        # Asset-type filtering in insights/rebalancing (e.g. stock vs ETF)
+        Index("ix_holdings_asset_type", "organization_id", "asset_type"),
+        # Sector analysis across large portfolios
+        Index("ix_holdings_sector", "organization_id", "sector"),
+    )
 
     # Relationships
     account = relationship("Account", back_populates="holdings")

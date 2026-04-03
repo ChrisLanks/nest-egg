@@ -87,4 +87,6 @@ class SavingsGoal(Base):
     __table_args__ = (
         Index("ix_savings_goals_org_active", "organization_id", "is_completed"),
         Index("ix_savings_goals_priority", "organization_id", "priority"),
+        # Upcoming-goal queries sort by target_date ASC NULLS LAST
+        Index("ix_savings_goals_org_target_date", "organization_id", "target_date"),
     )

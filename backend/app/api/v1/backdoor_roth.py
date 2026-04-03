@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +15,7 @@ from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import Account, AccountType
 from app.models.user import User
+from app.services.rate_limit_service import rate_limit_service
 from app.utils.account_type_groups import TRADITIONAL_IRA_TYPES, EMPLOYER_PLAN_TYPES
 
 router = APIRouter(tags=["Backdoor Roth"])
@@ -70,6 +71,7 @@ class BackdoorRothResponse(BaseModel):
 
 @router.get("/backdoor-roth-analysis", response_model=BackdoorRothResponse)
 async def get_backdoor_roth_analysis(
+    http_request: Request,
     filing_status: str = Query(default="single"),
     estimated_magi: Optional[float] = Query(default=None),
     user_id: Optional[str] = Query(default=None, description="Household member user ID; defaults to current user"),
@@ -77,6 +79,9 @@ async def get_backdoor_roth_analysis(
     db: AsyncSession = Depends(get_db),
 ):
     """Analyze backdoor Roth and mega backdoor Roth opportunities for this user."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=20, window_seconds=60, identifier=str(current_user.id)
+    )
     import uuid as _uuid
     today = datetime.date.today()
     tax_year = today.year

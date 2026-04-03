@@ -2,15 +2,17 @@
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.financial import PENSION_MODELER
 from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import Account, AccountType
 from app.models.user import User
+from app.services.rate_limit_service import rate_limit_service
 
 router = APIRouter()
 
@@ -78,18 +80,18 @@ def _analyze_pension(account: Account) -> PensionAnalysis:
     lifetime_value_20yr: Optional[float] = None
     lifetime_value_25yr: Optional[float] = None
     if monthly is not None:
-        lifetime_value_20yr = monthly * 12 * 20
-        lifetime_value_25yr = monthly * 12 * 25
+        lifetime_value_20yr = monthly * 12 * PENSION_MODELER.LIFETIME_VALUE_WINDOWS[0]
+        lifetime_value_25yr = monthly * 12 * PENSION_MODELER.LIFETIME_VALUE_WINDOWS[1]
 
     # Recommendation logic
     if break_even_years is not None:
-        if break_even_years < 15:
+        if break_even_years < PENSION_MODELER.BREAK_EVEN_ANNUITY_HURDLE_YEARS:
             recommendation = "Take annuity"
             recommendation_reason = (
                 f"Break-even at {break_even_years:.1f} years — the annuity pays off "
                 "quickly, making it the better choice for most retirees."
             )
-        elif break_even_years > 20:
+        elif break_even_years > PENSION_MODELER.BREAK_EVEN_LUMP_SUM_HURDLE_YEARS:
             recommendation = "Consider lump sum"
             recommendation_reason = (
                 f"Break-even at {break_even_years:.1f} years — investing a lump sum "
@@ -139,6 +141,7 @@ def _analyze_pension(account: Account) -> PensionAnalysis:
 
 @router.get("/pension-model", response_model=PensionModelerResponse)
 async def get_pension_model(
+    http_request: Request,
     user_id: Optional[str] = Query(default=None, description="Household member user ID; defaults to current user"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -149,6 +152,9 @@ async def get_pension_model(
     Returns break-even analysis, lifetime value estimates, and a plain-language
     recommendation for each pension account in the household.
     """
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=20, window_seconds=60, identifier=str(current_user.id)
+    )
     import uuid as _uuid
 
     # Resolve subject user

@@ -1235,6 +1235,38 @@ class SMART_INSIGHTS:
 
 
 # =========================================================================
+# LIQUIDITY / EMERGENCY FUND THRESHOLDS
+# =========================================================================
+
+
+class LIQUIDITY:
+    """Constants for liquidity dashboard and emergency fund analysis."""
+
+    # Target emergency fund coverage in months of expenses (common guideline: 3–6)
+    TARGET_EMERGENCY_FUND_MONTHS = 6.0
+
+    # Default monthly spending estimate used when user has no expense history
+    # (median US household monthly spending ~$4,800, conservatively rounded up)
+    DEFAULT_MONTHLY_SPENDING_ESTIMATE = 5_000.0
+
+
+# =========================================================================
+# PENSION MODELER THRESHOLDS
+# =========================================================================
+
+
+class PENSION_MODELER:
+    """Decision thresholds for lump-sum vs. annuity pension analysis."""
+
+    # Break-even < this many years → strongly favour annuity
+    BREAK_EVEN_ANNUITY_HURDLE_YEARS = 15
+    # Break-even > this many years → consider lump-sum investment instead
+    BREAK_EVEN_LUMP_SUM_HURDLE_YEARS = 20
+    # Year windows used to compute lifetime value totals
+    LIFETIME_VALUE_WINDOWS: List[int] = [20, 25]
+
+
+# =========================================================================
 # PORTFOLIO PRESETS
 # =========================================================================
 

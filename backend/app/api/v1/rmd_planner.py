@@ -4,7 +4,7 @@ import datetime
 from decimal import Decimal
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +15,7 @@ from app.dependencies import get_current_user
 from app.models.account import Account
 from app.models.user import User
 from app.utils.account_type_groups import RMD_ACCOUNT_TYPES
+from app.services.rate_limit_service import rate_limit_service
 from app.utils.rmd_calculator import calculate_rmd, requires_rmd
 
 router = APIRouter(tags=["RMD Planner"])
@@ -84,6 +85,7 @@ def _bracket_tax(income: float, filing_status: str, year: int) -> float:
 
 @router.get("/rmd-planner", response_model=RmdPlannerResponse)
 async def get_rmd_planner(
+    http_request: Request,
     projection_years: int = Query(default=20, ge=1, le=40),
     growth_rate: float = Query(default=0.06, ge=0.0, le=0.20),
     filing_status: str = Query(default="single"),
@@ -93,6 +95,9 @@ async def get_rmd_planner(
     db: AsyncSession = Depends(get_db),
 ):
     """Project annual RMDs across all pre-tax retirement accounts with tax impact."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=20, window_seconds=60, identifier=str(current_user.id)
+    )
     import uuid as _uuid
     today = datetime.date.today()
     current_year = today.year
