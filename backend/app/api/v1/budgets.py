@@ -1,9 +1,10 @@
 """Budget API endpoints."""
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db, verify_household_member
@@ -14,6 +15,11 @@ from app.schemas.budget import (
     BudgetSpendingResponse,
     BudgetUpdate,
 )
+
+
+class BudgetAlertsResponse(BaseModel):
+    alerts_created: int
+    budgets_alerted: List[Any]
 from app.services.budget_service import budget_service
 from app.services.budget_suggestion_service import budget_suggestion_service
 from app.services.input_sanitization_service import input_sanitization_service
@@ -272,11 +278,11 @@ async def get_budget_spending(
     return spending
 
 
-@router.post("/check-alerts")
+@router.post("/check-alerts", response_model=BudgetAlertsResponse)
 async def check_budget_alerts(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Check all budgets and create alerts for those exceeding threshold."""
     alerts = await budget_service.check_budget_alerts(db=db, user=current_user)
-    return {"alerts_created": len(alerts), "budgets_alerted": alerts}
+    return BudgetAlertsResponse(alerts_created=len(alerts), budgets_alerted=alerts)

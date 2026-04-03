@@ -2,7 +2,7 @@
 
 import datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
@@ -38,7 +38,7 @@ class BondLadderRequest(BaseModel):
     annual_income_needed: float = Field(0, ge=0, description="Desired annual income")
 
 
-@router.post("/plan")
+@router.post("/plan", response_model=Dict[str, Any])
 async def plan_bond_ladder(
     request: BondLadderRequest,
     current_user: User = Depends(get_current_user),

@@ -51,6 +51,11 @@ class RuleFromTemplateRequest(BaseModel):
     template: RuleTemplate
 
 
+class ApplyRuleResponse(BaseModel):
+    applied_count: int
+    message: str
+
+
 @router.get("/", response_model=List[RuleResponse])
 async def list_rules(
     current_user: User = Depends(get_current_user),
@@ -333,7 +338,7 @@ async def delete_rule(
     await db.commit()
 
 
-@router.post("/{rule_id}/apply")
+@router.post("/{rule_id}/apply", response_model=ApplyRuleResponse)
 async def apply_rule(
     rule_id: UUID,
     request_data: ApplyRuleRequest,
@@ -371,7 +376,7 @@ async def apply_rule(
     engine = RuleEngine(db)
     count = await engine.apply_rule_to_transactions(rule, request_data.transaction_ids)
 
-    return {"applied_count": count, "message": f"Applied rule to {count} transaction(s)"}
+    return ApplyRuleResponse(applied_count=count, message=f"Applied rule to {count} transaction(s)")
 
 
 @router.get("/{rule_id}/preview")

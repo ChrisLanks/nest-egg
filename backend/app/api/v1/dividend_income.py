@@ -6,6 +6,7 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -18,13 +19,27 @@ from app.models.dividend import IncomeType
 from app.models.user import User
 from app.schemas.dividend import (
     DividendIncomeCreate,
+    DividendIncomeResponse,
 )
 from app.services.dividend_detection_service import DividendDetectionService
 from app.services.dividend_income_service import DividendIncomeService
 from app.services.rate_limit_service import rate_limit_service
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+
+
+class DividendDetectResponse(BaseModel):
+    labeled_count: int
+
+
+async def _rate_limit(http_request: Request, current_user: User = Depends(get_current_user)):
+    """Shared rate-limit dependency for all endpoints in this module."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=30, window_seconds=60, identifier=str(current_user.id)
+    )
+
+
+router = APIRouter(dependencies=[Depends(_rate_limit)])
 
 
 @router.get("/summary")
@@ -82,7 +97,7 @@ async def list_dividend_income(
     return records
 
 
-@router.post("/", status_code=201)
+@router.post("/", status_code=201, response_model=DividendIncomeResponse)
 async def create_dividend_income(
     data: DividendIncomeCreate,
     db: AsyncSession = Depends(get_db),
@@ -99,7 +114,7 @@ async def create_dividend_income(
     return record
 
 
-@router.post("/detect", status_code=200)
+@router.post("/detect", status_code=200, response_model=DividendDetectResponse)
 async def detect_dividend_transactions(
     http_request: Request,
     user_id: Optional[UUID] = None,
@@ -132,7 +147,7 @@ async def detect_dividend_transactions(
         account_ids=account_ids,
     )
     await db.commit()
-    return {"labeled_count": count}
+    return DividendDetectResponse(labeled_count=count)
 
 
 @router.delete("/{record_id}", status_code=204)
