@@ -8,26 +8,29 @@
 
 import {
   Box,
+  Button,
   Card,
   CardBody,
   Heading,
   HStack,
-  Stat,
-  StatLabel,
-  StatNumber,
-  StatHelpText,
   Text,
   VStack,
   Badge,
   Divider,
   Tooltip,
   Select,
+  useToast,
 } from "@chakra-ui/react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { memo, useState } from "react";
 import { transactionSplitsApi } from "../../../api/transaction-splits";
 import { useHouseholdMembers } from "../../../hooks/useHouseholdMembers";
 import type { MemberBalance } from "../../../types/transaction-split";
+
+// Amounts within this band are treated as "even" — avoids noise from floating-
+// point rounding on small household splits. Mirrors SMART_INSIGHTS.SETTLEMENT_EVEN_BAND
+// in backend/app/constants/financial.py.
+const SETTLEMENT_EVEN_BAND = 0.005;
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", {
@@ -53,6 +56,9 @@ function sinceDate(period: string): string | undefined {
 
 const MemberSettlementWidgetBase: React.FC = () => {
   const [period, setPeriod] = useState("30d");
+  const [settlingId, setSettlingId] = useState<string | null>(null);
+  const toast = useToast();
+  const queryClient = useQueryClient();
 
   const { data: members = [] } = useHouseholdMembers();
 
@@ -61,6 +67,37 @@ const MemberSettlementWidgetBase: React.FC = () => {
     queryFn: () => transactionSplitsApi.getMemberBalances(sinceDate(period)),
     staleTime: 60_000,
   });
+
+  const settleMutation = useMutation({
+    mutationFn: ({ memberId }: { memberId: string }) =>
+      transactionSplitsApi.settleMember(memberId, sinceDate(period)),
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["member-balances"] });
+      toast({
+        title: "Settled",
+        description: `${data.settled_count} split(s) marked as settled.`,
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+      setSettlingId(null);
+    },
+    onError: () => {
+      toast({
+        title: "Settlement failed",
+        description: "Could not mark splits as settled. Please try again.",
+        status: "error",
+        duration: 4000,
+        isClosable: true,
+      });
+      setSettlingId(null);
+    },
+  });
+
+  const handleSettle = (memberId: string) => {
+    setSettlingId(memberId);
+    settleMutation.mutate({ memberId });
+  };
 
   // Only show widget when household has multiple members
   if (!isLoading && members.length < 2) return null;
@@ -94,8 +131,9 @@ const MemberSettlementWidgetBase: React.FC = () => {
           {balances.length > 0 && (
             <VStack align="stretch" spacing={2} divider={<Divider />}>
               {balances.map((b) => {
-                const owes = b.net_owed < -0.005; // member spent less than share
-                const owed = b.net_owed > 0.005;  // member spent more than share
+                const owes = b.net_owed < -SETTLEMENT_EVEN_BAND;
+                const owed = b.net_owed > SETTLEMENT_EVEN_BAND;
+                const isSettling = settlingId === b.member_id;
                 return (
                   <HStack key={b.member_id} justify="space-between" align="center">
                     <Box>
@@ -106,26 +144,41 @@ const MemberSettlementWidgetBase: React.FC = () => {
                         Total assigned: {fmt(b.total_assigned)}
                       </Text>
                     </Box>
-                    <Tooltip
-                      label={
-                        owes
-                          ? `${b.member_name} paid ${fmt(Math.abs(b.net_owed))} less than equal share`
-                          : owed
-                          ? `${b.member_name} paid ${fmt(b.net_owed)} more than equal share`
-                          : "Balanced"
-                      }
-                    >
-                      <Badge
-                        colorScheme={owes ? "red" : owed ? "green" : "gray"}
-                        fontSize="sm"
-                        px={2}
-                        py={1}
+                    <HStack spacing={2}>
+                      <Tooltip
+                        label={
+                          owes
+                            ? `${b.member_name} paid ${fmt(Math.abs(b.net_owed))} less than equal share`
+                            : owed
+                            ? `${b.member_name} paid ${fmt(b.net_owed)} more than equal share`
+                            : "Balanced"
+                        }
                       >
-                        {owes && `owes ${fmt(Math.abs(b.net_owed))}`}
-                        {owed && `+${fmt(b.net_owed)}`}
-                        {!owes && !owed && "even"}
-                      </Badge>
-                    </Tooltip>
+                        <Badge
+                          colorScheme={owes ? "red" : owed ? "green" : "gray"}
+                          fontSize="sm"
+                          px={2}
+                          py={1}
+                        >
+                          {owes && `owes ${fmt(Math.abs(b.net_owed))}`}
+                          {owed && `+${fmt(b.net_owed)}`}
+                          {!owes && !owed && "even"}
+                        </Badge>
+                      </Tooltip>
+                      {owes && (
+                        <Tooltip label={`Mark ${b.member_name}'s balance as settled`}>
+                          <Button
+                            size="xs"
+                            colorScheme="teal"
+                            variant="outline"
+                            isLoading={isSettling}
+                            onClick={() => handleSettle(b.member_id)}
+                          >
+                            Settle
+                          </Button>
+                        </Tooltip>
+                      )}
+                    </HStack>
                   </HStack>
                 );
               })}

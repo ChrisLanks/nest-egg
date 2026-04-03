@@ -1190,6 +1190,26 @@ class HEALTH:
 
 
 # =========================================================================
+# SMART INSIGHTS THRESHOLDS
+# =========================================================================
+
+
+class SMART_INSIGHTS:
+    """Thresholds used by SmartInsightsService to decide when to fire insights."""
+
+    # Expense-ratio above which a fund-fee insight fires (0.30 %)
+    FEE_DRAG_THRESHOLD = 0.003
+    # Single-position concentration above which an insight fires (10 %)
+    CONCENTRATION_THRESHOLD = 0.10
+    # Minimum portfolio value required before concentration insight fires ($)
+    CONCENTRATION_MIN_VALUE = 10_000
+
+    # Settlement balance: amounts within this band are treated as "even"
+    # (avoids noise from floating-point rounding on small household splits)
+    SETTLEMENT_EVEN_BAND = 0.005  # $0.005 — half a cent
+
+
+# =========================================================================
 # PORTFOLIO PRESETS
 # =========================================================================
 

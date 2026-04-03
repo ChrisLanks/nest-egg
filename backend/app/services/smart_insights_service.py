@@ -28,7 +28,7 @@ from uuid import UUID
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.constants.financial import CRYPTO_TAX, MEDICARE, RENTAL, RETIREMENT, TAX
+from app.constants.financial import CRYPTO_TAX, MEDICARE, RENTAL, RETIREMENT, SMART_INSIGHTS, TAX
 from app.models.account import Account, AccountType, RentalType
 from app.models.budget import Budget, BudgetPeriod
 from app.models.holding import Holding
@@ -163,12 +163,12 @@ class SmartInsightsService:
     _CASH_DRAG_MONTHS = 12
     # Minimum excess cash to flag (avoid noise on small accounts)
     _CASH_DRAG_MIN_EXCESS = 5_000
-    # Expense-ratio threshold above which fund-fee insight fires (0.30%)
-    _FEE_DRAG_THRESHOLD = 0.003
-    # Single-position concentration threshold (10 %)
-    _CONCENTRATION_THRESHOLD = 0.10
+    # Expense-ratio threshold above which fund-fee insight fires
+    _FEE_DRAG_THRESHOLD = SMART_INSIGHTS.FEE_DRAG_THRESHOLD
+    # Single-position concentration threshold
+    _CONCENTRATION_THRESHOLD = SMART_INSIGHTS.CONCENTRATION_THRESHOLD
     # Minimum portfolio value to evaluate concentration
-    _CONCENTRATION_MIN_VALUE = 10_000
+    _CONCENTRATION_MIN_VALUE = SMART_INSIGHTS.CONCENTRATION_MIN_VALUE
     # Age at which IRMAA warnings become relevant
     _IRMAA_AGE_THRESHOLD = 55
     # Distance from IRMAA tier boundary to trigger warning ($)

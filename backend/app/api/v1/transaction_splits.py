@@ -11,6 +11,8 @@ from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.transaction_split import (
     MemberBalanceResponse,
+    SettleRequest,
+    SettleResponse,
     TransactionSplitUpdate,
     TransactionSplitResponse,
     CreateSplitsRequest,
@@ -130,3 +132,38 @@ async def get_member_balances(
         since_date=since,
     )
     return balances
+
+
+@router.post("/settle", response_model=SettleResponse)
+async def settle_member_balance(
+    settle_request: SettleRequest,
+    http_request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Mark all unsettled splits assigned to a household member as settled.
+
+    Fires a SETTLEMENT_REMINDER notification to the member when settled by
+    another household member (e.g. admin confirming payment received).
+    """
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=60, window_seconds=3600, identifier=str(current_user.id)
+    )
+    from datetime import date as date_type
+
+    since_date = None
+    if settle_request.since:
+        try:
+            since_date = date_type.fromisoformat(settle_request.since)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid since date format; use YYYY-MM-DD")
+
+    count = await transaction_split_service.settle_member(
+        db=db,
+        member_id=settle_request.member_id,
+        organization_id=current_user.organization_id,
+        since_date=since_date,
+        settled_by=current_user,
+    )
+    return SettleResponse(settled_count=count)

@@ -7,8 +7,10 @@ from uuid import UUID
 from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.notification import NotificationPriority, NotificationType
 from app.models.transaction import Transaction, TransactionSplit
 from app.models.user import User
+from app.services.notification_service import NotificationService
 from app.utils.datetime_utils import utc_now
 
 
@@ -95,7 +97,34 @@ class TransactionSplitService:
         result = await db.execute(
             select(TransactionSplit).where(TransactionSplit.id.in_(split_ids))
         )
-        return list(result.scalars().all())
+        created = list(result.scalars().all())
+
+        # Notify each member who was assigned a split (fire-and-forget; never
+        # block the response if notification creation fails).
+        for split in created:
+            if split.assigned_user_id and split.assigned_user_id != user.id:
+                try:
+                    await NotificationService.create_notification(
+                        db=db,
+                        organization_id=user.organization_id,
+                        user_id=split.assigned_user_id,
+                        type=NotificationType.EXPENSE_SPLIT_ASSIGNED,
+                        title="Expense split assigned to you",
+                        message=(
+                            f"A transaction split of ${float(split.amount):,.2f} "
+                            "has been assigned to you."
+                        ),
+                        priority=NotificationPriority.NORMAL,
+                        related_entity_type="transaction_split",
+                        related_entity_id=split.id,
+                        action_url="/transactions",
+                        action_label="View Transactions",
+                        expires_in_days=30,
+                    )
+                except Exception:
+                    pass  # Notification failure must not break the split creation
+
+        return created
 
     @staticmethod
     async def get_transaction_splits(
@@ -279,6 +308,74 @@ class TransactionSplitService:
             }
             for r in rows
         ]
+
+
+    @staticmethod
+    async def settle_member(
+        db: AsyncSession,
+        member_id: UUID,
+        organization_id: UUID,
+        since_date=None,
+        settled_by: User = None,
+    ) -> int:
+        """
+        Mark all unsettled splits assigned to *member_id* as settled.
+
+        Returns the number of splits updated.
+        Fires a SETTLEMENT_REMINDER notification to the member if settled by
+        someone else (e.g. the household admin confirming payment was received).
+        """
+        conditions = [
+            TransactionSplit.organization_id == organization_id,
+            TransactionSplit.assigned_user_id == member_id,
+            TransactionSplit.settled_at.is_(None),
+        ]
+        if since_date is not None:
+            conditions.append(
+                TransactionSplit.parent_transaction_id.in_(
+                    select(Transaction.id).where(
+                        Transaction.organization_id == organization_id,
+                        Transaction.date >= since_date,
+                    )
+                )
+            )
+
+        result = await db.execute(
+            select(TransactionSplit).where(and_(*conditions))
+        )
+        splits = list(result.scalars().all())
+
+        now = utc_now()
+        for split in splits:
+            split.settled_at = now
+            split.updated_at = now
+
+        await db.commit()
+
+        # Notify the member that their balance has been marked settled
+        if splits and settled_by and settled_by.id != member_id:
+            try:
+                await NotificationService.create_notification(
+                    db=db,
+                    organization_id=organization_id,
+                    user_id=member_id,
+                    type=NotificationType.SETTLEMENT_REMINDER,
+                    title="Your balance has been marked as settled",
+                    message=(
+                        f"{settled_by.display_name or settled_by.email} marked "
+                        f"{len(splits)} split(s) as settled."
+                    ),
+                    priority=NotificationPriority.NORMAL,
+                    related_entity_type="transaction_split",
+                    related_entity_id=None,
+                    action_url="/transactions",
+                    action_label="View Transactions",
+                    expires_in_days=30,
+                )
+            except Exception:
+                pass
+
+        return len(splits)
 
 
 transaction_split_service = TransactionSplitService()

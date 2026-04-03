@@ -249,6 +249,9 @@ class TransactionSplit(Base):
         index=True,
     )
 
+    # Settlement — set when a household member marks their balance as settled
+    settled_at = Column(DateTime, nullable=True)
+
     # Timestamps
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
     updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)

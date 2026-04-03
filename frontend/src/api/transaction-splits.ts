@@ -55,4 +55,15 @@ export const transactionSplitsApi = {
     });
     return data;
   },
+
+  /**
+   * Mark all unsettled splits assigned to a member as settled.
+   */
+  settleMember: async (memberId: string, since?: string): Promise<{ settled_count: number }> => {
+    const { data } = await api.post<{ settled_count: number }>('/transaction-splits/settle', {
+      member_id: memberId,
+      since: since ?? null,
+    });
+    return data;
+  },
 };

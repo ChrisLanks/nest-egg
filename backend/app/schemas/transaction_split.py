@@ -43,6 +43,7 @@ class TransactionSplitResponse(TransactionSplitBase):
     id: UUID
     parent_transaction_id: UUID
     organization_id: UUID
+    settled_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 
@@ -57,3 +58,16 @@ class MemberBalanceResponse(BaseModel):
     member_name: str
     total_assigned: float  # sum of splits assigned to this member
     net_owed: float  # positive = this member owes the household; negative = household owes them
+
+
+class SettleRequest(BaseModel):
+    """Request body for POST /transaction-splits/settle."""
+
+    member_id: UUID
+    since: Optional[str] = None  # ISO date string YYYY-MM-DD; if omitted, all time
+
+
+class SettleResponse(BaseModel):
+    """Response for settlement action."""
+
+    settled_count: int
