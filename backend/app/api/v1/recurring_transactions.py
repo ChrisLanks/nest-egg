@@ -21,13 +21,36 @@ from app.schemas.recurring_transaction import (
     UpcomingBillResponse,
 )
 from app.services.input_sanitization_service import input_sanitization_service
+from app.services.rate_limit_service import rate_limit_service
 from app.services.recurring_detection_service import (
     RecurringDetectionService,
     recurring_detection_service,
 )
 from app.utils.datetime_utils import utc_now
 
-router = APIRouter()
+
+async def _rate_limit(http_request: Request, current_user: User = Depends(get_current_user)):
+    """Shared rate-limit dependency for all endpoints in this module."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=30, window_seconds=60, identifier=str(current_user.id)
+    )
+
+
+router = APIRouter(dependencies=[Depends(_rate_limit)])
+
+
+class DetectResponse(BaseModel):
+    detected_patterns: int
+    patterns: list
+
+
+class ApplyLabelResponse(BaseModel):
+    applied_count: int
+    label_id: str
+
+
+class PreviewLabelResponse(BaseModel):
+    matching_transactions: int
 
 
 class CalendarEntry(BaseModel):
@@ -90,7 +113,7 @@ def _expand_occurrences(
     return occurrences
 
 
-@router.post("/detect")
+@router.post("/detect", response_model=DetectResponse)
 async def detect_recurring_patterns(
     http_request: Request,
     min_occurrences: int = Query(3, ge=2, le=50),
@@ -100,8 +123,8 @@ async def detect_recurring_patterns(
     db: AsyncSession = Depends(get_db),
 ):
     """Auto-detect recurring transaction patterns."""
-    from app.services.rate_limit_service import rate_limit_service as _rls
-    await _rls.check_rate_limit(
+    # Tighter limit for this potentially expensive detection operation
+    await rate_limit_service.check_rate_limit(
         request=http_request,
         max_requests=10,
         window_seconds=60,
@@ -121,10 +144,10 @@ async def detect_recurring_patterns(
         account_ids=account_ids,
     )
 
-    return {
-        "detected_patterns": len(patterns),
-        "patterns": patterns,
-    }
+    return DetectResponse(
+        detected_patterns=len(patterns),
+        patterns=patterns,
+    )
 
 
 @router.post("/", response_model=RecurringTransactionResponse, status_code=201)
@@ -282,7 +305,7 @@ class ApplyLabelRequest(BaseModel):
     retroactive: bool = True
 
 
-@router.post("/{recurring_id}/apply-label")
+@router.post("/{recurring_id}/apply-label", response_model=ApplyLabelResponse)
 async def apply_label_to_recurring(
     recurring_id: UUID,
     body: ApplyLabelRequest,
@@ -328,10 +351,10 @@ async def apply_label_to_recurring(
 
     await db.commit()
     await db.refresh(pattern)
-    return {"applied_count": applied, "label_id": str(pattern.label_id)}
+    return ApplyLabelResponse(applied_count=applied, label_id=str(pattern.label_id))
 
 
-@router.get("/{recurring_id}/preview-label")
+@router.get("/{recurring_id}/preview-label", response_model=PreviewLabelResponse)
 async def preview_label_matches(
     recurring_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -359,7 +382,7 @@ async def preview_label_matches(
         merchant_name=pattern.merchant_name,
         account_id=pattern.account_id,
     )
-    return {"matching_transactions": count}
+    return PreviewLabelResponse(matching_transactions=count)
 
 
 @router.get("/bills/upcoming", response_model=List[UpcomingBillResponse])

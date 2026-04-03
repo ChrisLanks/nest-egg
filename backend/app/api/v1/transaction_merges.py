@@ -1,9 +1,10 @@
 """Transaction merges API endpoints."""
 
-from typing import List
+from typing import Any, Dict, List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db
@@ -13,12 +14,33 @@ from app.schemas.transaction_merge import (
     TransactionMergeResponse,
     DuplicateDetectionRequest,
 )
+from app.services.rate_limit_service import rate_limit_service
 from app.services.transaction_merge_service import transaction_merge_service
 
-router = APIRouter()
+
+class FindDuplicatesResponse(BaseModel):
+    transaction_id: UUID
+    potential_duplicates: List[Any]
+    count: int
 
 
-@router.post("/find-duplicates")
+class AutoDetectResponse(BaseModel):
+    dry_run: bool
+    matches_found: int
+    matches: List[Dict[str, Any]]
+
+
+async def _rate_limit(http_request: Request, current_user: User = Depends(get_current_user)):
+    """Shared rate-limit dependency for all endpoints in this module."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=30, window_seconds=60, identifier=str(current_user.id)
+    )
+
+
+router = APIRouter(dependencies=[Depends(_rate_limit)])
+
+
+@router.post("/find-duplicates", response_model=FindDuplicatesResponse)
 async def find_potential_duplicates(
     request: DuplicateDetectionRequest,
     current_user: User = Depends(get_current_user),
@@ -33,11 +55,11 @@ async def find_potential_duplicates(
         amount_tolerance=request.amount_tolerance,
     )
 
-    return {
-        "transaction_id": request.transaction_id,
-        "potential_duplicates": duplicates,
-        "count": len(duplicates),
-    }
+    return FindDuplicatesResponse(
+        transaction_id=request.transaction_id,
+        potential_duplicates=duplicates,
+        count=len(duplicates),
+    )
 
 
 @router.post("/", response_model=TransactionMergeResponse, status_code=201)
@@ -80,7 +102,7 @@ async def get_merge_history(
     return history
 
 
-@router.post("/auto-detect")
+@router.post("/auto-detect", response_model=AutoDetectResponse)
 async def auto_detect_and_merge_duplicates(
     http_request: Request,
     dry_run: bool = True,
@@ -93,8 +115,8 @@ async def auto_detect_and_merge_duplicates(
 
     Set dry_run=False to actually perform merges.
     """
-    from app.services.rate_limit_service import rate_limit_service as _rls
-    await _rls.check_rate_limit(
+    # Tighter limit for this potentially expensive auto-detect operation
+    await rate_limit_service.check_rate_limit(
         request=http_request,
         max_requests=5,
         window_seconds=60,
@@ -107,14 +129,14 @@ async def auto_detect_and_merge_duplicates(
         dry_run=dry_run,
     )
 
-    return {
-        "dry_run": dry_run,
-        "matches_found": len(matches),
-        "matches": [
+    return AutoDetectResponse(
+        dry_run=dry_run,
+        matches_found=len(matches),
+        matches=[
             {
                 "primary": match[0],
                 "duplicates": match[1],
             }
             for match in matches
         ],
-    }
+    )
