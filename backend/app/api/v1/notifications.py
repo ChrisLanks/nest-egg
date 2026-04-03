@@ -65,7 +65,7 @@ async def get_unread_count(
     return {"count": count}
 
 
-@router.get("/digest")
+@router.get("/digest", response_model=Dict[str, Any])
 async def get_household_digest(
     days: int = Query(default=7, ge=1, le=30),
     current_user: User = Depends(get_current_user),

@@ -2,7 +2,7 @@
 
 import logging
 from decimal import Decimal
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, Query, Request
 
@@ -24,7 +24,7 @@ async def _rate_limit(http_request: Request, current_user: User = Depends(get_cu
 router = APIRouter(tags=["Loan Modeling"], dependencies=[Depends(_rate_limit)])
 
 
-@router.get("/calculate")
+@router.get("/calculate", response_model=Dict[str, Any])
 async def calculate_loan(
     principal: float = Query(..., gt=0, description="Loan principal amount"),
     annual_rate: float = Query(..., ge=0, le=1, description="Annual interest rate as decimal (e.g. 0.065 for 6.5%)"),
@@ -65,7 +65,7 @@ async def calculate_loan(
     }
 
 
-@router.get("/amortization")
+@router.get("/amortization", response_model=Dict[str, Any])
 async def get_amortization_schedule(
     principal: float = Query(..., gt=0),
     annual_rate: float = Query(..., ge=0, le=1),
@@ -106,7 +106,7 @@ async def get_amortization_schedule(
     return {"schedule": annual, "months": schedule}
 
 
-@router.get("/buy-vs-lease")
+@router.get("/buy-vs-lease", response_model=Dict[str, Any])
 async def buy_vs_lease(
     vehicle_price: float = Query(..., gt=0),
     down_payment: float = Query(0.0, ge=0),

@@ -3,7 +3,7 @@
 import logging
 from datetime import date
 from decimal import Decimal
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -65,7 +65,7 @@ class PEMetricsResponse(BaseModel):
     transactions: List[PETransactionResponse]
 
 
-@router.get("/portfolio", summary="Aggregate PE metrics across all PE accounts")
+@router.get("/portfolio", summary="Aggregate PE metrics across all PE accounts", response_model=Dict[str, Any])
 async def get_pe_portfolio(
     http_request: Request,
     current_user: User = Depends(get_current_user),

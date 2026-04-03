@@ -10,12 +10,13 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.services.rate_limit_service import rate_limit_service
 from app.services.tax_advisor_service import TaxAdvisorService
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.get("/insights")
+@router.get("/insights", response_model=Dict[str, Any])
 async def get_tax_insights(
     http_request: Request,
     db: AsyncSession = Depends(get_db),

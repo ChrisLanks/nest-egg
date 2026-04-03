@@ -156,7 +156,7 @@ async def export_budgets_csv(
     )
 
 
-@router.get("/suggestions")
+@router.get("/suggestions", response_model=Dict[str, Any])
 async def get_budget_suggestions(
     user_id: Optional[UUID] = Query(None, description="Scope suggestions to a specific member"),
     current_user: User = Depends(get_current_user),
@@ -244,7 +244,7 @@ async def delete_budget(
         raise HTTPException(status_code=404, detail="Budget not found")
 
 
-@router.get("/{budget_id}/variance")
+@router.get("/{budget_id}/variance", response_model=Dict[str, Any])
 async def get_budget_variance(
     budget_id: UUID,
     current_user: User = Depends(get_current_user),

@@ -6,7 +6,7 @@ import re
 import secrets
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
@@ -2048,7 +2048,7 @@ async def get_rmd_summary(
         )
 
 
-@router.get("/roth-analysis")
+@router.get("/roth-analysis", response_model=Dict[str, Any])
 async def get_roth_analysis(
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = requester's own accounts"
@@ -2495,7 +2495,7 @@ async def get_fund_overlap(
     return result
 
 
-@router.get("/portfolio/allocation-history")
+@router.get("/portfolio/allocation-history", response_model=Dict[str, Any])
 async def get_allocation_history(
     months: int = Query(12, ge=1, le=60),
     user_id: Optional[UUID] = Query(None),

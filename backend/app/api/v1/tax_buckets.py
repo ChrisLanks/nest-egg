@@ -2,7 +2,7 @@
 Tax bucket analysis API endpoints.
 """
 from decimal import Decimal
-from typing import Optional
+from typing import Any, Dict, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -26,7 +26,7 @@ async def _rate_limit(http_request: Request, current_user: User = Depends(get_cu
 router = APIRouter(prefix="/tax-buckets", tags=["Tax Buckets"], dependencies=[Depends(_rate_limit)])
 
 
-@router.get("/summary")
+@router.get("/summary", response_model=Dict[str, Any])
 async def get_bucket_summary(
     user_id: Optional[UUID] = Query(None),
     db: AsyncSession = Depends(get_db),
@@ -39,7 +39,7 @@ async def get_bucket_summary(
     )
 
 
-@router.get("/rmd-projection")
+@router.get("/rmd-projection", response_model=Dict[str, Any])
 async def get_rmd_projection(
     pre_tax_balance: float = Query(..., ge=0, le=50_000_000),
     current_age: int = Query(..., ge=0, le=120),
@@ -53,7 +53,7 @@ async def get_rmd_projection(
     )
 
 
-@router.get("/roth-headroom")
+@router.get("/roth-headroom", response_model=Dict[str, Any])
 async def get_roth_headroom(
     current_income: float = Query(..., ge=0, le=10_000_000),
     filing_status: str = Query("single"),

@@ -196,7 +196,7 @@ async def get_rate_limit_dashboard(
     )
 
 
-@router.get("/system-stats")
+@router.get("/system-stats", response_model=Dict[str, Any])
 async def get_system_stats(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_admin_user),
@@ -258,7 +258,7 @@ async def get_system_stats(
     }
 
 
-@router.get("/circuit-breakers")
+@router.get("/circuit-breakers", response_model=Dict[str, Any])
 async def get_circuit_breaker_status(
     current_user: User = Depends(get_current_admin_user),
 ):
@@ -430,7 +430,7 @@ _ROPA = [
 ]
 
 
-@router.get("/data-processing-activities")
+@router.get("/data-processing-activities", response_model=Dict[str, Any])
 async def list_data_processing_activities(
     _admin: User = Depends(get_current_admin_user),
 ):
@@ -455,7 +455,7 @@ async def list_data_processing_activities(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/jobs")
+@router.get("/jobs", response_model=Dict[str, Any])
 async def get_active_jobs(
     current_user: User = Depends(get_current_admin_user),
 ):
@@ -534,7 +534,7 @@ async def get_active_jobs(
     }
 
 
-@router.get("/jobs/{task_id}")
+@router.get("/jobs/{task_id}", response_model=Dict[str, Any])
 async def get_job_status(
     task_id: str,
     current_user: User = Depends(get_current_admin_user),

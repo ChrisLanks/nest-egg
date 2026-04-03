@@ -3,7 +3,7 @@
 import logging
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Any, Dict, Optional
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Path, Query, Request, UploadFile
@@ -93,6 +93,7 @@ class HsaAttachmentResponse(BaseModel):
     "/contribution-headroom",
     summary="HSA contribution headroom",
     description="Returns remaining HSA contribution room for the year.",
+    response_model=Dict[str, Any],
 )
 async def get_contribution_headroom(
     is_family: bool = Query(False, description="True if enrolled in a family HDHP plan"),
@@ -118,6 +119,7 @@ async def get_contribution_headroom(
         "Projects HSA balance under two strategies: "
         "pay-as-you-go vs invest and pay medical expenses out-of-pocket."
     ),
+    response_model=Dict[str, Any],
 )
 async def get_hsa_projection(
     years: int = Query(20, ge=1, le=50, description="Projection horizon (years)"),
@@ -143,6 +145,7 @@ async def get_hsa_projection(
 @router.get(
     "/receipts",
     summary="List HSA receipts",
+    response_model=Dict[str, Any],
 )
 async def list_receipts(
     tax_year: Optional[int] = Query(None, description="Filter by tax year"),
@@ -273,6 +276,7 @@ async def update_receipt(
         "Aggregates transactions from HSA accounts for the current year. "
         "Returns ytd_contributions (positive amounts) and ytd_medical_expenses (absolute value of negatives)."
     ),
+    response_model=Dict[str, Any],
 )
 async def get_ytd_summary(
     year: Optional[int] = Query(None, description="Tax year (defaults to current year)"),

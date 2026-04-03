@@ -3,7 +3,7 @@
 import logging
 from datetime import date
 from decimal import Decimal
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
@@ -72,6 +72,7 @@ class EstateDocumentResponse(BaseModel):
     "/tax-exposure",
     summary="Federal estate tax exposure",
     description="Estimates federal estate tax above the exemption threshold.",
+    response_model=Dict[str, Any],
 )
 async def get_tax_exposure(
     net_worth: float = Query(..., description="Total net worth (USD)"),
@@ -89,6 +90,7 @@ async def get_tax_exposure(
     "/coverage-summary",
     summary="Beneficiary coverage summary",
     description="Returns what percentage of account value has a primary beneficiary.",
+    response_model=Dict[str, Any],
 )
 async def get_coverage_summary(
     current_user: User = Depends(get_current_user),
@@ -124,7 +126,7 @@ async def get_coverage_summary(
 # ── Beneficiary audit ────────────────────────────────────────────────────────
 
 
-@router.get("/beneficiary-audit", summary="Per-account beneficiary coverage audit")
+@router.get("/beneficiary-audit", summary="Per-account beneficiary coverage audit", response_model=Dict[str, Any])
 async def get_beneficiary_audit(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -239,7 +241,7 @@ async def get_beneficiary_audit(
 # ── Beneficiary CRUD ──────────────────────────────────────────────────────────
 
 
-@router.get("/beneficiaries", summary="List beneficiaries")
+@router.get("/beneficiaries", summary="List beneficiaries", response_model=Dict[str, Any])
 async def list_beneficiaries(
     account_id: Optional[UUID] = Query(None),
     current_user: User = Depends(get_current_user),
@@ -316,7 +318,7 @@ async def delete_beneficiary(
 # ── Estate documents ──────────────────────────────────────────────────────────
 
 
-@router.get("/documents", summary="List estate planning documents")
+@router.get("/documents", summary="List estate planning documents", response_model=Dict[str, Any])
 async def list_documents(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

@@ -37,7 +37,7 @@ async def generate_deduplication_hash(
     return hashlib.sha256(hash_input.encode()).hexdigest()[:16]
 
 
-@router.get("/debug-transactions")
+@router.get("/debug-transactions", response_model=Dict[str, Any])
 async def debug_transactions(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

@@ -2,7 +2,7 @@
 
 import logging
 from datetime import date
-from typing import Optional
+from typing import Any, Dict, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -42,7 +42,7 @@ async def _rate_limit(http_request: Request, current_user: User = Depends(get_cu
 router = APIRouter(dependencies=[Depends(_rate_limit)])
 
 
-@router.get("/summary")
+@router.get("/summary", response_model=Dict[str, Any])
 async def get_dividend_summary(
     user_id: Optional[UUID] = None,
     db: AsyncSession = Depends(get_db),
@@ -62,7 +62,7 @@ async def get_dividend_summary(
     )
 
 
-@router.get("/")
+@router.get("/", response_model=Dict[str, Any])
 async def list_dividend_income(
     account_id: Optional[UUID] = None,
     user_id: Optional[UUID] = None,

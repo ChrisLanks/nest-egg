@@ -2,7 +2,7 @@
 
 import logging
 from datetime import date
-from typing import Optional
+from typing import Any, Dict, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -30,7 +30,7 @@ async def _rate_limit(http_request: Request, current_user: User = Depends(get_cu
 router = APIRouter(dependencies=[Depends(_rate_limit)])
 
 
-@router.get("/net-worth-history")
+@router.get("/net-worth-history", response_model=Dict[str, Any])
 async def get_net_worth_history(
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
@@ -50,7 +50,7 @@ async def get_net_worth_history(
     )
 
 
-@router.get("/investment-performance")
+@router.get("/investment-performance", response_model=Dict[str, Any])
 async def get_investment_performance(
     user_id: Optional[UUID] = None,
     db: AsyncSession = Depends(get_db),
@@ -70,7 +70,7 @@ async def get_investment_performance(
     )
 
 
-@router.get("/spending-velocity")
+@router.get("/spending-velocity", response_model=Dict[str, Any])
 async def get_spending_velocity(
     months: int = Query(12, ge=3, le=60),
     user_id: Optional[UUID] = None,
@@ -88,7 +88,7 @@ async def get_spending_velocity(
     )
 
 
-@router.get("/cash-flow-history")
+@router.get("/cash-flow-history", response_model=Dict[str, Any])
 async def get_cash_flow_history(
     months: int = Query(12, ge=3, le=60),
     user_id: Optional[UUID] = None,
@@ -106,7 +106,7 @@ async def get_cash_flow_history(
     )
 
 
-@router.get("/investment-income-trend")
+@router.get("/investment-income-trend", response_model=Dict[str, Any])
 async def get_investment_income_trend(
     months: int = Query(24, ge=3, le=60),
     user_id: Optional[UUID] = None,

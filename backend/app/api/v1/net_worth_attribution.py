@@ -4,7 +4,7 @@ Explains monthly net worth changes by attributing them to:
 savings, investment contributions, debt paydown, and other flows.
 """
 
-from typing import Optional
+from typing import Any, Dict, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -27,7 +27,7 @@ async def _rate_limit(http_request: Request, current_user: User = Depends(get_cu
 router = APIRouter(dependencies=[Depends(_rate_limit)])
 
 
-@router.get("/monthly")
+@router.get("/monthly", response_model=Dict[str, Any])
 async def get_monthly_attribution(
     month: int = Query(..., ge=1, le=12, description="Month (1-12)"),
     year: int = Query(..., ge=2000, le=2100, description="Year"),
@@ -53,7 +53,7 @@ async def get_monthly_attribution(
     return result
 
 
-@router.get("/history")
+@router.get("/history", response_model=Dict[str, Any])
 async def get_attribution_history(
     months: int = Query(12, ge=1, le=60, description="Number of months of history to return"),
     user_id: Optional[UUID] = Query(None, description="Filter by user ID"),

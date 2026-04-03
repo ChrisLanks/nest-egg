@@ -11,6 +11,7 @@ from app.models.holding import Holding
 from app.models.user import User
 from app.services.financial_data_service import financial_data_service
 from app.services.rate_limit_service import rate_limit_service
+from typing import Any, Dict
 
 router = APIRouter()
 
@@ -75,7 +76,7 @@ async def enrich_holdings(
     )
 
 
-@router.get("/holdings/enrichment-status")
+@router.get("/holdings/enrichment-status", response_model=Dict[str, Any])
 async def get_enrichment_status(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),

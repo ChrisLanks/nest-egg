@@ -5,7 +5,7 @@ import io
 import logging
 import zipfile
 from datetime import date
-from typing import Any, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
@@ -969,7 +969,7 @@ async def check_email_configured():
     return {"configured": email_service.is_configured}
 
 
-@router.get("/financial-constants/variable-income")
+@router.get("/financial-constants/variable-income", response_model=Dict[str, Any])
 async def get_variable_income_constants():
     """Return IRS-sourced constants used by the Variable Income Planner.
 
@@ -990,7 +990,7 @@ async def get_variable_income_constants():
     }
 
 
-@router.get("/financial-constants/states", tags=["Settings"])
+@router.get("/financial-constants/states", tags=["Settings"], response_model=Dict[str, Any])
 async def get_state_list():
     """Return list of US states with their income tax rates.
 
@@ -1016,7 +1016,7 @@ async def get_state_list():
 # ── Financial defaults ─────────────────────────────────────────────────────
 
 
-@router.get("/financial-defaults")
+@router.get("/financial-defaults", response_model=Dict[str, Any])
 async def get_financial_defaults(
     current_user: User = Depends(get_current_user),
 ):

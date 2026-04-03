@@ -873,7 +873,7 @@ async def refresh_access_token(
         )
 
 
-@router.get("/verify-email")
+@router.get("/verify-email", response_model=Dict[str, Any])
 async def verify_email(
     request: Request,
     token: str = Query(..., description="Email verification token from the link"),

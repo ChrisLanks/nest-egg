@@ -2,7 +2,7 @@
 
 from datetime import date
 from decimal import Decimal
-from typing import Optional
+from typing import Any, Dict, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -45,7 +45,7 @@ class RentalFieldsResponse(BaseModel):
     rental_type: Optional[str] = None
 
 
-@router.get("")
+@router.get("", response_model=Dict[str, Any])
 async def list_rental_properties(
     user_id: Optional[UUID] = Query(None, description="Filter by user"),
     current_user: User = Depends(get_current_user),
@@ -63,7 +63,7 @@ async def list_rental_properties(
     return await service.get_rental_properties(current_user.organization_id, user_id)
 
 
-@router.get("/summary")
+@router.get("/summary", response_model=Dict[str, Any])
 async def get_properties_summary(
     year: int = Query(default=None, description="Year for P&L (defaults to current)"),
     user_id: Optional[UUID] = Query(None, description="Filter by user"),
@@ -86,7 +86,7 @@ async def get_properties_summary(
     return await service.get_all_properties_summary(current_user.organization_id, year, user_id)
 
 
-@router.get("/{account_id}/pnl")
+@router.get("/{account_id}/pnl", response_model=Dict[str, Any])
 async def get_property_pnl(
     account_id: UUID,
     year: int = Query(default=None, description="Year for P&L (defaults to current)"),

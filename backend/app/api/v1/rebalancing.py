@@ -2,7 +2,7 @@
 
 import uuid
 from decimal import Decimal
-from typing import List
+from typing import Any, Dict, List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -27,7 +27,7 @@ from app.services.rebalancing_service import PRESET_PORTFOLIOS, RebalancingServi
 router = APIRouter()
 
 
-@router.get("/presets")
+@router.get("/presets", response_model=Dict[str, Any])
 async def get_presets(
     current_user: User = Depends(get_current_user),
 ):

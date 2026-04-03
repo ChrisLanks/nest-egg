@@ -446,7 +446,7 @@ async def execute_report(
     return result
 
 
-@router.get("/templates/{template_id}/execute")
+@router.get("/templates/{template_id}/execute", response_model=Dict[str, Any])
 async def execute_saved_report(
     template_id: UUID,
     http_request: Request,
@@ -615,7 +615,7 @@ async def get_tax_loss_harvesting(
     )
 
 
-@router.get("/household-summary")
+@router.get("/household-summary", response_model=Dict[str, Any])
 async def get_household_summary(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

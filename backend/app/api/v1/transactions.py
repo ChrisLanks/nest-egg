@@ -8,7 +8,7 @@ import re
 from datetime import date, datetime
 from decimal import Decimal
 from io import StringIO
-from typing import Optional
+from typing import Any, Dict, Optional
 from uuid import UUID, uuid4
 
 logger = logging.getLogger(__name__)
@@ -547,7 +547,7 @@ async def list_transactions(
     return response
 
 
-@router.get("/merchants")
+@router.get("/merchants", response_model=Dict[str, Any])
 async def get_merchant_names(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

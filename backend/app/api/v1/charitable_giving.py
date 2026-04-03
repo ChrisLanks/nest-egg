@@ -3,7 +3,7 @@
 import datetime
 import logging
 from decimal import Decimal
-from typing import Optional
+from typing import Any, Dict, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -37,7 +37,7 @@ QCD_ANNUAL_LIMIT = QCD.QCD_MAX_ANNUAL  # Year-resolved from constants
 QCD_AGE_THRESHOLD = 70  # age 70.5 — we check >= 70 as a proxy
 
 
-@router.get("/labels")
+@router.get("/labels", response_model=Dict[str, Any])
 async def list_charitable_labels(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -55,7 +55,7 @@ async def list_charitable_labels(
     ]
 
 
-@router.get("/donations")
+@router.get("/donations", response_model=Dict[str, Any])
 async def get_donations(
     label_ids: Optional[str] = Query(None, description="Comma-separated label UUIDs to filter on"),
     year: Optional[int] = Query(None),
@@ -111,7 +111,7 @@ async def get_donations(
     }
 
 
-@router.get("/bunching-analysis")
+@router.get("/bunching-analysis", response_model=Dict[str, Any])
 async def bunching_analysis(
     annual_giving: float = Query(..., gt=0, description="Expected annual charitable giving"),
     marginal_rate: float = Query(..., ge=0, le=1, description="Marginal federal tax rate as decimal"),
@@ -154,7 +154,7 @@ async def bunching_analysis(
     }
 
 
-@router.get("/qcd-opportunity")
+@router.get("/qcd-opportunity", response_model=Dict[str, Any])
 async def qcd_opportunity(
     user_id: Optional[UUID] = Query(None),
     current_user: User = Depends(get_current_user),

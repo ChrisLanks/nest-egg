@@ -624,7 +624,7 @@ async def disconnect_account(
         raise HTTPException(status_code=500, detail="Disconnect failed")
 
 
-@router.get("/providers")
+@router.get("/providers", response_model=Dict[str, Any])
 async def list_providers(
     current_user: User = Depends(get_current_user),
 ):

@@ -379,7 +379,7 @@ async def apply_rule(
     return ApplyRuleResponse(applied_count=count, message=f"Applied rule to {count} transaction(s)")
 
 
-@router.get("/{rule_id}/preview")
+@router.get("/{rule_id}/preview", response_model=Dict[str, Any])
 async def preview_rule(
     rule_id: UUID,
     current_user: User = Depends(get_current_user),

@@ -67,7 +67,7 @@ async def plan_bond_ladder(
     return result
 
 
-@router.get("/rates")
+@router.get("/rates", response_model=Dict[str, Any])
 async def get_ladder_rates(
     current_user: User = Depends(get_current_user),
 ):

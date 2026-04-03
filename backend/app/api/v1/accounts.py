@@ -5,7 +5,7 @@ import logging
 import re
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -1005,7 +1005,7 @@ async def get_migration_history(
     )
 
 
-@router.get("/{account_id}/reconciliation")
+@router.get("/{account_id}/reconciliation", response_model=Dict[str, Any])
 async def get_account_reconciliation(
     account_id: UUID,
     account: Account = Depends(get_verified_account),
