@@ -73,6 +73,24 @@ class InvitationResponse(BaseModel):
         from_attributes = True
 
 
+class ResendInvitationResponse(BaseModel):
+    id: str
+    email: str
+    expires_at: datetime
+    join_url: str
+
+
+class LeaveHouseholdResponse(BaseModel):
+    message: str
+
+
+class InvitationDetailsResponse(BaseModel):
+    email: str
+    invited_by_name: str
+    status: InvitationStatus
+    expires_at: datetime
+
+
 @router.get("/members", response_model=List[HouseholdMember])
 async def list_household_members(
     current_user: User = Depends(get_current_user),
@@ -467,7 +485,7 @@ async def cancel_invitation(
     return None
 
 
-@router.post("/invitations/{invitation_id}/resend", status_code=status.HTTP_200_OK)
+@router.post("/invitations/{invitation_id}/resend", status_code=status.HTTP_200_OK, response_model=ResendInvitationResponse)
 async def resend_invitation(
     invitation_id: UUID,
     http_request: Request,
@@ -533,7 +551,7 @@ async def resend_invitation(
     }
 
 
-@router.post("/leave", status_code=status.HTTP_200_OK)
+@router.post("/leave", status_code=status.HTTP_200_OK, response_model=LeaveHouseholdResponse)
 async def leave_household(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -693,7 +711,7 @@ async def leave_household(
     }
 
 
-@router.get("/invitation/{invitation_code}")
+@router.get("/invitation/{invitation_code}", response_model=InvitationDetailsResponse)
 async def get_invitation_details(
     invitation_code: str,
     request: Request,

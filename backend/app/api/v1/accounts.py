@@ -84,6 +84,34 @@ class BulkVisibilityUpdate(BaseModel):
     is_active: bool
 
 
+class BulkCountResponse(BaseModel):
+    """Generic response for bulk operations returning a count."""
+
+    updated_count: Optional[int] = None
+    deleted_count: Optional[int] = None
+
+
+class ValuationProvidersResponse(BaseModel):
+    """Available valuation providers by asset type."""
+
+    property: List[str]
+    vehicle: List[str]
+
+
+class ValuationResultResponse(BaseModel):
+    """Result of an auto-valuation refresh."""
+
+    id: str
+    raw_value: float
+    new_value: float
+    adjustment_pct: Optional[float]
+    provider: str
+    low: Optional[float]
+    high: Optional[float]
+    last_auto_valued_at: str
+    vin_info: Optional[dict]
+
+
 router = APIRouter()
 
 # Initialize deduplication service
@@ -305,7 +333,7 @@ async def export_accounts_csv(
     )
 
 
-@router.get("/valuation-providers")
+@router.get("/valuation-providers", response_model=ValuationProvidersResponse)
 async def get_valuation_providers(
     current_user: User = Depends(get_current_user),
 ):
@@ -482,7 +510,7 @@ async def create_manual_account(
     return account
 
 
-@router.patch("/bulk-visibility")
+@router.patch("/bulk-visibility", response_model=BulkCountResponse)
 async def bulk_update_visibility(
     request: BulkVisibilityUpdate,
     http_request: Request,
@@ -675,7 +703,7 @@ async def update_account(
     return account
 
 
-@router.post("/{account_id}/refresh-valuation")
+@router.post("/{account_id}/refresh-valuation", response_model=ValuationResultResponse)
 async def refresh_account_valuation(
     account_id: UUID,
     http_request: Request,
@@ -835,7 +863,7 @@ async def refresh_account_valuation(
 _BULK_DELETE_MAX = 500
 
 
-@router.post("/bulk-delete")
+@router.post("/bulk-delete", response_model=BulkCountResponse)
 async def bulk_delete_accounts(
     account_ids: List[UUID],
     http_request: Request,

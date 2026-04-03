@@ -117,6 +117,24 @@ class DashboardLayoutUpdate(BaseModel):
     layout: List[DashboardWidget] = Field(..., max_length=30)
 
 
+class PasswordChangeResponse(BaseModel):
+    """Response for a successful password change."""
+
+    message: str
+
+
+class EmailNotificationsResponse(BaseModel):
+    """Response for email notifications toggle."""
+
+    email_notifications_enabled: bool
+
+
+class EmailConfiguredResponse(BaseModel):
+    """Response indicating whether SMTP email is configured."""
+
+    configured: bool
+
+
 class ChangePasswordRequest(BaseModel):
     """Request to change password."""
 
@@ -345,7 +363,7 @@ async def update_dashboard_layout(
     return Response(status_code=204)
 
 
-@router.post("/profile/change-password")
+@router.post("/profile/change-password", response_model=PasswordChangeResponse)
 async def change_password(
     password_data: ChangePasswordRequest,
     http_request: Request,
@@ -889,7 +907,7 @@ async def delete_account(
     return Response(status_code=204)
 
 
-@router.patch("/email-notifications")
+@router.patch("/email-notifications", response_model=EmailNotificationsResponse)
 async def update_email_notifications(
     enabled: bool,
     current_user: User = Depends(get_current_user),
@@ -945,7 +963,7 @@ async def update_notification_preferences(
     )
 
 
-@router.get("/email-configured")
+@router.get("/email-configured", response_model=EmailConfiguredResponse)
 async def check_email_configured():
     """Check if email (SMTP) is configured."""
     return {"configured": email_service.is_configured}
