@@ -48,6 +48,7 @@ import { ContributionHeadroomWidget } from "./widgets/ContributionHeadroomWidget
 import { WithholdingCheckWidget } from "./widgets/WithholdingCheckWidget";
 import { NetWorthAttributionWidget } from "./widgets/NetWorthAttributionWidget";
 import { RebalancingWidget } from "./widgets/RebalancingWidget";
+import { MemberSettlementWidget } from "./widgets/MemberSettlementWidget";
 import type { LayoutItem, WidgetDefinition } from "./types";
 
 export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
@@ -397,6 +398,14 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
       "Shows drift from your target allocation and which trades would bring you back on track.",
     defaultSpan: 1,
     component: RebalancingWidget,
+  },
+  "member-settlement": {
+    id: "member-settlement",
+    title: "Member Settlement",
+    description:
+      "Track who paid what from split transactions and see who owes whom across household members.",
+    defaultSpan: 1,
+    component: MemberSettlementWidget,
   },
 };
 

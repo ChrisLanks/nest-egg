@@ -14,6 +14,7 @@ class TransactionSplitBase(BaseModel):
     amount: Decimal = Field(gt=0)
     description: Optional[str] = None
     category_id: Optional[UUID] = None
+    assigned_user_id: Optional[UUID] = None
 
 
 class TransactionSplitCreate(TransactionSplitBase):
@@ -33,6 +34,7 @@ class TransactionSplitUpdate(BaseModel):
     amount: Optional[Decimal] = Field(None, gt=0)
     description: Optional[str] = None
     category_id: Optional[UUID] = None
+    assigned_user_id: Optional[UUID] = None
 
 
 class TransactionSplitResponse(TransactionSplitBase):
@@ -46,3 +48,12 @@ class TransactionSplitResponse(TransactionSplitBase):
 
     class Config:
         from_attributes = True
+
+
+class MemberBalanceResponse(BaseModel):
+    """Settlement balance between two household members."""
+
+    member_id: UUID
+    member_name: str
+    total_assigned: float  # sum of splits assigned to this member
+    net_owed: float  # positive = this member owes the household; negative = household owes them

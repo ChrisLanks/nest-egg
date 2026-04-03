@@ -79,6 +79,7 @@ class TransactionSplitService:
                 amount=Decimal(str(split_data["amount"])),
                 description=split_data.get("description"),
                 category_id=split_data.get("category_id"),
+                assigned_user_id=split_data.get("assigned_user_id"),
             )
             db.add(split)
             splits.append(split)
@@ -159,6 +160,7 @@ class TransactionSplitService:
         amount: Optional[Decimal] = None,
         description: Optional[str] = None,
         category_id: Optional[UUID] = None,
+        assigned_user_id: Optional[UUID] = None,
         user: User = None,
     ) -> Optional[TransactionSplit]:
         """Update a single split."""
@@ -180,6 +182,8 @@ class TransactionSplitService:
             split.description = description
         if category_id is not None:
             split.category_id = category_id
+        if assigned_user_id is not None:
+            split.assigned_user_id = assigned_user_id
 
         split.updated_at = utc_now()
 
@@ -211,6 +215,70 @@ class TransactionSplitService:
         await db.refresh(split)
 
         return split
+
+    @staticmethod
+    async def get_member_balances(
+        db: AsyncSession,
+        organization_id: UUID,
+        since_date=None,
+    ) -> List[dict]:
+        """
+        Return per-member expense totals from assigned splits.
+
+        Each entry: {member_id, member_name, total_assigned, net_owed}
+        net_owed = total_assigned - their_fair_share (fair share = total / member_count).
+        Positive net_owed means the member spent more than their share (household owes them).
+        Negative net_owed means they underpaid (they owe the household).
+        """
+        conditions = [
+            TransactionSplit.organization_id == organization_id,
+            TransactionSplit.assigned_user_id.isnot(None),
+        ]
+        if since_date is not None:
+            conditions.append(
+                TransactionSplit.parent_transaction_id.in_(
+                    select(Transaction.id).where(
+                        Transaction.organization_id == organization_id,
+                        Transaction.date >= since_date,
+                    )
+                )
+            )
+
+        # Sum splits per assigned member
+        agg_result = await db.execute(
+            select(
+                TransactionSplit.assigned_user_id,
+                func.sum(TransactionSplit.amount).label("total"),
+            )
+            .where(and_(*conditions))
+            .group_by(TransactionSplit.assigned_user_id)
+        )
+        rows = agg_result.all()
+
+        if not rows:
+            return []
+
+        user_ids = [r.assigned_user_id for r in rows]
+        users_result = await db.execute(
+            select(User.id, User.display_name, User.email).where(
+                User.id.in_(user_ids)
+            )
+        )
+        users_map = {u.id: (u.display_name or u.email or str(u.id)) for u in users_result.all()}
+
+        total_all = sum(float(r.total) for r in rows)
+        member_count = len(rows)
+        fair_share = total_all / member_count if member_count else 0.0
+
+        return [
+            {
+                "member_id": r.assigned_user_id,
+                "member_name": users_map.get(r.assigned_user_id, str(r.assigned_user_id)),
+                "total_assigned": float(r.total),
+                "net_owed": float(r.total) - fair_share,
+            }
+            for r in rows
+        ]
 
 
 transaction_split_service = TransactionSplitService()

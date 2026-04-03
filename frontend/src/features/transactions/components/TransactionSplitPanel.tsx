@@ -2,7 +2,9 @@
  * TransactionSplitPanel — view and edit splits for a transaction.
  *
  * A "split" breaks a single transaction into labelled sub-amounts that still
- * sum to the parent transaction's absolute value.
+ * sum to the parent transaction's absolute value.  Each split can optionally
+ * be assigned to a household member so per-member settlement balances can be
+ * computed.
  */
 
 import {
@@ -21,6 +23,7 @@ import {
   Badge,
   NumberInput,
   NumberInputField,
+  Select,
 } from "@chakra-ui/react";
 import { DeleteIcon, AddIcon } from "@chakra-ui/icons";
 import { useState } from "react";
@@ -28,6 +31,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Transaction } from "../../../types/transaction";
 import type { TransactionSplit } from "../../../types/transaction-split";
 import { transactionSplitsApi } from "../../../api/transaction-splits";
+import { useHouseholdMembers } from "../../../hooks/useHouseholdMembers";
 
 // ── Pure validation logic (also exported for tests) ──────────────────────────
 
@@ -53,9 +57,10 @@ export function areSplitAmountsPositive(amounts: number[]): boolean {
 interface SplitRow {
   amount: string; // string so the NumberInput can be partially typed
   description: string;
+  assigned_user_id: string; // "" = unassigned
 }
 
-const DEFAULT_ROW: SplitRow = { amount: "", description: "" };
+const DEFAULT_ROW: SplitRow = { amount: "", description: "", assigned_user_id: "" };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -70,9 +75,10 @@ function formatAmount(n: number) {
 
 interface ExistingSplitsListProps {
   splits: TransactionSplit[];
+  memberNames: Record<string, string>;
 }
 
-function ExistingSplitsList({ splits }: ExistingSplitsListProps) {
+function ExistingSplitsList({ splits, memberNames }: ExistingSplitsListProps) {
   return (
     <VStack align="stretch" spacing={2}>
       {splits.map((split, idx) => (
@@ -96,6 +102,11 @@ function ExistingSplitsList({ splits }: ExistingSplitsListProps) {
               {split.description && (
                 <Text fontSize="xs" color="text.muted">
                   {split.description}
+                </Text>
+              )}
+              {split.assigned_user_id && (
+                <Text fontSize="xs" color="brand.600" fontWeight="medium">
+                  {memberNames[split.assigned_user_id] ?? "Member"}
                 </Text>
               )}
             </VStack>
@@ -135,6 +146,12 @@ export const TransactionSplitPanel = ({
     queryFn: () => transactionSplitsApi.getByTransaction(transaction.id),
   });
 
+  const { data: members = [] } = useHouseholdMembers();
+
+  const memberNames: Record<string, string> = Object.fromEntries(
+    members.map((m) => [m.id, m.display_name || m.first_name || m.email])
+  );
+
   // ── Mutations ───────────────────────────────────────────────────────────────
 
   const createMutation = useMutation({
@@ -145,6 +162,7 @@ export const TransactionSplitPanel = ({
           amount: Math.abs(parseFloat(r.amount)),
           description: r.description.trim() || null,
           category_id: null,
+          assigned_user_id: r.assigned_user_id || null,
         }));
       return transactionSplitsApi.create({
         transaction_id: transaction.id,
@@ -155,6 +173,7 @@ export const TransactionSplitPanel = ({
       queryClient.invalidateQueries({
         queryKey: ["transaction-splits", transaction.id],
       });
+      queryClient.invalidateQueries({ queryKey: ["member-balances"] });
       setIsEditing(false);
     },
   });
@@ -165,6 +184,7 @@ export const TransactionSplitPanel = ({
       queryClient.invalidateQueries({
         queryKey: ["transaction-splits", transaction.id],
       });
+      queryClient.invalidateQueries({ queryKey: ["member-balances"] });
     },
   });
 
@@ -204,6 +224,14 @@ export const TransactionSplitPanel = ({
     setRows((prev) => {
       const next = [...prev];
       next[idx] = { ...next[idx], description: value };
+      return next;
+    });
+  };
+
+  const handleMemberChange = (idx: number, value: string) => {
+    setRows((prev) => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], assigned_user_id: value };
       return next;
     });
   };
@@ -278,7 +306,7 @@ export const TransactionSplitPanel = ({
 
       {/* Existing splits (read-only view) */}
       {hasSplits && !isEditing && (
-        <ExistingSplitsList splits={splits} />
+        <ExistingSplitsList splits={splits} memberNames={memberNames} />
       )}
 
       {/* Prompt to add splits when none exist */}
@@ -327,7 +355,7 @@ export const TransactionSplitPanel = ({
                 min={0.01}
                 precision={2}
                 size="sm"
-                maxW="120px"
+                maxW="110px"
               >
                 <NumberInputField placeholder="0.00" />
               </NumberInput>
@@ -335,11 +363,28 @@ export const TransactionSplitPanel = ({
               {/* Description */}
               <Input
                 size="sm"
-                placeholder="Description (optional)"
+                placeholder="Description"
                 value={row.description}
                 onChange={(e) => handleDescriptionChange(idx, e.target.value)}
                 flex={1}
               />
+
+              {/* Member assignment */}
+              {members.length > 1 && (
+                <Select
+                  size="sm"
+                  maxW="140px"
+                  value={row.assigned_user_id}
+                  onChange={(e) => handleMemberChange(idx, e.target.value)}
+                  placeholder="Assign to…"
+                >
+                  {members.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.display_name || m.first_name || m.email}
+                    </option>
+                  ))}
+                </Select>
+              )}
 
               {/* Delete row */}
               <IconButton

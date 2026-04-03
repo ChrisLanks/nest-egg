@@ -327,6 +327,31 @@ export const HouseholdSettingsPage: React.FC = () => {
     updateOrgMutation.mutate({ monthly_start_day: monthlyStartDay });
   };
 
+  // Resend invitation mutation
+  const resendInvitationMutation = useMutation({
+    mutationFn: async (invitationId: string) => {
+      const response = await api.post(`/household/invitations/${invitationId}/resend`);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Invitation resent",
+        description: `A new invitation has been sent to ${data.email}.`,
+        status: "success",
+        duration: 4000,
+      });
+      queryClient.invalidateQueries({ queryKey: ["household-invitations"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to resend invitation",
+        description: getErrorMessage(error),
+        status: "error",
+        duration: 5000,
+      });
+    },
+  });
+
   // Cancel invitation mutation
   const cancelInvitationMutation = useMutation({
     mutationFn: async (invitationId: string) => {
@@ -764,6 +789,22 @@ export const HouseholdSettingsPage: React.FC = () => {
                         <Td textAlign="right">
                           <HStack spacing={1} justify="flex-end">
                             <CopyLinkButton url={invitation.join_url} />
+                            {user?.is_org_admin && (
+                              <Button
+                                size="xs"
+                                colorScheme="brand"
+                                variant="ghost"
+                                onClick={() =>
+                                  resendInvitationMutation.mutate(invitation.id)
+                                }
+                                isLoading={
+                                  resendInvitationMutation.isPending &&
+                                  resendInvitationMutation.variables === invitation.id
+                                }
+                              >
+                                Resend
+                              </Button>
+                            )}
                             {user?.is_org_admin && (
                               <Button
                                 size="xs"

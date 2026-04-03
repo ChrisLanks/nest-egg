@@ -1,14 +1,16 @@
 """Transaction splits API endpoints."""
 
-from typing import List
+from datetime import date
+from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.transaction_split import (
+    MemberBalanceResponse,
     TransactionSplitUpdate,
     TransactionSplitResponse,
     CreateSplitsRequest,
@@ -109,3 +111,22 @@ async def delete_transaction_splits(
 
     if not success:
         raise HTTPException(status_code=404, detail="Transaction not found")
+
+
+@router.get("/member-balances", response_model=List[MemberBalanceResponse])
+async def get_member_balances(
+    since: Optional[date] = Query(None, description="Only include splits from this date onward."),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Return per-member expense totals derived from assigned transaction splits.
+
+    Useful for household settlement: shows who has paid how much and who owes whom.
+    """
+    balances = await transaction_split_service.get_member_balances(
+        db=db,
+        organization_id=current_user.organization_id,
+        since_date=since,
+    )
+    return balances

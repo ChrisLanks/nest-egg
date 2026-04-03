@@ -452,6 +452,72 @@ async def cancel_invitation(
     return None
 
 
+@router.post("/invitations/{invitation_id}/resend", status_code=status.HTTP_200_OK)
+async def resend_invitation(
+    invitation_id: UUID,
+    http_request: Request,
+    current_user: User = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Resend (and refresh) a pending invitation.
+
+    Generates a new invitation code and extends the expiry by 7 days, then
+    re-sends the invitation email.  Only admins can resend invitations.
+    """
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=10,
+        window_seconds=3600,
+        identifier=str(current_user.id),
+    )
+
+    result = await db.execute(
+        select(HouseholdInvitation).where(
+            HouseholdInvitation.id == invitation_id,
+            HouseholdInvitation.organization_id == current_user.organization_id,
+        )
+    )
+    invitation = result.scalar_one_or_none()
+
+    if not invitation:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found")
+
+    if invitation.status != InvitationStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only pending invitations can be resent",
+        )
+
+    # Refresh code and expiry
+    invitation.invitation_code = secrets.token_urlsafe(32)
+    invitation.expires_at = utc_now() + timedelta(days=7)
+    await db.commit()
+    await db.refresh(invitation)
+
+    join_url = f"{settings.APP_BASE_URL}/accept-invite?code={invitation.invitation_code}"
+
+    org_result = await db.execute(
+        select(Organization).where(Organization.id == current_user.organization_id)
+    )
+    org = org_result.scalar_one_or_none()
+    org_name = org.name if org else "your household"
+
+    await email_service.send_invitation_email(
+        to_email=invitation.email,
+        invitation_code=invitation.invitation_code,
+        invited_by=current_user.display_name or current_user.email,
+        org_name=org_name,
+    )
+
+    return {
+        "id": str(invitation.id),
+        "email": invitation.email,
+        "expires_at": invitation.expires_at,
+        "join_url": join_url,
+    }
+
+
 @router.post("/leave", status_code=status.HTTP_200_OK)
 async def leave_household(
     current_user: User = Depends(get_current_user),

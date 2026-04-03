@@ -9,6 +9,7 @@ export interface TransactionSplit {
   amount: number;
   description: string | null;
   category_id: string | null;
+  assigned_user_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -17,6 +18,7 @@ export interface TransactionSplitCreate {
   amount: number;
   description?: string | null;
   category_id?: string | null;
+  assigned_user_id?: string | null;
 }
 
 export interface CreateSplitsRequest {
@@ -28,4 +30,12 @@ export interface TransactionSplitUpdate {
   amount?: number;
   description?: string | null;
   category_id?: string | null;
+  assigned_user_id?: string | null;
+}
+
+export interface MemberBalance {
+  member_id: string;
+  member_name: string;
+  total_assigned: number;
+  net_owed: number;
 }

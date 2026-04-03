@@ -241,6 +241,14 @@ class TransactionSplit(Base):
         UUID(as_uuid=True), ForeignKey("categories.id", ondelete="SET NULL"), nullable=True
     )
 
+    # Member assignment — which household member "owns" this portion of the expense
+    assigned_user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     # Timestamps
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
     updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)
@@ -248,6 +256,7 @@ class TransactionSplit(Base):
     # Relationships
     parent_transaction = relationship("Transaction", back_populates="splits")
     category = relationship("Category")
+    assigned_user = relationship("User", foreign_keys=[assigned_user_id])
 
 
 # Export the table for use in queries (many-to-many joins)

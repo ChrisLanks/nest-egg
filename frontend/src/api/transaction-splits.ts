@@ -4,6 +4,7 @@
 
 import api from '../services/api';
 import type {
+  MemberBalance,
   TransactionSplit,
   CreateSplitsRequest,
   TransactionSplitUpdate,
@@ -41,5 +42,17 @@ export const transactionSplitsApi = {
    */
   delete: async (transactionId: string): Promise<void> => {
     await api.delete(`/transaction-splits/transaction/${transactionId}`);
+  },
+
+  /**
+   * Get per-member settlement balances derived from assigned splits.
+   * since: optional ISO date string (YYYY-MM-DD) to filter from.
+   */
+  getMemberBalances: async (since?: string): Promise<MemberBalance[]> => {
+    const params = since ? { since } : {};
+    const { data } = await api.get<MemberBalance[]>('/transaction-splits/member-balances', {
+      params,
+    });
+    return data;
   },
 };
