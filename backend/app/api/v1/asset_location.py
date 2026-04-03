@@ -164,7 +164,7 @@ async def get_asset_location(
     conditions = [
         Holding.organization_id == current_user.organization_id,
         Account.organization_id == current_user.organization_id,
-        Account.is_active == True,  # noqa: E712
+        Account.is_active.is_(True),  # noqa: E712
     ]
     if subject_user_id:
         conditions.append(Account.user_id == subject_user_id)

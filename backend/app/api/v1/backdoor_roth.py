@@ -111,7 +111,7 @@ async def get_backdoor_roth_analysis(
             Account.organization_id == current_user.organization_id,
             Account.user_id == subject_user.id,
             Account.account_type.in_(list(TRADITIONAL_IRA_TYPES)),
-            Account.is_active == True,
+            Account.is_active.is_(True),
         )
     )
     ira_accounts = ira_result.scalars().all()
@@ -122,7 +122,7 @@ async def get_backdoor_roth_analysis(
             Account.organization_id == current_user.organization_id,
             Account.user_id == subject_user.id,
             Account.account_type.in_(list(EMPLOYER_PLAN_TYPES)),
-            Account.is_active == True,
+            Account.is_active.is_(True),
         )
     )
     k401_accounts = k401_result.scalars().all()

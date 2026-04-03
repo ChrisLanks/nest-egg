@@ -48,7 +48,7 @@ async def _sum_balances(db: AsyncSession, org_id, account_types: list) -> float:
             and_(
                 Account.organization_id == org_id,
                 Account.account_type.in_(account_types),
-                Account.is_active == True,  # noqa: E712
+                Account.is_active.is_(True),  # noqa: E712
             )
         )
     )
@@ -105,7 +105,7 @@ async def calculator_prefill(
             select(func.coalesce(func.sum(AccountContribution.amount), 0)).where(
                 and_(
                     AccountContribution.organization_id == org_id,
-                    AccountContribution.is_active == True,  # noqa: E712
+                    AccountContribution.is_active.is_(True),  # noqa: E712
                 )
             )
         )
@@ -118,7 +118,7 @@ async def calculator_prefill(
                 and_(
                     Account.organization_id == org_id,
                     Account.account_type.in_(_401K_TYPES),
-                    Account.is_active == True,  # noqa: E712
+                    Account.is_active.is_(True),  # noqa: E712
                 )
             )
         )

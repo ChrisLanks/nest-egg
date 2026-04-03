@@ -268,7 +268,7 @@ async def _build_education_section(db: AsyncSession, org_id) -> dict:
             and_(
                 Account.organization_id == org_id,
                 Account.account_type == _AccountType.RETIREMENT_529,
-                Account.is_active == True,  # noqa: E712
+                Account.is_active.is_(True),  # noqa: E712
             )
         )
     )
@@ -321,7 +321,7 @@ async def _build_debt_section(db: AsyncSession, org_id) -> dict:
             and_(
                 Account.organization_id == org_id,
                 Account.account_type.in_(debt_types),
-                Account.is_active == True,  # noqa: E712
+                Account.is_active.is_(True),  # noqa: E712
             )
         )
     )
@@ -415,7 +415,7 @@ async def _build_insurance_section(db: AsyncSession, org_id, net_worth: float) -
         select(InsurancePolicy).where(
             and_(
                 InsurancePolicy.household_id == org_id,
-                InsurancePolicy.is_active == True,  # noqa: E712
+                InsurancePolicy.is_active.is_(True),  # noqa: E712
             )
         )
     )
@@ -445,7 +445,7 @@ async def _build_insurance_section(db: AsyncSession, org_id, net_worth: float) -
         ).where(
             and_(
                 Account.organization_id == org_id,
-                Account.is_active == True,  # noqa: E712
+                Account.is_active.is_(True),  # noqa: E712
                 _TxIns.date >= _12m_ago,
                 _TxIns.amount > 0,  # income = positive transaction
                 _TxIns.is_transfer.is_(False),
@@ -524,7 +524,7 @@ async def _build_emergency_fund_section(db: AsyncSession, org_id) -> dict:
             and_(
                 Account.organization_id == org_id,
                 Account.account_type.in_([AccountType.CHECKING, AccountType.SAVINGS, AccountType.MONEY_MARKET, AccountType.CASH]),
-                Account.is_active == True,  # noqa: E712
+                Account.is_active.is_(True),  # noqa: E712
             )
         )
     )
@@ -541,7 +541,7 @@ async def _build_emergency_fund_section(db: AsyncSession, org_id) -> dict:
         ).where(
             and_(
                 Account.organization_id == org_id,
-                Account.is_active == True,  # noqa: E712
+                Account.is_active.is_(True),  # noqa: E712
                 Transaction.date >= _start,
                 Transaction.amount < 0,
                 Transaction.is_transfer.is_(False),

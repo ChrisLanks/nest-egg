@@ -127,7 +127,7 @@ async def get_rmd_planner(
             Account.organization_id == current_user.organization_id,
             Account.user_id == subject_user.id,
             Account.account_type.in_(list(RMD_ACCOUNT_TYPES)),
-            Account.is_active == True,
+            Account.is_active.is_(True),
         )
     )
     accounts = result.scalars().all()

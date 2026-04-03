@@ -602,7 +602,7 @@ class SavingsGoalService:
                 and_(
                     Account.organization_id == user.organization_id,
                     Account.account_type.in_([AccountType.CHECKING, AccountType.SAVINGS]),
-                    Account.is_active == True,  # noqa: E712
+                    Account.is_active.is_(True),  # noqa: E712
                 )
             )
             .order_by(Account.current_balance.desc())
@@ -681,7 +681,7 @@ class SavingsGoalService:
                             AccountType.MORTGAGE,
                         ]
                     ),
-                    Account.is_active == True,  # noqa: E712
+                    Account.is_active.is_(True),  # noqa: E712
                 )
             )
         )

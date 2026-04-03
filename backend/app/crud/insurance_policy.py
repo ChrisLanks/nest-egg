@@ -25,7 +25,7 @@ class InsurancePolicyCRUD:
     ) -> List[InsurancePolicy]:
         conditions = [InsurancePolicy.household_id == household_id]
         if active_only:
-            conditions.append(InsurancePolicy.is_active == True)  # noqa: E712
+            conditions.append(InsurancePolicy.is_active.is_(True))  # noqa: E712
         result = await db.execute(
             select(InsurancePolicy)
             .where(and_(*conditions))

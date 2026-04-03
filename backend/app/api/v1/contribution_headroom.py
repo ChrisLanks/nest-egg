@@ -140,7 +140,7 @@ async def get_contribution_headroom(
     user_result = await db.execute(
         select(User).where(
             User.organization_id == current_user.organization_id,
-            User.is_active == True,
+            User.is_active.is_(True),
         )
     )
     members = user_result.scalars().all()
@@ -159,7 +159,7 @@ async def get_contribution_headroom(
                 Account.organization_id == current_user.organization_id,
                 Account.user_id == member.id,
                 Account.account_type.in_(list(_LIMIT_TYPES)),
-                Account.is_active == True,
+                Account.is_active.is_(True),
             )
         )
         accts = acct_result.scalars().all()
@@ -173,7 +173,7 @@ async def get_contribution_headroom(
             contrib_result = await db.execute(
                 select(AccountContribution).where(
                     AccountContribution.account_id == acct.id,
-                    AccountContribution.is_active == True,
+                    AccountContribution.is_active.is_(True),
                 )
             )
             contribs = contrib_result.scalars().all()

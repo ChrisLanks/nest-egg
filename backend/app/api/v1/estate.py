@@ -100,7 +100,7 @@ async def get_coverage_summary(
     acct_result = await db.execute(
         select(Account).where(
             Account.organization_id == current_user.organization_id,
-            Account.is_active == True,
+            Account.is_active.is_(True),
         )
     )
     accounts = acct_result.scalars().all()
@@ -135,7 +135,7 @@ async def get_beneficiary_audit(
     acct_result = await db.execute(
         select(Account).where(
             Account.organization_id == current_user.organization_id,
-            Account.is_active == True,
+            Account.is_active.is_(True),
         )
     )
     accounts = acct_result.scalars().all()
@@ -432,7 +432,7 @@ async def get_beneficiary_audit(
     acct_result = await db.execute(
         select(Account).where(
             Account.organization_id == current_user.organization_id,
-            Account.is_active == True,
+            Account.is_active.is_(True),
         )
     )
     all_accounts = acct_result.scalars().all()

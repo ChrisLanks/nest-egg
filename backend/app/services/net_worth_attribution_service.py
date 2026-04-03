@@ -83,7 +83,7 @@ class NetWorthAttributionService:
         # Get all accounts
         acct_stmt = select(Account).where(
             Account.organization_id == organization_id,
-            Account.is_active == True,
+            Account.is_active.is_(True),
         )
         if user_id:
             acct_stmt = acct_stmt.where(Account.user_id == user_id)

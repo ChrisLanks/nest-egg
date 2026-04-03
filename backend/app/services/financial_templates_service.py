@@ -115,7 +115,7 @@ class FinancialTemplatesService:
             select(func.lower(Rule.name)).where(
                 and_(
                     Rule.organization_id == org_id,
-                    Rule.is_active == True,  # noqa: E712
+                    Rule.is_active.is_(True),  # noqa: E712
                 )
             )
         )
@@ -134,7 +134,7 @@ class FinancialTemplatesService:
             select(func.count(Budget.id)).where(
                 and_(
                     Budget.organization_id == org_id,
-                    Budget.is_active == True,  # noqa: E712
+                    Budget.is_active.is_(True),  # noqa: E712
                 )
             )
         )

@@ -70,7 +70,7 @@ async def get_pe_portfolio(
             and_(
                 Account.organization_id == current_user.organization_id,
                 Account.account_type.in_([AccountType.PRIVATE_EQUITY, AccountType.PRIVATE_DEBT]),
-                Account.is_active == True,  # noqa: E712
+                Account.is_active.is_(True),  # noqa: E712
             )
         )
     )

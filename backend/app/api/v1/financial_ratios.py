@@ -217,7 +217,7 @@ async def get_financial_ratios(
             and_(
                 Account.organization_id == org_id,
                 Account.account_type.in_(_LIQUID_TYPES),
-                Account.is_active == True,  # noqa: E712
+                Account.is_active.is_(True),  # noqa: E712
             )
         )
     )
@@ -230,7 +230,7 @@ async def get_financial_ratios(
             and_(
                 Account.organization_id == org_id,
                 Account.account_type.in_(_DEBT_TYPES),
-                Account.is_active == True,  # noqa: E712
+                Account.is_active.is_(True),  # noqa: E712
             )
         )
     )
@@ -242,7 +242,7 @@ async def get_financial_ratios(
             and_(
                 Account.organization_id == org_id,
                 Account.account_type.in_(_DEBT_TYPES),
-                Account.is_active == True,  # noqa: E712
+                Account.is_active.is_(True),  # noqa: E712
             )
         )
     )
@@ -254,7 +254,7 @@ async def get_financial_ratios(
             and_(
                 Account.organization_id == org_id,
                 Account.account_type.in_(_MORTGAGE_TYPES),
-                Account.is_active == True,  # noqa: E712
+                Account.is_active.is_(True),  # noqa: E712
             )
         )
     )

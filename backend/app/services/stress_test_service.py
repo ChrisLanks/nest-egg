@@ -86,7 +86,7 @@ class StressTestService:
             .join(Account, Holding.account_id == Account.id)
             .where(
                 Account.organization_id == organization_id,
-                Account.is_active == True,
+                Account.is_active.is_(True),
             )
         )
         if user_id:
@@ -125,7 +125,7 @@ class StressTestService:
 
         balance_stmt = select(Account).where(
             Account.organization_id == organization_id,
-            Account.is_active == True,
+            Account.is_active.is_(True),
             cast(Account.account_type, String).in_(
                 [t.name for t in INVESTMENT_ACCOUNT_TYPES]
             ),

@@ -156,7 +156,7 @@ async def get_liquidity_dashboard(
         select(Account).where(
             Account.organization_id == current_user.organization_id,
             Account.account_type.in_(list(_LIQUID_TYPES)),
-            Account.is_active == True,  # noqa: E712
+            Account.is_active.is_(True),  # noqa: E712
         )
     )
     raw_accounts = result.scalars().all()

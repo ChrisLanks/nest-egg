@@ -39,7 +39,7 @@ class RetirementPlannerService:
             select(User.id)
             .where(
                 User.organization_id == organization_id,
-                User.is_active == True,  # noqa: E712
+                User.is_active.is_(True),  # noqa: E712
             )
             .order_by(User.id)
         )

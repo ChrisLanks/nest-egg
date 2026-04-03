@@ -38,7 +38,7 @@ class EducationPlanningService:
             and_(
                 Account.organization_id == organization_id,
                 Account.account_type == AccountType.RETIREMENT_529,
-                Account.is_active == True,  # noqa: E712
+                Account.is_active.is_(True),  # noqa: E712
             )
         )
         if user_id:
@@ -56,7 +56,7 @@ class EducationPlanningService:
                     and_(
                         AccountContribution.account_id == acct.id,
                         AccountContribution.organization_id == organization_id,
-                        AccountContribution.is_active == True,  # noqa: E712
+                        AccountContribution.is_active.is_(True),  # noqa: E712
                     )
                 )
                 .order_by(AccountContribution.created_at.desc())

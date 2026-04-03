@@ -30,7 +30,7 @@ class TaxBucketService:
         # Build query
         stmt = select(Account).where(
             Account.organization_id == organization_id,
-            Account.is_active == True,
+            Account.is_active.is_(True),
         )
         if user_id:
             stmt = stmt.where(Account.user_id == user_id)
