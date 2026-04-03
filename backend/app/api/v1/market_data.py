@@ -8,7 +8,7 @@ import logging
 import re
 from datetime import date
 from decimal import Decimal
-from typing import List, Optional
+from typing import Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -106,6 +106,27 @@ class ProviderInfo(BaseModel):
     rate_limits: dict
 
 
+class HoldingRefreshResponse(BaseModel):
+    """Response for a single holding price refresh."""
+
+    id: str
+    symbol: str
+    shares: float
+    cost_basis: float
+    current_price: float
+    current_value: float
+    total_gain: float
+    provider: str
+
+
+class HoldingRefreshAllResponse(BaseModel):
+    """Response for bulk holding price refresh."""
+
+    updated: int
+    total: int
+    provider: str
+
+
 # ============================================================================
 # Helpers
 # ============================================================================
@@ -165,7 +186,7 @@ async def get_quote(
 MAX_BATCH_SYMBOLS = 50
 
 
-@router.post("/quote/batch", response_model=dict)
+@router.post("/quote/batch", response_model=Dict[str, QuoteResponse])
 async def get_quotes_batch(
     symbols: List[str],
     provider: Optional[str] = Query(None),
@@ -193,7 +214,7 @@ async def get_quotes_batch(
         return {
             symbol: QuoteResponse(
                 **quote.model_dump(), provider=market_data.get_provider_name()
-            ).model_dump()
+            )
             for symbol, quote in quotes.items()
         }
 
@@ -268,7 +289,7 @@ async def get_provider_info(
     )
 
 
-@router.post("/holdings/{holding_id}/refresh-price")
+@router.post("/holdings/{holding_id}/refresh-price", response_model=HoldingRefreshResponse)
 async def refresh_holding_price(
     holding_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -332,7 +353,7 @@ async def refresh_holding_price(
         raise HTTPException(status_code=500, detail="Failed to refresh price")
 
 
-@router.post("/holdings/refresh-all")
+@router.post("/holdings/refresh-all", response_model=HoldingRefreshAllResponse)
 async def refresh_all_holdings(
     user_id: Optional[UUID] = Query(None, description="Filter by user within organization"),
     db: AsyncSession = Depends(get_db),
@@ -360,7 +381,7 @@ async def refresh_all_holdings(
     holdings = result.scalars().all()
 
     if not holdings:
-        return {"updated": 0, "message": "No holdings to update"}
+        return HoldingRefreshAllResponse(updated=0, total=0, provider="none")
 
     # Get unique symbols
     symbols = list(set(h.ticker for h in holdings))

@@ -2,9 +2,10 @@
 
 import logging
 from decimal import Decimal
-from typing import Optional
+from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
+from pydantic import BaseModel
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,9 +14,26 @@ from app.dependencies import get_current_user
 from app.models.account import Account, AccountType
 from app.models.contribution import AccountContribution
 from app.models.user import User
+from app.services.rate_limit_service import rate_limit_service
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+
+
+async def _rate_limit(http_request: Request, current_user: User = Depends(get_current_user)):
+    """Shared rate-limit dependency for calculator prefill endpoint."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=30, window_seconds=60, identifier=str(current_user.id)
+    )
+
+
+router = APIRouter(dependencies=[Depends(_rate_limit)])
+
+
+class PrefillResponse(BaseModel):
+    calculator: str
+    prefilled: bool
+    values: Dict[str, Any]
+    note: str
 
 _IRA_TYPES = [AccountType.RETIREMENT_IRA, AccountType.RETIREMENT_SEP_IRA, AccountType.RETIREMENT_SIMPLE_IRA]
 _401K_TYPES = [AccountType.RETIREMENT_401K, AccountType.RETIREMENT_403B, AccountType.RETIREMENT_457B]
@@ -37,7 +55,7 @@ async def _sum_balances(db: AsyncSession, org_id, account_types: list) -> float:
     return float(result.scalar() or 0)
 
 
-@router.get("/prefill")
+@router.get("/prefill", response_model=PrefillResponse)
 async def calculator_prefill(
     calculator: str = Query(..., description="roth_conversion, capital_gains, or contribution_headroom"),
     current_user: User = Depends(get_current_user),

@@ -3,7 +3,7 @@
 import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,8 +13,17 @@ from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import Account, AccountType
 from app.models.user import User
+from app.services.rate_limit_service import rate_limit_service
 
-router = APIRouter(tags=["Tax-Equivalent Yield"])
+
+async def _rate_limit(http_request: Request, current_user: User = Depends(get_current_user)):
+    """Shared rate-limit dependency for tax-equivalent yield endpoint."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=20, window_seconds=60, identifier=str(current_user.id)
+    )
+
+
+router = APIRouter(tags=["Tax-Equivalent Yield"], dependencies=[Depends(_rate_limit)])
 
 # Account types that carry an interest rate / yield
 _YIELD_ACCOUNT_TYPES = frozenset({
