@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.crud.dependent import dependent_crud
 from app.dependencies import get_current_user
+from app.services.input_sanitization_service import input_sanitization_service
 from app.services.rate_limit_service import rate_limit_service
 from app.models.user import User
 
@@ -97,10 +98,14 @@ async def create_dependent(
     db: AsyncSession = Depends(get_db),
 ):
     """Add a dependent to the household."""
+    data = body.model_dump(exclude_none=True)
+    for field in ("first_name", "relationship", "notes"):
+        if data.get(field):
+            data[field] = input_sanitization_service.sanitize_html(data[field])
     dep = await dependent_crud.create(
         db,
         household_id=current_user.organization_id,
-        **body.model_dump(exclude_none=True),
+        **data,
     )
     return DependentResponse(
         id=dep.id,
@@ -127,7 +132,11 @@ async def update_dependent(
     dep = await dependent_crud.get_by_id(db, dependent_id)
     if not dep or dep.household_id != current_user.organization_id:
         raise HTTPException(status_code=404, detail="Dependent not found")
-    dep = await dependent_crud.update(db, dep, **body.model_dump(exclude_none=True))
+    data = body.model_dump(exclude_none=True)
+    for field in ("first_name", "relationship", "notes"):
+        if data.get(field):
+            data[field] = input_sanitization_service.sanitize_html(data[field])
+    dep = await dependent_crud.update(db, dep, **data)
     return DependentResponse(
         id=dep.id,
         household_id=dep.household_id,

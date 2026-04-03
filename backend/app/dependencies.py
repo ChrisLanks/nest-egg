@@ -302,6 +302,7 @@ async def get_verified_account(
         select(Account).where(
             Account.id == account_id,
             Account.organization_id == current_user.organization_id,
+            Account.is_active.is_(True),
         )
     )
     account = result.scalar_one_or_none()

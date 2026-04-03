@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.crud.insurance_policy import insurance_policy_crud
 from app.dependencies import get_current_user
+from app.services.input_sanitization_service import input_sanitization_service
 from app.services.rate_limit_service import rate_limit_service
 from app.models.insurance_policy import PolicyType
 from app.models.user import User
@@ -134,10 +135,14 @@ async def create_insurance_policy(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new insurance policy."""
+    data = body.model_dump(exclude_none=True)
+    for field in ("provider", "policy_number", "beneficiary_name", "notes"):
+        if data.get(field):
+            data[field] = input_sanitization_service.sanitize_html(data[field])
     policy = await insurance_policy_crud.create(
         db,
         household_id=current_user.organization_id,
-        **body.model_dump(exclude_none=True),
+        **data,
     )
     return InsurancePolicyResponse(
         id=policy.id,
@@ -169,9 +174,11 @@ async def update_insurance_policy(
     policy = await insurance_policy_crud.get_by_id(db, policy_id)
     if not policy or policy.household_id != current_user.organization_id:
         raise HTTPException(status_code=404, detail="Policy not found")
-    policy = await insurance_policy_crud.update(
-        db, policy, **body.model_dump(exclude_none=True)
-    )
+    data = body.model_dump(exclude_none=True)
+    for field in ("provider", "policy_number", "beneficiary_name", "notes"):
+        if data.get(field):
+            data[field] = input_sanitization_service.sanitize_html(data[field])
+    policy = await insurance_policy_crud.update(db, policy, **data)
     return InsurancePolicyResponse(
         id=policy.id,
         household_id=policy.household_id,
