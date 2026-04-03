@@ -101,7 +101,7 @@ async def initialize_tax_labels(
     return labels
 
 
-@router.get("/tax-deductible", response_model=Dict[str, Any])
+@router.get("/tax-deductible", response_model=List[Any])
 async def get_tax_deductible_transactions(
     start_date: date = Query(..., description="Start date for tax period (e.g., 2024-01-01)"),
     end_date: date = Query(..., description="End date for tax period (e.g., 2024-12-31)"),
