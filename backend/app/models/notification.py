@@ -115,6 +115,10 @@ class Notification(Base):
         Index("ix_notifications_org_created", "organization_id", "created_at"),
         Index("ix_notifications_user_is_read", "user_id", "is_read"),
         Index("ix_notifications_org_dismissed", "organization_id", "is_dismissed"),
+        # Covering index for the most-common dashboard query:
+        # "give me unread notifications for this user, newest first"
+        # Avoids a separate is_read filter pass after the user_id lookup.
+        Index("ix_notifications_user_unread_created", "user_id", "is_read", "created_at"),
     )
 
     # Relationships

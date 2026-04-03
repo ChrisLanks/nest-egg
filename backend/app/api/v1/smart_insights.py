@@ -25,7 +25,7 @@ from datetime import date
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -46,6 +46,7 @@ from app.services.smart_insights_service import (
     TRADITIONAL_RETIREMENT_TYPES,
     SmartInsightsService,
 )
+from app.services.rate_limit_service import rate_limit_service
 from app.utils.rmd_calculator import calculate_age
 
 logger = logging.getLogger(__name__)
@@ -224,6 +225,7 @@ async def _get_account_balances(
 
 @router.get("", response_model=SmartInsightsResponse)
 async def get_smart_insights(
+    http_request: Request,
     user_id: Optional[UUID] = Query(
         None, description="Filter to a specific household member. None = household view."
     ),
@@ -239,6 +241,9 @@ async def get_smart_insights(
 
     The ``has_*`` flags drive frontend navigation visibility decisions.
     """
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=30, window_seconds=60, identifier=str(current_user.id)
+    )
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
 
@@ -266,6 +271,7 @@ async def get_smart_insights(
 
 @router.get("/roth-conversion", response_model=RothConversionResponse)
 async def get_roth_conversion(
+    http_request: Request,
     user_id: Optional[UUID] = Query(None),
     current_income: float = Query(
         ...,
@@ -291,6 +297,9 @@ async def get_roth_conversion(
     The optimizer finds the conversion amount that fills the current tax
     bracket without crossing into the next bracket or an IRMAA tier.
     """
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=10, window_seconds=60, identifier=str(current_user.id)
+    )
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
 
@@ -334,6 +343,7 @@ async def get_roth_conversion(
 
 @router.get("/fund-fees", response_model=FundFeeResponse)
 async def get_fund_fees(
+    http_request: Request,
     user_id: Optional[UUID] = Query(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -345,6 +355,9 @@ async def get_fund_fees(
     plus a portfolio-level weighted-average ER and 10/20-year compounding impact.
     Holdings without expense ratio data are included with ``flag='no_data'``.
     """
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=20, window_seconds=60, identifier=str(current_user.id)
+    )
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
 
@@ -372,6 +385,7 @@ async def get_fund_fees(
         )
         .join(Account, Holding.account_id == Account.id)
         .where(and_(*conditions))
+        .limit(10_000)  # Safety cap — mirrors _HOLDINGS_LIMIT in holdings.py
     )
     holding_rows = [
         {
