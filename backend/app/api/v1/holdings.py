@@ -26,6 +26,7 @@ from app.dependencies import (
     get_verified_account,
     verify_household_member,
 )
+from app.constants.financial import FIRE
 from app.models.account import Account, AccountType, TaxTreatment
 from app.models.holding import Holding
 from app.models.user import User
@@ -2246,7 +2247,7 @@ def _compute_fee_drag_projection(
 
     Assumes 7% nominal annual return.
     """
-    annual_return = 0.07
+    annual_return = FIRE.DEFAULT_EXPECTED_RETURN
     with_fees: list[float] = []
     without_fees: list[float] = []
     fee_cost: list[float] = []

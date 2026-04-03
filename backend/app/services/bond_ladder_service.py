@@ -19,6 +19,8 @@ from typing import Optional, Tuple
 
 import httpx
 
+from app.constants.financial import FIRE
+
 logger = logging.getLogger(__name__)
 
 FRED_CSV_BASE = "https://fred.stlouisfed.org/graph/fredgraph.csv"
@@ -93,8 +95,9 @@ def _get_rate_for_rung(
     maturity_key = _TREASURY_MATURITY_MAP.get(years, "10_year")
     base_rate = treasury_rates.get(maturity_key)
     if base_rate is None:
-        # Fallback: use a reasonable default
-        base_rate = 0.04
+        # Fallback when treasury data is unavailable — use the standard
+        # default withdrawal/floor rate from financial constants
+        base_rate = float(FIRE.DEFAULT_WITHDRAWAL_RATE)
     base_rate = Decimal(str(base_rate))
 
     if ladder_type == "cd":

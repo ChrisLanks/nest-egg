@@ -27,6 +27,8 @@ class NotificationType(str, enum.Enum):
     ALL_TIME_HIGH = "all_time_high"
     HOUSEHOLD_MEMBER_JOINED = "household_member_joined"
     HOUSEHOLD_MEMBER_LEFT = "household_member_left"
+    EXPENSE_SPLIT_ASSIGNED = "expense_split_assigned"   # a split was assigned to you
+    SETTLEMENT_REMINDER = "settlement_reminder"         # outstanding balance due between members
     GOAL_COMPLETED = "goal_completed"
     GOAL_FUNDED = "goal_funded"
     FIRE_COAST_FI = "fire_coast_fi"
