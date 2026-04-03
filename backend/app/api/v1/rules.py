@@ -1,7 +1,7 @@
 """Rule API endpoints."""
 
 from enum import Enum
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -419,7 +419,7 @@ async def preview_rule(
     }
 
 
-@router.post("/test", response_model=dict)
+@router.post("/test", response_model=Dict[str, Any])
 async def test_rule(
     rule_data: RuleCreate,
     current_user: User = Depends(get_current_user),

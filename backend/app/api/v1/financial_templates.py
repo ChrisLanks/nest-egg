@@ -1,6 +1,6 @@
 """Financial templates API — list and activate pre-built financial setups."""
 
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
@@ -33,6 +33,12 @@ class TemplateInfo(BaseModel):
     is_activated: bool
 
 
+class TemplateActivationResponse(BaseModel):
+    status: str
+    template_id: str
+    message: Optional[str] = None
+
+
 @router.get("/", response_model=List[TemplateInfo])
 async def list_templates(
     current_user: User = Depends(get_current_user),
@@ -42,7 +48,7 @@ async def list_templates(
     return await financial_templates_service.list_templates(db=db, user=current_user)
 
 
-@router.post("/{template_id}/activate", response_model=dict)
+@router.post("/{template_id}/activate", response_model=TemplateActivationResponse)
 async def activate_template(
     template_id: str,
     current_user: User = Depends(get_current_user),

@@ -29,8 +29,14 @@ from app.schemas.tax_lot import (
     UnrealizedGainsSummary,
 )
 from app.services.tax_lot_service import tax_lot_service
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+
+
+class CostBasisMethodResponse(BaseModel):
+    account_id: str
+    cost_basis_method: str
 
 
 
@@ -248,7 +254,7 @@ async def get_realized_gains(
 
 @router.put(
     "/accounts/{account_id}/cost-basis-method",
-    response_model=dict,
+    response_model=CostBasisMethodResponse,
 )
 async def update_cost_basis_method(
     body: CostBasisMethodUpdate,
