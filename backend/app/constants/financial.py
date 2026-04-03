@@ -1271,6 +1271,15 @@ class PENSION_MODELER:
     LIFETIME_VALUE_WINDOWS: List[int] = [20, 25]
 
 
+class HOUSEHOLD:
+    """Household management limits and invitation settings."""
+
+    # Maximum number of active members allowed in one household
+    MAX_MEMBERS: int = 5
+    # Days until an invitation expires (used at creation and resend)
+    INVITATION_EXPIRY_DAYS: int = 7
+
+
 # =========================================================================
 # PORTFOLIO PRESETS
 # =========================================================================

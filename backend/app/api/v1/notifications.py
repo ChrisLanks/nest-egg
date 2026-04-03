@@ -19,9 +19,18 @@ from app.schemas.notification import (
     UnreadCountResponse,
 )
 from app.services.notification_service import NotificationService, notification_service
+from app.services.rate_limit_service import rate_limit_service as _rate_limit_svc
 from app.utils.datetime_utils import utc_now
 
-router = APIRouter()
+
+async def _rate_limit(http_request: Request, current_user: User = Depends(get_current_user)):
+    """Shared rate-limit dependency for notification endpoints."""
+    await _rate_limit_svc.check_rate_limit(
+        request=http_request, max_requests=60, window_seconds=60, identifier=str(current_user.id)
+    )
+
+
+router = APIRouter(dependencies=[Depends(_rate_limit)])
 
 
 @router.get("/", response_model=List[NotificationResponse])
@@ -152,8 +161,8 @@ async def mark_all_notifications_read(
     db: AsyncSession = Depends(get_db),
 ):
     """Mark all notifications as read."""
-    from app.services.rate_limit_service import rate_limit_service as _rls
-    await _rls.check_rate_limit(
+    # Additional tighter limit for this bulk-write operation (10/min vs 60/min default)
+    await _rate_limit_svc.check_rate_limit(
         request=http_request,
         max_requests=10,
         window_seconds=60,

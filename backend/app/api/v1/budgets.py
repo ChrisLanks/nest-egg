@@ -17,8 +17,17 @@ from app.schemas.budget import (
 from app.services.budget_service import budget_service
 from app.services.budget_suggestion_service import budget_suggestion_service
 from app.services.input_sanitization_service import input_sanitization_service
+from app.services.rate_limit_service import rate_limit_service
 
-router = APIRouter()
+
+async def _rate_limit(http_request: Request, current_user=Depends(get_current_user)):
+    """Shared rate-limit dependency for budget endpoints."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=60, window_seconds=60, identifier=str(current_user.id)
+    )
+
+
+router = APIRouter(dependencies=[Depends(_rate_limit)])
 
 
 @router.post("/", response_model=BudgetResponse, status_code=201)

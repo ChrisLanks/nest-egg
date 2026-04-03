@@ -11,6 +11,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.constants.financial import HOUSEHOLD
 from app.core.database import get_db
 from app.dependencies import get_current_admin_user, get_current_user
 from app.models.account import Account
@@ -27,8 +28,6 @@ from app.utils.datetime_utils import utc_now
 
 router = APIRouter(prefix="/household", tags=["household"])
 rate_limit_service = get_rate_limit_service()
-
-MAX_HOUSEHOLD_MEMBERS = 5
 
 
 def _mask_email(email: str) -> str:
@@ -129,10 +128,10 @@ async def invite_member(
     )
     member_count = result.scalar_one()
 
-    if member_count >= MAX_HOUSEHOLD_MEMBERS:
+    if member_count >= HOUSEHOLD.MAX_MEMBERS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Household cannot exceed {MAX_HOUSEHOLD_MEMBERS} members",
+            detail=f"Household cannot exceed {HOUSEHOLD.MAX_MEMBERS} members",
         )
 
     # Check if user is already a member
@@ -165,7 +164,7 @@ async def invite_member(
         invited_by_user_id=current_user.id,
         invitation_code=secrets.token_urlsafe(32),
         status=InvitationStatus.PENDING,
-        expires_at=utc_now() + timedelta(days=7),
+        expires_at=utc_now() + timedelta(days=HOUSEHOLD.INVITATION_EXPIRY_DAYS),
     )
     db.add(invitation)
     await db.commit()
@@ -247,10 +246,14 @@ async def list_invitations(
 @router.delete("/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_member(
     user_id: UUID,
+    http_request: Request,
     current_user: User = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Remove a member from the household. Only admins can remove members."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=10, window_seconds=3600, identifier=str(current_user.id)
+    )
 
     # Get user to remove
     result = await db.execute(
@@ -331,10 +334,14 @@ class UpdateMemberRoleRequest(BaseModel):
 async def update_member_role(
     user_id: UUID,
     body: UpdateMemberRoleRequest,
+    http_request: Request,
     current_user: User = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Promote or demote a household member. Only admins can change roles."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=10, window_seconds=3600, identifier=str(current_user.id)
+    )
 
     result = await db.execute(
         select(User).where(User.id == user_id, User.organization_id == current_user.organization_id)
@@ -373,6 +380,7 @@ class UpdateMemberStatusRequest(BaseModel):
 async def update_member_status(
     user_id: UUID,
     body: UpdateMemberStatusRequest,
+    http_request: Request,
     current_user: User = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -381,6 +389,9 @@ async def update_member_status(
     Setting is_active=False prevents the user from logging in.
     Setting is_active=True re-enables their account.
     """
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=10, window_seconds=3600, identifier=str(current_user.id)
+    )
 
     result = await db.execute(
         select(User).where(User.id == user_id, User.organization_id == current_user.organization_id)
@@ -429,10 +440,14 @@ async def update_member_status(
 @router.delete("/invitations/{invitation_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def cancel_invitation(
     invitation_id: UUID,
+    http_request: Request,
     current_user: User = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Cancel a pending invitation."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=20, window_seconds=3600, identifier=str(current_user.id)
+    )
 
     result = await db.execute(
         select(HouseholdInvitation).where(
@@ -491,7 +506,7 @@ async def resend_invitation(
 
     # Refresh code and expiry
     invitation.invitation_code = secrets.token_urlsafe(32)
-    invitation.expires_at = utc_now() + timedelta(days=7)
+    invitation.expires_at = utc_now() + timedelta(days=HOUSEHOLD.INVITATION_EXPIRY_DAYS)
     await db.commit()
     await db.refresh(invitation)
 
