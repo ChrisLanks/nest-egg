@@ -92,6 +92,14 @@ MX provides 16,000+ institution coverage across US and Canada. Requires a sales 
 | `FINNHUB_API_KEY` | — | Finnhub key. Free tier: 60 calls/min. [Sign up](https://finnhub.io/register) |
 | `PRICE_REFRESH_COOLDOWN_HOURS` | `6` | Minimum hours between automatic holding price refreshes. |
 
+**Market data caching** — All providers are wrapped by a transparent Redis cache (`CachedMarketDataProvider`). Identical tickers are shared across all users, so a single cache entry serves every household that holds the same symbol. Current TTLs (hardcoded, configurable in a future release):
+
+| Data | Cache key pattern | TTL |
+|------|-------------------|-----|
+| Quote (price) | `quote:{SYMBOL}` | 5 min |
+| Holding metadata (sector, ER) | `metadata:{SYMBOL}` | 24 h |
+| Historical prices | `historical:{SYMBOL}:{interval}:{start}:{end}` | 7 days |
+
 ## Property Auto-Valuation (optional)
 
 At least one key must be set to enable the "Refresh Valuation" button on property accounts.

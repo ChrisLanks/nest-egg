@@ -10,6 +10,7 @@ from typing import Optional
 from app.config import settings
 
 from .base_provider import MarketDataProvider
+from .cache import CachedMarketDataProvider
 from .yahoo_finance_provider import YahooFinanceProvider
 
 logger = logging.getLogger(__name__)
@@ -80,7 +81,9 @@ class MarketDataProviderFactory:
                 f"finnhub, coingecko"
             )
 
-        logger.info(f"Using market data provider: {provider.get_provider_name()}")
+        # Wrap with Redis caching layer
+        provider = CachedMarketDataProvider(provider)
+        logger.info(f"Using market data provider: {provider.get_provider_name()} (cached)")
 
         # Cache instance if no override
         if cls._instance is None:

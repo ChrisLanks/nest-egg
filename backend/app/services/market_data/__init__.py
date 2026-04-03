@@ -14,6 +14,7 @@ from .base_provider import (
     HistoricalPrice,
     SearchResult,
 )
+from .cache import CachedMarketDataProvider
 from .yahoo_finance_provider import YahooFinanceProvider
 from .provider_factory import get_market_data_provider
 
@@ -22,6 +23,7 @@ __all__ = [
     "QuoteData",
     "HistoricalPrice",
     "SearchResult",
+    "CachedMarketDataProvider",
     "YahooFinanceProvider",
     "get_market_data_provider",
 ]
