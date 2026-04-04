@@ -62,12 +62,12 @@ const formatCurrency = (amount: number) =>
   }).format(amount);
 
 export default function TaxLossHarvestingPanel() {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data, isLoading, error } = useQuery<TaxLossHarvestingSummary>({
-    queryKey: ['taxLossHarvesting', selectedUserId],
+    queryKey: ['taxLossHarvesting', effectiveUserId],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const params = selectedUserId ? { user_id: effectiveUserId } : {};
       const response = await api.get('/reports/tax-loss-harvesting', { params });
       return response.data;
     },

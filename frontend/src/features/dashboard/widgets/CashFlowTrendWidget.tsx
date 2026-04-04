@@ -29,14 +29,14 @@ const formatCurrency = (amount: number) =>
   }).format(amount);
 
 const CashFlowTrendWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const tooltipBg = useColorModeValue("#FFFFFF", "#2D3748");
   const tooltipBorder = useColorModeValue("#E2E8F0", "#4A5568");
 
   const { data } = useQuery({
-    queryKey: ["dashboard", selectedUserId],
+    queryKey: ["dashboard", effectiveUserId],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const params = selectedUserId ? { user_id: effectiveUserId } : {};
       const response = await api.get("/dashboard/", { params });
       return response.data;
     },

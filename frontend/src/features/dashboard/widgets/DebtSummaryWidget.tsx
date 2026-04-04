@@ -39,12 +39,12 @@ const formatCurrency = (amount: number) =>
   }).format(amount);
 
 const DebtSummaryWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data } = useQuery({
-    queryKey: ["dashboard", selectedUserId],
+    queryKey: ["dashboard", effectiveUserId],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const params = selectedUserId ? { user_id: effectiveUserId } : {};
       const response = await api.get("/dashboard/", { params });
       return response.data;
     },

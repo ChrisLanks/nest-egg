@@ -98,7 +98,7 @@ const CategoriesTab = () => {
   });
   const toast = useToast();
   const queryClient = useQueryClient();
-  const { canWriteResource, selectedUserId } = useUserView();
+  const { canWriteResource, selectedUserId, effectiveUserId } = useUserView();
   const canEdit = canWriteResource("category");
   const cancelRef = useRef<HTMLButtonElement>(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -114,11 +114,11 @@ const CategoriesTab = () => {
   } = useDisclosure();
 
   const { data: categories, isLoading, isError } = useQuery({
-    queryKey: ["categories", selectedUserId],
+    queryKey: ["categories", effectiveUserId],
     queryFn: async () => {
       const params: Record<string, string> = {};
       if (selectedUserId) {
-        params.user_id = selectedUserId;
+        params.user_id = effectiveUserId;
       }
       const response = await api.get<Category[]>("/categories/", { params });
       return response.data;

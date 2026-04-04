@@ -70,7 +70,7 @@ interface TaxLabel {
 export default function TaxDeductiblePage() {
   const queryClient = useQueryClient();
   const toast = useToast();
-  const { selectedUserId, canWriteResource } = useUserView();
+  const { selectedUserId, effectiveUserId, canWriteResource } = useUserView();
   const canEdit = canWriteResource("category");
 
   // Default to current tax year (Jan 1 - Dec 31)
@@ -154,7 +154,7 @@ export default function TaxDeductiblePage() {
     isError: summariesError,
     refetch: refetchSummaries,
   } = useQuery<TaxSummary[]>({
-    queryKey: ["tax-deductible", startDate, endDate, selectedUserId],
+    queryKey: ["tax-deductible", startDate, endDate, effectiveUserId],
     queryFn: async () => {
       const params = new URLSearchParams({
         start_date: startDate,

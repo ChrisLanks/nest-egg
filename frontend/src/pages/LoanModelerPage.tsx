@@ -101,7 +101,7 @@ interface BuyLeaseResult {
 }
 
 export const LoanModelerPage = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   // ── Loan calculator inputs ──────────────────────────────────────────────────
   const [principal, setPrincipal] = useState("");
   const [rate, setRate] = useState("");
@@ -122,7 +122,7 @@ export const LoanModelerPage = () => {
 
   // Pull existing monthly debt hint from linked accounts
   const { data: accounts = [] } = useQuery<{ account_type: string; current_balance: string | number | null }[]>({
-    queryKey: ["accounts", selectedUserId],
+    queryKey: ["accounts", effectiveUserId],
     queryFn: async () => {
       const p: Record<string, string> = {};
       if (selectedUserId) p.user_id = selectedUserId;
@@ -142,7 +142,7 @@ export const LoanModelerPage = () => {
   const rateDecimal = Number(rate) / 100;
 
   const { data: calcResult, isFetching: calcLoading } = useQuery<LoanCalcResult>({
-    queryKey: ["loan-calc", principal, rate, termMonths, annualIncome, existingDebt, selectedUserId],
+    queryKey: ["loan-calc", principal, rate, termMonths, annualIncome, existingDebt, effectiveUserId],
     queryFn: async () => {
       const p: Record<string, string | number> = {
         principal: Number(principal),
@@ -160,7 +160,7 @@ export const LoanModelerPage = () => {
   });
 
   const { data: amortData } = useQuery<{ schedule: AmortRow[] }>({
-    queryKey: ["loan-amort", principal, rate, termMonths, selectedUserId],
+    queryKey: ["loan-amort", principal, rate, termMonths, effectiveUserId],
     queryFn: async () => {
       const p: Record<string, string | number> = {
         principal: Number(principal),
@@ -180,7 +180,7 @@ export const LoanModelerPage = () => {
     queryKey: [
       "bvl",
       vehiclePrice, downPayment, loanRate, loanTermYears,
-      leaseMonthly, leaseTerm, residualPct, selectedUserId,
+      leaseMonthly, leaseTerm, residualPct, effectiveUserId,
     ],
     queryFn: async () => {
       const p: Record<string, string | number> = {

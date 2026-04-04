@@ -40,10 +40,10 @@ const frequencyLabel = (freq: string) => {
 };
 
 const SubscriptionsWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["subscriptions-widget", selectedUserId],
+    queryKey: ["subscriptions-widget", effectiveUserId],
     queryFn: () => subscriptionsApi.get(selectedUserId || undefined),
     staleTime: 60_000,
   });

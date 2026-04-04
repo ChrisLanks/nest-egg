@@ -136,7 +136,7 @@ function saveCalendarPrefs(prefs: CalendarPrefs): void {
 // ─── CalendarPage ─────────────────────────────────────────────────────────────
 
 export const CalendarPage: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   // Hoisted color mode value (cannot call hooks inside callbacks)
   const todayTextColor = useColorModeValue("blue.600", "blue.300");
@@ -186,16 +186,16 @@ export const CalendarPage: React.FC = () => {
     isError: financialCalendarError,
     refetch: refetchCalendar,
   } = useQuery<FinancialCalendarResponse>({
-    queryKey: ["financial-calendar", calMonthStr, selectedUserId],
+    queryKey: ["financial-calendar", calMonthStr, effectiveUserId],
     queryFn: () => financialCalendarApi.getMonth(calMonthStr, selectedUserId),
     staleTime: 2 * 60 * 1000,
   });
 
   const { data: dividendCalendar } = useQuery<DividendCalendarResponse>({
-    queryKey: ["dividend-calendar", calYear, selectedUserId],
+    queryKey: ["dividend-calendar", calYear, effectiveUserId],
     queryFn: async () => {
       const params: Record<string, string | number> = { year: calYear };
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (selectedUserId) params.user_id = effectiveUserId;
       const { data } = await api.get<DividendCalendarResponse>(
         "/holdings/dividend-calendar",
         { params },

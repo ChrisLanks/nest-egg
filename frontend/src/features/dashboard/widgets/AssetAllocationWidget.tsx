@@ -32,10 +32,10 @@ const SLICES = [
 ] as const;
 
 const AssetAllocationWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data: portfolio, isLoading } = useQuery({
-    queryKey: ["portfolio-widget", selectedUserId],
+    queryKey: ["portfolio-widget", effectiveUserId],
     queryFn: () => holdingsApi.getPortfolioSummary(selectedUserId || undefined),
     staleTime: 60_000,
   });

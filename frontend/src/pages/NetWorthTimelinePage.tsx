@@ -160,7 +160,7 @@ function getDateRange(
 }
 
 export default function NetWorthTimelinePage() {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const { formatCurrency, formatCurrencyCompact } = useCurrency();
   const fmt = formatCurrencyCompact;
   const fmtFull = (v: number) =>
@@ -187,8 +187,7 @@ export default function NetWorthTimelinePage() {
       "net-worth-history",
       timeRange,
       customStart,
-      customEnd,
-      selectedUserId,
+      customEnd, effectiveUserId,
     ],
     queryFn: async () => {
       const { start, end } = getDateRange(timeRange, customStart, customEnd);
@@ -200,7 +199,7 @@ export default function NetWorthTimelinePage() {
         start_date: toLocalDate(start),
       };
       if (end) params.end_date = toLocalDate(end);
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (selectedUserId) params.user_id = effectiveUserId;
       const response = await api.get("/dashboard/net-worth-history", {
         params,
       });

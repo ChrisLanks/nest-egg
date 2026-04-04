@@ -58,12 +58,12 @@ const fmt = (n: number): string =>
 const fmtPct = (n: number): string => `${(n * 100).toFixed(2)}%`;
 
 const FeeAnalysisWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data, isLoading, isError } = useQuery<FeeAnalysisData>({
-    queryKey: ["fee-analysis-widget", selectedUserId],
+    queryKey: ["fee-analysis-widget", effectiveUserId],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const params = selectedUserId ? { user_id: effectiveUserId } : {};
       const res = await api.get("/holdings/fee-analysis", { params });
       return res.data;
     },

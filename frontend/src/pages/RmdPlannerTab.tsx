@@ -81,7 +81,7 @@ const fmtCompact = (v: number) =>
   }).format(v);
 
 export const RmdPlannerTab = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const [growthRate, setGrowthRate] = useState(6);
   const [filingStatus, setFilingStatus] = useState("single");
   const [otherIncome, setOtherIncome] = useState(50000);
@@ -92,10 +92,10 @@ export const RmdPlannerTab = () => {
     filing_status: filingStatus,
     other_annual_income: String(otherIncome),
   });
-  if (selectedUserId) params.set("user_id", selectedUserId);
+  if (effectiveUserId) params.set("user_id", effectiveUserId);
 
   const { data, isLoading, error } = useQuery<RmdPlannerResponse>({
-    queryKey: ["rmd-planner", growthRate, filingStatus, otherIncome, selectedUserId],
+    queryKey: ["rmd-planner", growthRate, filingStatus, otherIncome, effectiveUserId],
     queryFn: () => api.get(`/rmd/rmd-planner?${params}`).then((r) => r.data),
   });
 

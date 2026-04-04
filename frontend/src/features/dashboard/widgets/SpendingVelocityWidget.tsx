@@ -60,13 +60,13 @@ const trendLabel = (dir: string): string => {
 };
 
 const SpendingVelocityWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data, isLoading, isError } = useQuery<SpendingVelocityData>({
-    queryKey: ["spending-velocity-widget", selectedUserId],
+    queryKey: ["spending-velocity-widget", effectiveUserId],
     queryFn: async () => {
       const params: Record<string, string> = { months: "6" };
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (selectedUserId) params.user_id = effectiveUserId;
       const res = await api.get("/trends/spending-velocity", {
         params,
       });

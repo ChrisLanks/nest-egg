@@ -25,14 +25,14 @@ const formatCurrency = (amount: number) =>
   }).format(amount);
 
 const SavingsGoalsWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data: goals, isLoading } = useQuery({
-    queryKey: ["goals-widget", selectedUserId],
+    queryKey: ["goals-widget", effectiveUserId],
     queryFn: () =>
       savingsGoalsApi.getAll({
         is_completed: false,
-        ...(selectedUserId ? { user_id: selectedUserId } : {}),
+        ...(selectedUserId ? { user_id: effectiveUserId } : {}),
       }),
     staleTime: 60_000,
   });

@@ -105,7 +105,7 @@ export function RetirementPage() {
   const {
     isCombinedView,
     isOtherUserView,
-    selectedUserId,
+    selectedUserId, effectiveUserId,
     canWriteResource,
     selectedMemberIds,
     selectedMemberIdsKey,

@@ -565,7 +565,7 @@ export const Layout = () => {
   const [searchParams] = useSearchParams();
   const { user } = useAuthStore();
   const {
-    selectedUserId,
+    selectedUserId, effectiveUserId,
     isCombinedView,
     isOtherUserView,
     canEdit,

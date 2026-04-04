@@ -55,12 +55,12 @@ const fmt = (n: number) =>
 const fmtPct = (n: number) => `+${n.toFixed(1)}%`;
 
 const BillPriceAlertsWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data, isLoading } = useQuery<PriceAlertsData>({
-    queryKey: ["bill-price-alerts-widget", selectedUserId],
+    queryKey: ["bill-price-alerts-widget", effectiveUserId],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const params = selectedUserId ? { user_id: effectiveUserId } : {};
       const res = await api.get("/recurring/price-increases", { params });
       return res.data;
     },

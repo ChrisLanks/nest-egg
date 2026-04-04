@@ -77,16 +77,16 @@ const fmtCompact = (v: number) =>
   }).format(v);
 
 export const TaxEquivYieldTab = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const [federalRate, setFederalRate] = useState<number | undefined>(undefined);
   const [stateRate, setStateRate] = useState(5);
 
   const params = new URLSearchParams({ state_rate_pct: String(stateRate) });
   if (federalRate !== undefined) params.set("federal_rate_pct", String(federalRate));
-  if (selectedUserId) params.set("user_id", selectedUserId);
+  if (effectiveUserId) params.set("user_id", effectiveUserId);
 
   const { data, isLoading, error } = useQuery<TaxEquivYieldResponse>({
-    queryKey: ["tax-equiv-yield", federalRate, stateRate, selectedUserId],
+    queryKey: ["tax-equiv-yield", federalRate, stateRate, effectiveUserId],
     queryFn: () => api.get(`/holdings/tax-equivalent-yield?${params}`).then((r) => r.data),
   });
 

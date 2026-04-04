@@ -98,7 +98,7 @@ const formatShortDate = (dateStr: string) => {
 };
 
 export const CreditScoreTab = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const queryClient = useQueryClient();
   const today = new Date().toISOString().split("T")[0];
 
@@ -109,10 +109,10 @@ export const CreditScoreTab = () => {
   const [formError, setFormError] = useState("");
 
   const params: Record<string, string> = {};
-  if (selectedUserId) params.user_id = selectedUserId;
+  if (selectedUserId) params.user_id = effectiveUserId;
 
   const { data, isLoading, isError } = useQuery<CreditScoreHistory>({
-    queryKey: ["credit-scores", selectedUserId],
+    queryKey: ["credit-scores", effectiveUserId],
     queryFn: () =>
       api.get<CreditScoreHistory>("/credit-scores", { params }).then((r) => r.data),
   });

@@ -45,7 +45,7 @@ const fmt = (n: number): string =>
   }).format(Math.abs(n));
 
 const LabelInsightsWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const now = new Date();
   const startDate = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -54,13 +54,13 @@ const LabelInsightsWidgetBase: React.FC = () => {
   const endDate = now.toISOString().split("T")[0];
 
   const { data, isLoading, isError } = useQuery<LabelSummaryData>({
-    queryKey: ["label-summary-widget", selectedUserId, startDate],
+    queryKey: ["label-summary-widget", effectiveUserId, startDate],
     queryFn: async () => {
       const params: Record<string, string> = {
         start_date: startDate,
         end_date: endDate,
       };
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (selectedUserId) params.user_id = effectiveUserId;
       const res = await api.get("/income-expenses/label-summary", { params });
       return res.data;
     },

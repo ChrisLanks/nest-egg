@@ -55,12 +55,12 @@ const fmt = (n: number): string =>
   }).format(n);
 
 const RmdPlannerWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data, isLoading, isError } = useQuery<RMDData>({
-    queryKey: ["rmd-widget", selectedUserId],
+    queryKey: ["rmd-widget", effectiveUserId],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const params = selectedUserId ? { user_id: effectiveUserId } : {};
       const res = await api.get("/holdings/rmd-summary", { params });
       return res.data;
     },

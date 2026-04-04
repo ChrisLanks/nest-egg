@@ -53,7 +53,7 @@ const formatCurrency = (amount: number) =>
 type TimeRange = "1M" | "3M" | "6M" | "1Y" | "ALL" | "CUSTOM";
 
 const NetWorthChartWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const overlayBg = useColorModeValue("whiteAlpha.800", "blackAlpha.800");
   const tooltipBg = useColorModeValue("#FFFFFF", "#2D3748");
   const tooltipBorder = useColorModeValue("#E2E8F0", "#4A5568");
@@ -70,9 +70,9 @@ const NetWorthChartWidgetBase: React.FC = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
 
   const { data: dashboardData } = useQuery({
-    queryKey: ["dashboard", selectedUserId],
+    queryKey: ["dashboard", effectiveUserId],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const params = selectedUserId ? { user_id: effectiveUserId } : {};
       const response = await api.get("/dashboard/", { params });
       return response.data;
     },
@@ -90,8 +90,7 @@ const NetWorthChartWidgetBase: React.FC = () => {
       "historical-net-worth",
       timeRange,
       customStartDate,
-      customEndDate,
-      selectedUserId,
+      customEndDate, effectiveUserId,
     ],
     queryFn: async () => {
       const now = new Date();
@@ -148,7 +147,7 @@ const NetWorthChartWidgetBase: React.FC = () => {
         start_date: startDate.toISOString().split("T")[0],
       };
       if (endDate) params.end_date = endDate.toISOString().split("T")[0];
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (selectedUserId) params.user_id = effectiveUserId;
 
       const response = await api.get("/holdings/historical", { params });
       return response.data;

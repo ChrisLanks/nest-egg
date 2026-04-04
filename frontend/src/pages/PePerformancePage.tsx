@@ -40,12 +40,12 @@ const fmt = (n: number) =>
 
 
 export default function PePerformancePage() {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const { data, isLoading, error } = useQuery<PeAccount[]>({
-    queryKey: ["pe-performance", selectedUserId],
+    queryKey: ["pe-performance", effectiveUserId],
     queryFn: async () => {
       const params: Record<string, string> = {};
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (selectedUserId) params.user_id = effectiveUserId;
       const res = await api.get("/pe-performance/portfolio", { params });
       return res.data.accounts ?? [];
     },

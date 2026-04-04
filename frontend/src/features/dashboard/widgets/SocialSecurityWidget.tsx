@@ -40,12 +40,12 @@ const fmt = (n: number): string =>
   }).format(n);
 
 const SocialSecurityWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data, isLoading, isError } = useQuery<SocialSecurityData>({
-    queryKey: ["social-security-widget", selectedUserId],
+    queryKey: ["social-security-widget", effectiveUserId],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const params = selectedUserId ? { user_id: effectiveUserId } : {};
       const res = await api.get("/retirement/social-security-estimate", {
         params,
       });

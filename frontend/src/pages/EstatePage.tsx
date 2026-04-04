@@ -131,7 +131,7 @@ const DOC_TYPES = [
 ];
 
 export const EstatePage = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const toast = useToast();
   const qc = useQueryClient();
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -154,7 +154,7 @@ export const EstatePage = () => {
 
   // ── Fetch beneficiaries ─────────────────────────────────────────────────────
   const { data: beneficiaries = [], isLoading: bensLoading } = useQuery<Beneficiary[]>({
-    queryKey: ["estate-beneficiaries", selectedUserId],
+    queryKey: ["estate-beneficiaries", effectiveUserId],
     queryFn: async () => {
       const p: Record<string, string> = {};
       if (selectedUserId) p.user_id = selectedUserId;
@@ -166,7 +166,7 @@ export const EstatePage = () => {
 
   // ── Fetch documents ─────────────────────────────────────────────────────────
   const { data: documents = [] } = useQuery<EstateDoc[]>({
-    queryKey: ["estate-documents", selectedUserId],
+    queryKey: ["estate-documents", effectiveUserId],
     queryFn: async () => {
       const p: Record<string, string> = {};
       if (selectedUserId) p.user_id = selectedUserId;
@@ -178,7 +178,7 @@ export const EstatePage = () => {
 
   // ── Fetch net worth from dashboard (for default) ────────────────────────────
   const { data: dashSummary } = useQuery<{ net_worth?: number }>({
-    queryKey: ["dashboard-summary", selectedUserId],
+    queryKey: ["dashboard-summary", effectiveUserId],
     queryFn: async () => {
       const p: Record<string, string> = {};
       if (selectedUserId) p.user_id = selectedUserId;
@@ -190,7 +190,7 @@ export const EstatePage = () => {
 
   // ── Fetch accounts (for beneficiary account picker) ─────────────────────────
   const { data: accounts = [] } = useQuery<{ id: string; name: string; account_type: string }[]>({
-    queryKey: ["accounts", selectedUserId],
+    queryKey: ["accounts", effectiveUserId],
     queryFn: async () => {
       const p: Record<string, string> = {};
       if (selectedUserId) p.user_id = selectedUserId;
@@ -206,7 +206,7 @@ export const EstatePage = () => {
     : (dashSummary?.net_worth ?? 0);
 
   const { data: taxResult } = useQuery<TaxExposureResult>({
-    queryKey: ["estate-tax", effectiveNetWorth, filingStatus, selectedUserId],
+    queryKey: ["estate-tax", effectiveNetWorth, filingStatus, effectiveUserId],
     queryFn: async () => {
       const p: Record<string, string | number> = { net_worth: effectiveNetWorth, filing_status: filingStatus };
       if (selectedUserId) p.user_id = selectedUserId;

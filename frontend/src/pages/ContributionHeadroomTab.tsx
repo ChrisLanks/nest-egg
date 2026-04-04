@@ -78,15 +78,15 @@ const progressColor = (pct: number) => {
 };
 
 export const ContributionHeadroomTab = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const currentYear = new Date().getFullYear();
   const [taxYear, setTaxYear] = useState(currentYear);
 
   const { data, isLoading, error } = useQuery<HeadroomResponse>({
-    queryKey: ["contribution-headroom", taxYear, selectedUserId],
+    queryKey: ["contribution-headroom", taxYear, effectiveUserId],
     queryFn: () => {
       const params = new URLSearchParams({ tax_year: String(taxYear) });
-      if (selectedUserId) params.set("user_id", selectedUserId);
+      if (effectiveUserId) params.set("user_id", effectiveUserId);
       return api.get(`/tax/contribution-headroom?${params}`).then((r) => r.data);
     },
   });

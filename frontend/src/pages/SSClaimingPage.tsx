@@ -88,7 +88,7 @@ function InfoTip({ label }: { label: string }) {
 // ── Page ──────────────────────────────────────────────────────────────────
 
 export const SSClaimingPage = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   // Form state — persisted across page refreshes
   // Salary and retirementAge defaults seeded from /settings/financial-defaults
@@ -133,7 +133,7 @@ export const SSClaimingPage = () => {
   const plannedRetirementAgeNum = parseInt(plannedRetirementAge) || 65;
 
   const params: SSClaimingParams = {
-    user_id: selectedUserId || undefined,
+    user_id: effectiveUserId || undefined,
     current_salary: salaryNum,
     birth_year: birthYearNum,
     career_start_age: parseInt(careerStartAge) || 22,
@@ -142,7 +142,7 @@ export const SSClaimingPage = () => {
   };
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["ss-claiming", selectedUserId, params],
+    queryKey: ["ss-claiming", effectiveUserId, params],
     queryFn: () => financialPlanningApi.getSSClaiming(params),
     enabled: submitted && salaryNum > 0,
   });

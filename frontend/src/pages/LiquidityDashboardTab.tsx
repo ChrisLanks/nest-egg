@@ -100,15 +100,15 @@ const fmtCompact = (v: number) =>
 
 export const LiquidityDashboardTab = () => {
   const { formatCurrency } = useCurrency();
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const [monthlySpending, setMonthlySpending] = useState<number | undefined>(undefined);
 
   const params = new URLSearchParams();
   if (monthlySpending !== undefined) params.set("monthly_spending", String(monthlySpending));
-  if (selectedUserId) params.set("user_id", selectedUserId);
+  if (effectiveUserId) params.set("user_id", effectiveUserId);
 
   const { data, isLoading, error } = useQuery<LiquidityDashboardResponse>({
-    queryKey: ["liquidity-dashboard", monthlySpending, selectedUserId],
+    queryKey: ["liquidity-dashboard", monthlySpending, effectiveUserId],
     queryFn: () =>
       api.get(`/dashboard/liquidity?${params}`).then((r) => r.data),
   });

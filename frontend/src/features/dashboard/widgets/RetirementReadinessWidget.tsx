@@ -35,13 +35,13 @@ const scoreColor = (score: number): string => {
 };
 
 const RetirementReadinessWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const { data: scenarios, isLoading } = useQuery<ScenarioSummary[]>({
-    queryKey: ["retirement-scenarios-widget", selectedUserId],
+    queryKey: ["retirement-scenarios-widget", effectiveUserId],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const params = selectedUserId ? { user_id: effectiveUserId } : {};
       const { data } = await api.get<ScenarioSummary[]>(
         "/retirement/scenarios",
         { params },

@@ -88,15 +88,15 @@ const fmtCompact = (v: number) =>
 
 export const NetWorthPercentileTab = () => {
   const { formatCurrency } = useCurrency();
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const [ageOverride, setAgeOverride] = useState<number | undefined>(undefined);
 
   const params = new URLSearchParams();
   if (ageOverride !== undefined) params.set("age", String(ageOverride));
-  if (selectedUserId) params.set("user_id", selectedUserId);
+  if (effectiveUserId) params.set("user_id", effectiveUserId);
 
   const { data, isLoading, error } = useQuery<NetWorthPercentileResponse>({
-    queryKey: ["net-worth-percentile", ageOverride, selectedUserId],
+    queryKey: ["net-worth-percentile", ageOverride, effectiveUserId],
     queryFn: () =>
       api.get(`/dashboard/net-worth-percentile?${params}`).then((r) => r.data),
   });

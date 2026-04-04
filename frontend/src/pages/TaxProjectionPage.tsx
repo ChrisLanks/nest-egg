@@ -87,7 +87,7 @@ function InfoTip({ label }: { label: string }) {
 // ── Page ──────────────────────────────────────────────────────────────────
 
 export const TaxProjectionPage = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const [showW4, setShowW4] = useState(true);
   const [w4Salary, setW4Salary] = useState("");
   const [w4YtdWithheld, setW4YtdWithheld] = useState("");
@@ -120,7 +120,7 @@ export const TaxProjectionPage = () => {
   );
 
   const params: TaxProjectionParams = {
-    user_id: selectedUserId || undefined,
+    user_id: effectiveUserId || undefined,
     filing_status: filingStatus,
     self_employment_income: selfEmploymentIncome
       ? parseFloat(selfEmploymentIncome)
@@ -144,7 +144,7 @@ export const TaxProjectionPage = () => {
   }, [JSON.stringify(params)]);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["tax-projection", selectedUserId, debouncedParams],
+    queryKey: ["tax-projection", effectiveUserId, debouncedParams],
     queryFn: () => financialPlanningApi.getTaxProjection(debouncedParams),
     placeholderData: (prev) => prev,
   });

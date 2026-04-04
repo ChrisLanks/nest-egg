@@ -279,7 +279,7 @@ AccountHoldingsCard.displayName = "AccountHoldingsCard";
 export const InvestmentsPage = () => {
   // Use global user view context + multi-member filter
   const {
-    selectedUserId,
+    selectedUserId, effectiveUserId,
     canWriteResource,
     isCombinedView,
     memberEffectiveUserId,

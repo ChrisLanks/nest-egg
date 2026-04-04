@@ -28,7 +28,7 @@ const formatCurrency = (amount: number) =>
   }).format(amount);
 
 const UpcomingBillsWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const isDark = useColorModeValue(false, true);
 
   const urgencyProps = (
@@ -59,7 +59,7 @@ const UpcomingBillsWidgetBase: React.FC = () => {
     };
   };
   const { data: bills, isLoading } = useQuery({
-    queryKey: ["upcoming-bills", selectedUserId],
+    queryKey: ["upcoming-bills", effectiveUserId],
     queryFn: () =>
       recurringTransactionsApi.getUpcomingBills(
         30,

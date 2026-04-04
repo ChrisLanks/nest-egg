@@ -115,7 +115,7 @@ interface QcdResult {
 }
 
 export const CharitableGivingPage = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const currentYear = new Date().getFullYear();
 
   // ── Label selection ─────────────────────────────────────────────────────────
@@ -129,10 +129,10 @@ export const CharitableGivingPage = () => {
 
   // ── Fetch all org labels ────────────────────────────────────────────────────
   const { data: labels = [], isLoading: labelsLoading } = useQuery<OrgLabel[]>({
-    queryKey: ["charitable-labels", selectedUserId],
+    queryKey: ["charitable-labels", effectiveUserId],
     queryFn: async () => {
       const params: Record<string, string> = {};
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (selectedUserId) params.user_id = effectiveUserId;
       const { data } = await api.get("/charitable-giving/labels", { params });
       return data;
     },
@@ -141,7 +141,7 @@ export const CharitableGivingPage = () => {
 
   // ── Fetch donations based on selected labels ────────────────────────────────
   const { data: donationsResult, isLoading: donationsLoading } = useQuery<DonationsResult>({
-    queryKey: ["charitable-donations", selectedLabelIds.join(","), currentYear, selectedUserId],
+    queryKey: ["charitable-donations", selectedLabelIds.join(","), currentYear, effectiveUserId],
     queryFn: async () => {
       const p: Record<string, string> = {
         label_ids: selectedLabelIds.join(","),
@@ -157,7 +157,7 @@ export const CharitableGivingPage = () => {
 
   // ── Bunching analysis ───────────────────────────────────────────────────────
   const { data: bunchResult } = useQuery<BunchingResult>({
-    queryKey: ["bunching", annualGiving, marginalRate, filingStatus, selectedUserId],
+    queryKey: ["bunching", annualGiving, marginalRate, filingStatus, effectiveUserId],
     queryFn: async () => {
       const p: Record<string, string | number> = {
         annual_giving: Number(annualGiving),
@@ -174,7 +174,7 @@ export const CharitableGivingPage = () => {
 
   // ── QCD ─────────────────────────────────────────────────────────────────────
   const { data: qcdResult } = useQuery<QcdResult>({
-    queryKey: ["qcd", selectedUserId],
+    queryKey: ["qcd", effectiveUserId],
     queryFn: async () => {
       const p: Record<string, string> = {};
       if (selectedUserId) p.user_id = selectedUserId;

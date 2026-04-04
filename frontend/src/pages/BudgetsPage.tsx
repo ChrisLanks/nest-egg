@@ -52,7 +52,7 @@ export default function BudgetsPage() {
     canWriteResource,
     isOtherUserView,
     isSelfView,
-    selectedUserId,
+    selectedUserId, effectiveUserId,
     selectedMemberIds,
     matchesMemberFilter,
     isPartialMemberSelection,
@@ -68,10 +68,10 @@ export default function BudgetsPage() {
 
   // Get all budgets
   const { data: budgets = [], isLoading, isError } = useQuery({
-    queryKey: ["budgets", selectedUserId],
+    queryKey: ["budgets", effectiveUserId],
     queryFn: () =>
       budgetsApi.getAll(
-        selectedUserId ? { user_id: selectedUserId } : undefined,
+        selectedUserId ? { user_id: effectiveUserId } : undefined,
       ),
   });
 

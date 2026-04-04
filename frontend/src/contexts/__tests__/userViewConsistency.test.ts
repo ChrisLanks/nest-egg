@@ -47,10 +47,10 @@ describe("All financial pages respect user view selection", () => {
       expect(source).toContain("selectedUserId");
     });
 
-    it(`${name} includes selectedUserId in at least one queryKey`, () => {
+    it(`${name} includes effectiveUserId in at least one queryKey`, () => {
       const source = readSource(file);
-      // queryKey arrays should reference selectedUserId
-      expect(source).toMatch(/queryKey:\s*\[.*selectedUserId/);
+      // queryKey arrays should reference effectiveUserId (not selectedUserId)
+      expect(source).toMatch(/queryKey:\s*\[.*effectiveUserId/);
     });
   }
 });

@@ -109,7 +109,7 @@ const CHART_COLORS = [
 
 export function YearInReviewPage() {
   const {
-    selectedUserId,
+    selectedUserId, effectiveUserId,
     isCombinedView,
     memberEffectiveUserId,
     selectedMemberIdsKey,

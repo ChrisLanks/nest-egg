@@ -88,7 +88,7 @@ const fmtCompact = (v: number) =>
   }).format(v);
 
 export const IrmaaMedicareTab = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const [magi, setMagi] = useState<number>(120000);
   const [filingStatus, setFilingStatus] = useState("single");
   const [growthRate, setGrowthRate] = useState(3);
@@ -99,10 +99,10 @@ export const IrmaaMedicareTab = () => {
     income_growth_rate: String(growthRate / 100),
     projection_years: "20",
   });
-  if (selectedUserId) params.set("user_id", selectedUserId);
+  if (effectiveUserId) params.set("user_id", effectiveUserId);
 
   const { data, isLoading, error } = useQuery<IrmaaResponse>({
-    queryKey: ["irmaa-projection", magi, filingStatus, growthRate, selectedUserId],
+    queryKey: ["irmaa-projection", magi, filingStatus, growthRate, effectiveUserId],
     queryFn: () => api.get(`/tax/irmaa-projection?${params}`).then((r) => r.data),
     enabled: magi > 0,
   });

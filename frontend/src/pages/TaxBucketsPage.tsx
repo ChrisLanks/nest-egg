@@ -137,7 +137,7 @@ async function fetchRothHeadroom(
 // ── Page ──────────────────────────────────────────────────────────────────
 
 export const TaxBucketsPage = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const [currentAge, setCurrentAge] = useLocalStorage("tax-buckets-age", "55");
   const [growthRate, setGrowthRate] = useLocalStorage(
@@ -164,7 +164,7 @@ export const TaxBucketsPage = () => {
     isLoading: summaryLoading,
     isError: summaryError,
   } = useQuery({
-    queryKey: ["tax-bucket-summary", selectedUserId],
+    queryKey: ["tax-bucket-summary", effectiveUserId],
     queryFn: () => fetchBucketSummary(selectedUserId || undefined),
     placeholderData: (prev) => prev,
   });

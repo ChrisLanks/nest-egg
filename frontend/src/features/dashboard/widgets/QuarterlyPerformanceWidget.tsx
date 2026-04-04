@@ -43,7 +43,7 @@ const fmt = (n: number): string =>
   }).format(n);
 
 const QuarterlyPerformanceWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const tooltipBg = useColorModeValue("#FFFFFF", "#2D3748");
   const tooltipBorder = useColorModeValue("#E2E8F0", "#4A5568");
 
@@ -51,11 +51,11 @@ const QuarterlyPerformanceWidgetBase: React.FC = () => {
   const years = [currentYear, currentYear - 1];
 
   const { data, isLoading, isError } = useQuery<QuarterData[]>({
-    queryKey: ["quarterly-widget", selectedUserId, years],
+    queryKey: ["quarterly-widget", effectiveUserId, years],
     queryFn: async () => {
       const params = new URLSearchParams();
       years.forEach((y) => params.append("years", String(y)));
-      if (selectedUserId) params.set("user_id", selectedUserId);
+      if (effectiveUserId) params.set("user_id", effectiveUserId);
       const res = await api.get("/income-expenses/quarterly-summary", {
         params,
       });

@@ -26,16 +26,16 @@ interface SpendingInsight {
 }
 
 export const InsightsCard = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const {
     data: insights,
     isLoading,
     isError,
   } = useQuery({
-    queryKey: ["spending-insights", selectedUserId],
+    queryKey: ["spending-insights", effectiveUserId],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const params = selectedUserId ? { user_id: effectiveUserId } : {};
       const response = await api.get<SpendingInsight[]>("/dashboard/insights", {
         params,
       });

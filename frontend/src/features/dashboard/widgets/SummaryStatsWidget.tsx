@@ -26,13 +26,13 @@ interface MemberSpending {
 }
 
 const SummaryStatsWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const { formatCurrency } = useCurrency();
 
   const { data } = useQuery({
-    queryKey: ["dashboard", selectedUserId],
+    queryKey: ["dashboard", effectiveUserId],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const params = selectedUserId ? { user_id: effectiveUserId } : {};
       const response = await api.get("/dashboard/", { params });
       return response.data;
     },
@@ -41,9 +41,9 @@ const SummaryStatsWidgetBase: React.FC = () => {
 
   // Per-member spending from the summary endpoint (combined household view only)
   const { data: summaryData } = useQuery({
-    queryKey: ["dashboard-summary", selectedUserId],
+    queryKey: ["dashboard-summary", effectiveUserId],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const params = selectedUserId ? { user_id: effectiveUserId } : {};
       const response = await api.get("/dashboard/summary", { params });
       return response.data;
     },

@@ -49,7 +49,7 @@ const COLORS: Record<string, string[]> = {
 };
 
 const YearOverYearWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const tooltipBg = useColorModeValue("#FFFFFF", "#2D3748");
   const tooltipBorder = useColorModeValue("#E2E8F0", "#4A5568");
 
@@ -57,11 +57,11 @@ const YearOverYearWidgetBase: React.FC = () => {
   const years = [currentYear, currentYear - 1];
 
   const { data, isLoading, isError, refetch } = useQuery<YoYMonth[]>({
-    queryKey: ["yoy-widget", selectedUserId, years],
+    queryKey: ["yoy-widget", effectiveUserId, years],
     queryFn: async () => {
       const params = new URLSearchParams();
       years.forEach((y) => params.append("years", String(y)));
-      if (selectedUserId) params.set("user_id", selectedUserId);
+      if (effectiveUserId) params.set("user_id", effectiveUserId);
       const res = await api.get("/income-expenses/year-over-year", { params });
       return res.data;
     },

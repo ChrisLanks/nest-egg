@@ -48,12 +48,12 @@ const fmt = (n: number): string =>
   }).format(n);
 
 const RothConversionWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data, isLoading, isError } = useQuery<RothAnalysisData>({
-    queryKey: ["roth-analysis-widget", selectedUserId],
+    queryKey: ["roth-analysis-widget", effectiveUserId],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const params = selectedUserId ? { user_id: effectiveUserId } : {};
       const res = await api.get("/holdings/roth-analysis", { params });
       return res.data;
     },

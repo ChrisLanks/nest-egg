@@ -155,7 +155,7 @@ const InsuranceCard = ({ item, onDismiss, isDismissed }: InsuranceCardProps) => 
 
 export const InsuranceAuditTab = () => {
   const { formatCurrency } = useCurrency();
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const { isOpen: isDismissedOpen, onToggle: onDismissedToggle } = useDisclosure();
 
   const [dismissed, setDismissed] = useState<Set<string>>(() => {
@@ -180,10 +180,10 @@ export const InsuranceAuditTab = () => {
   };
 
   const { data, isLoading, error } = useQuery<InsuranceAuditResponse>({
-    queryKey: ["insurance-audit", selectedUserId],
+    queryKey: ["insurance-audit", effectiveUserId],
     queryFn: () => {
       const params: Record<string, string> = {};
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (selectedUserId) params.user_id = effectiveUserId;
       return api.get("/estate/insurance-audit", { params }).then((r) => r.data);
     },
   });

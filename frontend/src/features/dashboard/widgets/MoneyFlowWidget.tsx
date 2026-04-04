@@ -452,7 +452,7 @@ function SankeyLink({
 }
 
 const MoneyFlowWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const cardBg = useColorModeValue("white", "gray.800");
   const [rangeIndex, setRangeIndex] = useState(0);
 
@@ -462,15 +462,14 @@ const MoneyFlowWidgetBase: React.FC = () => {
     queryKey: [
       "income-expenses-summary",
       range.start,
-      range.end,
-      selectedUserId,
+      range.end, effectiveUserId,
     ],
     queryFn: async () => {
       const params: Record<string, string> = {
         start_date: range.start,
         end_date: range.end,
       };
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (selectedUserId) params.user_id = effectiveUserId;
       const response = await api.get("/income-expenses/summary", { params });
       return response.data;
     },

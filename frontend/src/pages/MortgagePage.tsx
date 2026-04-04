@@ -363,7 +363,7 @@ function AmortizationPreview({ data }: { data: MortgageAnalysisResponse }) {
 // ── Page ──────────────────────────────────────────────────────────────────
 
 export const MortgagePage = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const [refinanceRate, setRefinanceRate] = useLocalStorage(
     "mortgage-refinance-rate",
     "",
@@ -389,7 +389,7 @@ export const MortgagePage = () => {
   const debouncedExtraPayment = useDebounce(extraPayment, 600);
 
   const params = {
-    user_id: selectedUserId || undefined,
+    user_id: effectiveUserId || undefined,
     refinance_rate: debouncedRefinanceRate ? parseFloat(debouncedRefinanceRate) / 100 : undefined,
     refinance_term_months: debouncedRefinanceTerm ? parseInt(debouncedRefinanceTerm) : undefined,
     closing_costs: debouncedClosingCosts ? parseFloat(debouncedClosingCosts) : undefined,
@@ -397,7 +397,7 @@ export const MortgagePage = () => {
   };
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["mortgage-analysis", selectedUserId, params],
+    queryKey: ["mortgage-analysis", effectiveUserId, params],
     queryFn: () => financialPlanningApi.getMortgage(params),
   });
 

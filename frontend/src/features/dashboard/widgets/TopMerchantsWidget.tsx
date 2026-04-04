@@ -41,7 +41,7 @@ const fmt = (n: number): string =>
   }).format(Math.abs(n));
 
 const TopMerchantsWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const now = new Date();
   const startDate = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -50,13 +50,13 @@ const TopMerchantsWidgetBase: React.FC = () => {
   const endDate = now.toISOString().split("T")[0];
 
   const { data, isLoading, isError } = useQuery<MerchantSummaryData>({
-    queryKey: ["merchant-summary-widget", selectedUserId, startDate],
+    queryKey: ["merchant-summary-widget", effectiveUserId, startDate],
     queryFn: async () => {
       const params: Record<string, string> = {
         start_date: startDate,
         end_date: endDate,
       };
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (selectedUserId) params.user_id = effectiveUserId;
       const res = await api.get("/income-expenses/merchant-summary", {
         params,
       });

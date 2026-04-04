@@ -49,12 +49,12 @@ function comparisonBadge(
 }
 
 const MortgageRateWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data, isLoading } = useQuery<MortgageRateData>({
-    queryKey: ["mortgage-rate-widget", selectedUserId],
+    queryKey: ["mortgage-rate-widget", effectiveUserId],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const params = selectedUserId ? { user_id: effectiveUserId } : {};
       const res = await api.get("/financial-planning/mortgage-rates", {
         params,
       });

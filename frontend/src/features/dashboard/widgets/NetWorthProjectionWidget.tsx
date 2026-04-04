@@ -26,13 +26,13 @@ import { GrowthProjectionsChart } from "../../investments/components/GrowthProje
 import api from "../../../services/api";
 
 const NetWorthProjectionWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const [monthlySavings, setMonthlySavings] = useState("0");
 
   const { data: dashboardData, isLoading } = useQuery({
-    queryKey: ["dashboard", selectedUserId],
+    queryKey: ["dashboard", effectiveUserId],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const params = selectedUserId ? { user_id: effectiveUserId } : {};
       const response = await api.get("/dashboard/", { params });
       return response.data;
     },

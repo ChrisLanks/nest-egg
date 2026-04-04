@@ -52,12 +52,12 @@ const fmt = (n: number): string =>
   }).format(n);
 
 const TaxLossHarvestingWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data, isLoading, isError } = useQuery<TaxLossHarvestingData>({
-    queryKey: ["tlh-widget", selectedUserId],
+    queryKey: ["tlh-widget", effectiveUserId],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const params = selectedUserId ? { user_id: effectiveUserId } : {};
       const res = await api.get("/reports/tax-loss-harvesting", { params });
       return res.data;
     },

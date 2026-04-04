@@ -63,15 +63,15 @@ const formatShortDate = (dateStr: string) => {
 };
 
 export const CashFlowForecastPage = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const { formatCurrency } = useCurrency();
   const [timeRange, setTimeRange] = useState<30 | 60 | 90>(90);
 
   const { data: forecast, isLoading, isError } = useQuery<ForecastDataPoint[]>({
-    queryKey: ["cash-flow-forecast-page", timeRange, selectedUserId],
+    queryKey: ["cash-flow-forecast-page", timeRange, effectiveUserId],
     queryFn: async () => {
       const params: Record<string, any> = { days_ahead: timeRange };
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (selectedUserId) params.user_id = effectiveUserId;
       const response = await api.get<ForecastDataPoint[]>("/dashboard/forecast", { params });
       return response.data;
     },

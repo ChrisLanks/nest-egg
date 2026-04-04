@@ -31,7 +31,7 @@ const formatCurrency = (amount: number) =>
   }).format(amount);
 
 const BudgetsWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const {
     data: budgets,
@@ -39,11 +39,11 @@ const BudgetsWidgetBase: React.FC = () => {
     isError: budgetsError,
     refetch: refetchBudgets,
   } = useQuery({
-    queryKey: ["budgets-widget", selectedUserId],
+    queryKey: ["budgets-widget", effectiveUserId],
     queryFn: () =>
       budgetsApi.getAll({
         is_active: true,
-        ...(selectedUserId ? { user_id: selectedUserId } : {}),
+        ...(selectedUserId ? { user_id: effectiveUserId } : {}),
       }),
     staleTime: 60_000,
   });

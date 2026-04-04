@@ -173,16 +173,16 @@ const LotTable = ({ lots }: LotTableProps) => {
 
 export const CostBasisAgingTab = () => {
   const { formatCurrency } = useCurrency();
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const currentYear = new Date().getFullYear();
   const [exportYear, setExportYear] = useState(currentYear - 1);
   const [isExporting, setIsExporting] = useState(false);
 
   const { data, isLoading, error } = useQuery<CostBasisAgingResponse>({
-    queryKey: ["cost-basis-aging", selectedUserId],
+    queryKey: ["cost-basis-aging", effectiveUserId],
     queryFn: () => {
       const params: Record<string, string> = {};
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (selectedUserId) params.user_id = effectiveUserId;
       return api.get("/holdings/cost-basis-aging", { params }).then((r) => r.data);
     },
   });

@@ -42,7 +42,7 @@ interface ForecastDataPoint {
 }
 
 export const ForecastChart = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const [timeRange, setTimeRange] = useState<30 | 60 | 90>(90);
 
   const {
@@ -50,10 +50,10 @@ export const ForecastChart = () => {
     isLoading,
     isError,
   } = useQuery({
-    queryKey: ["cash-flow-forecast", timeRange, selectedUserId],
+    queryKey: ["cash-flow-forecast", timeRange, effectiveUserId],
     queryFn: async () => {
       const params: Record<string, any> = { days_ahead: timeRange };
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (selectedUserId) params.user_id = effectiveUserId;
       const response = await api.get<ForecastDataPoint[]>(
         "/dashboard/forecast",
         { params },

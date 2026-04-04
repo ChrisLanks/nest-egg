@@ -80,13 +80,13 @@ function severityColor(pct: number): string {
 }
 
 export default function StressTestPanel() {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const params: Record<string, string> = {};
-  if (selectedUserId) params.user_id = selectedUserId;
+  if (selectedUserId) params.user_id = effectiveUserId;
 
   const { data: results = [], isLoading, error } = useQuery<ScenarioResult[]>({
-    queryKey: ["stress-test-all", selectedUserId],
+    queryKey: ["stress-test-all", effectiveUserId],
     queryFn: async () => {
       const res = await api.get("/stress-test/run-all", { params });
       return res.data;

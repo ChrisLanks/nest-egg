@@ -151,13 +151,13 @@ function HoldingsTable({ holdings }: { holdings: HoldingFeeDetail[] }) {
 // ── Page ─────────────────────────────────────────────────────────────────
 
 export const FundFeesPage = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["fund-fees", selectedUserId],
+    queryKey: ["fund-fees", effectiveUserId],
     queryFn: () =>
       smartInsightsApi.getFundFees({
-        user_id: selectedUserId || undefined,
+        user_id: effectiveUserId || undefined,
       }),
   });
 

@@ -45,12 +45,12 @@ const fmt = (n: number): string =>
   }).format(n);
 
 const HealthcareCostWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data, isLoading, isError } = useQuery<HealthcareCostData>({
-    queryKey: ["healthcare-cost-widget", selectedUserId],
+    queryKey: ["healthcare-cost-widget", effectiveUserId],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const params = selectedUserId ? { user_id: effectiveUserId } : {};
       const res = await api.get("/retirement/healthcare-estimate", { params });
       return res.data;
     },

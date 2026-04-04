@@ -85,7 +85,7 @@ interface YtdRealized {
 }
 
 export default function CapitalGainsHarvestingPanel() {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const [income, setIncome] = useState<string>("");
   const [filingStatus, setFilingStatus] = useState("single");
 
@@ -110,10 +110,10 @@ export default function CapitalGainsHarvestingPanel() {
   const { data: candidates = [], isLoading: candidatesLoading } = useQuery<
     HarvestCandidate[]
   >({
-    queryKey: ["cgh-candidates", selectedUserId],
+    queryKey: ["cgh-candidates", effectiveUserId],
     queryFn: async () => {
       const params: Record<string, string> = {};
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (selectedUserId) params.user_id = effectiveUserId;
       const res = await api.get("/capital-gains-harvesting/candidates", {
         params,
       });
@@ -122,10 +122,10 @@ export default function CapitalGainsHarvestingPanel() {
   });
 
   const { data: ytd, isLoading: ytdLoading } = useQuery<YtdRealized>({
-    queryKey: ["cgh-ytd", selectedUserId],
+    queryKey: ["cgh-ytd", effectiveUserId],
     queryFn: async () => {
       const params: Record<string, string> = {};
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (selectedUserId) params.user_id = effectiveUserId;
       const res = await api.get("/capital-gains-harvesting/ytd-realized", {
         params,
       });

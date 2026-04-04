@@ -314,5 +314,12 @@ export const useUserView = (): FullUserViewContextType => {
     throw new Error("useUserView must be used within UserViewProvider");
   }
   const memberFilter = useMemberFilter();
-  return { ...viewContext, ...memberFilter };
+
+  // Convenience: the user ID to pass to API calls.
+  // Resolves selectedUserId (dropdown) OR memberEffectiveUserId (checkbox filter)
+  // so pages don't have to reason about both.
+  const effectiveUserId =
+    viewContext.selectedUserId ?? memberFilter.memberEffectiveUserId ?? null;
+
+  return { ...viewContext, ...memberFilter, effectiveUserId };
 };

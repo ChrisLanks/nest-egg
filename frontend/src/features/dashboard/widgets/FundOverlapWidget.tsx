@@ -44,12 +44,12 @@ const fmt = (n: number): string =>
   }).format(n);
 
 const FundOverlapWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data, isLoading, isError } = useQuery<FundOverlapData>({
-    queryKey: ["fund-overlap-widget", selectedUserId],
+    queryKey: ["fund-overlap-widget", effectiveUserId],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const params = selectedUserId ? { user_id: effectiveUserId } : {};
       const res = await api.get("/holdings/fund-overlap", { params });
       return res.data;
     },

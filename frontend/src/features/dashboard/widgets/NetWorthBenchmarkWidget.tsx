@@ -73,12 +73,12 @@ const percentileColor = (pct: number): string => {
 };
 
 const NetWorthBenchmarkWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data, isLoading, isError } = useQuery<BenchmarkData>({
-    queryKey: ["net-worth-benchmark", selectedUserId],
+    queryKey: ["net-worth-benchmark", effectiveUserId],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const params = selectedUserId ? { user_id: effectiveUserId } : {};
       const response = await api.get("/dashboard/net-worth-benchmark", {
         params,
       });

@@ -101,7 +101,7 @@ interface ReportResult {
 
 function CustomReportsTab() {
   const {
-    selectedUserId,
+    selectedUserId, effectiveUserId,
     canWriteResource,
     isCombinedView,
     memberEffectiveUserId,

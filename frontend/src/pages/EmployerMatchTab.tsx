@@ -82,13 +82,13 @@ const matchAlertStatus = (isCapturing: boolean | undefined): "success" | "warnin
 
 export const EmployerMatchTab = () => {
   const { formatCurrency } = useCurrency();
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data, isLoading, error } = useQuery<EmployerMatchResponse>({
-    queryKey: ["employer-match", selectedUserId],
+    queryKey: ["employer-match", effectiveUserId],
     queryFn: () => {
       const params: Record<string, string> = {};
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (selectedUserId) params.user_id = effectiveUserId;
       return api.get("/retirement/employer-match", { params }).then((r) => r.data);
     },
   });

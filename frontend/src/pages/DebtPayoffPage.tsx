@@ -159,7 +159,7 @@ function SortIndicator({
 }
 
 export default function DebtPayoffPage() {
-  const { selectedUserId, canWriteResource } = useUserView();
+  const { selectedUserId, effectiveUserId, canWriteResource } = useUserView();
   const canEdit = canWriteResource("account");
   const toast = useToast();
   const infoTextColor = useColorModeValue("blue.700", "blue.200");
@@ -227,10 +227,10 @@ export default function DebtPayoffPage() {
     isError: summaryError,
     refetch: refetchSummary,
   } = useQuery({
-    queryKey: ["debt-summary", selectedUserId],
+    queryKey: ["debt-summary", effectiveUserId],
     queryFn: async () => {
       const params: Record<string, string> = {};
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (selectedUserId) params.user_id = effectiveUserId;
       const response = await api.get("/debt-payoff/summary", { params });
       return response.data;
     },
@@ -243,10 +243,10 @@ export default function DebtPayoffPage() {
     isError: debtsError,
     refetch: refetchDebts,
   } = useQuery<DebtAccount[]>({
-    queryKey: ["debt-accounts", selectedUserId],
+    queryKey: ["debt-accounts", effectiveUserId],
     queryFn: async () => {
       const params: Record<string, string> = {};
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (selectedUserId) params.user_id = effectiveUserId;
       const response = await api.get("/debt-payoff/debts", { params });
       return response.data;
     },
@@ -324,10 +324,10 @@ export default function DebtPayoffPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["debt-accounts", selectedUserId],
+        queryKey: ["debt-accounts", effectiveUserId],
       });
       queryClient.invalidateQueries({
-        queryKey: ["debt-summary", selectedUserId],
+        queryKey: ["debt-summary", effectiveUserId],
       });
       queryClient.invalidateQueries({ queryKey: ["debt-comparison"] }); // broad invalidate — includes extraPayment + selectedAccounts
       toast({
@@ -396,15 +396,14 @@ export default function DebtPayoffPage() {
   } = useQuery<ComparisonResult>({
     queryKey: [
       "debt-comparison",
-      extraPayment,
-      selectedUserId,
+      extraPayment, effectiveUserId,
       Array.from(effectiveSelectedAccounts),
     ],
     queryFn: async () => {
       const params: Record<string, string> = {
         extra_payment: String(parseFloat(extraPayment) || 0),
       };
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (selectedUserId) params.user_id = effectiveUserId;
       if (effectiveSelectedAccounts.size > 0)
         params.account_ids = Array.from(effectiveSelectedAccounts).join(",");
       const response = await api.get("/debt-payoff/compare", { params });

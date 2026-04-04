@@ -90,16 +90,16 @@ const fmt = (v: number) =>
   }).format(v);
 
 export const BackdoorRothTab = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const [filingStatus, setFilingStatus] = useState("single");
   const [magi, setMagi] = useState<number | undefined>(undefined);
 
   const params = new URLSearchParams({ filing_status: filingStatus });
   if (magi !== undefined) params.set("estimated_magi", String(magi));
-  if (selectedUserId) params.set("user_id", selectedUserId);
+  if (effectiveUserId) params.set("user_id", effectiveUserId);
 
   const { data, isLoading, error } = useQuery<BackdoorRothResponse>({
-    queryKey: ["backdoor-roth", filingStatus, magi, selectedUserId],
+    queryKey: ["backdoor-roth", filingStatus, magi, effectiveUserId],
     queryFn: () => api.get(`/tax/backdoor-roth-analysis?${params}`).then((r) => r.data),
   });
 

@@ -81,7 +81,7 @@ const formatCurrencyPrecise = (amount: number) =>
   }).format(amount);
 
 export const RothConversionAnalyzer: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const successTextColor = useColorModeValue('green.700', 'green.200');
   const warningTextColor = useColorModeValue('yellow.700', 'yellow.200');
 
@@ -93,9 +93,9 @@ export const RothConversionAnalyzer: React.FC = () => {
   const [balanceInput, setBalanceInput] = useState<string>('');
 
   const { data, isLoading, error } = useQuery<RothAnalysisData>({
-    queryKey: ['roth-analysis', selectedUserId],
+    queryKey: ['roth-analysis', effectiveUserId],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const params = selectedUserId ? { user_id: effectiveUserId } : {};
       const { data: res } = await api.get('/holdings/roth-analysis', { params });
       return res;
     },

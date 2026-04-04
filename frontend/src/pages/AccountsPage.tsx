@@ -125,7 +125,7 @@ export const AccountsPage = () => {
   const cancelRef = useRef<HTMLButtonElement>(null);
   const {
     canWriteOwnedResource,
-    selectedUserId,
+    selectedUserId, effectiveUserId,
     isCombinedView,
     memberEffectiveUserId,
     isPartialMemberSelection,

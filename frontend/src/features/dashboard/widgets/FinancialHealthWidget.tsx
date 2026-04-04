@@ -63,12 +63,12 @@ const gaugeColor = (score: number): string => {
 };
 
 const FinancialHealthWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data, isLoading, isError } = useQuery<FinancialHealthData>({
-    queryKey: ["financial-health", selectedUserId],
+    queryKey: ["financial-health", effectiveUserId],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const params = selectedUserId ? { user_id: effectiveUserId } : {};
       const response = await api.get("/dashboard/financial-health", { params });
       return response.data;
     },

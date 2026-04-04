@@ -83,15 +83,15 @@ const scoreColor = (score: number): string => {
 };
 
 export const AssetLocationTab = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const { formatCurrency } = useCurrency();
   const [showExplanation, setShowExplanation] = useState(false);
 
   const params = new URLSearchParams();
-  if (selectedUserId) params.set("user_id", selectedUserId);
+  if (effectiveUserId) params.set("user_id", effectiveUserId);
 
   const { data, isLoading, error } = useQuery<AssetLocationResponse>({
-    queryKey: ["asset-location", selectedUserId],
+    queryKey: ["asset-location", effectiveUserId],
     queryFn: () =>
       api.get(`/holdings/asset-location?${params}`).then((r) => r.data),
   });

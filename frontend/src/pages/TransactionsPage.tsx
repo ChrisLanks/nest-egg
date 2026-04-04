@@ -656,7 +656,7 @@ export const TransactionsPage = () => {
     canWriteResource,
     canWriteOwnedResource,
     isOtherUserView,
-    selectedUserId,
+    selectedUserId, effectiveUserId,
     isCombinedView,
     memberEffectiveUserId,
     isPartialMemberSelection,

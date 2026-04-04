@@ -42,7 +42,7 @@ interface Account {
 }
 
 const AccountBalancesWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const [sortKey, setSortKey] = useState<SortKey>(() => {
     return (localStorage.getItem(SORT_KEY) as SortKey) || "balance";
@@ -52,9 +52,9 @@ const AccountBalancesWidgetBase: React.FC = () => {
   });
 
   const { data } = useQuery({
-    queryKey: ["dashboard", selectedUserId],
+    queryKey: ["dashboard", effectiveUserId],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const params = selectedUserId ? { user_id: effectiveUserId } : {};
       const response = await api.get("/dashboard/", { params });
       return response.data;
     },

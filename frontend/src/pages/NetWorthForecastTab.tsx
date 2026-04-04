@@ -73,7 +73,7 @@ interface FinancialDefaults {
 }
 
 export const NetWorthForecastTab = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const { formatCurrency } = useCurrency();
 
   const { data: defaults } = useQuery<FinancialDefaults>({
@@ -95,10 +95,10 @@ export const NetWorthForecastTab = () => {
     annual_return: String(effectiveAnnualReturn / 100),
     annual_contribution: String(effectiveAnnualContrib),
   });
-  if (selectedUserId) params.set("user_id", selectedUserId);
+  if (effectiveUserId) params.set("user_id", effectiveUserId);
 
   const { data, isLoading, error } = useQuery<ForecastResponse>({
-    queryKey: ["net-worth-forecast", effectiveRetirementAge, effectiveAnnualReturn, effectiveAnnualContrib, selectedUserId],
+    queryKey: ["net-worth-forecast", effectiveRetirementAge, effectiveAnnualReturn, effectiveAnnualContrib, effectiveUserId],
     queryFn: () => api.get(`/dashboard/net-worth-forecast?${params}`).then((r) => r.data),
     enabled: defaults !== undefined,
   });

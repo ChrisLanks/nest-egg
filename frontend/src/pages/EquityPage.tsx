@@ -144,15 +144,15 @@ function InfoTip({ label }: { label: string }) {
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export const EquityPage = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const navigate = useNavigate();
   const today = new Date();
 
   const { data: allAccounts = [], isLoading } = useQuery<EquityAccount[]>({
-    queryKey: ["accounts-equity", selectedUserId],
+    queryKey: ["accounts-equity", effectiveUserId],
     queryFn: async () => {
       const params: Record<string, string> = {};
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (selectedUserId) params.user_id = effectiveUserId;
       const res = await api.get("/accounts", { params });
       return (res.data as EquityAccount[]).filter(
         (a) => a.account_type === "stock_options" || a.account_type === "private_equity",

@@ -34,10 +34,10 @@ const formatPct = (pct: number) =>
   `${pct >= 0 ? "+" : ""}${Number(pct).toFixed(2)}%`;
 
 const InvestmentPerformanceWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data: portfolio, isLoading } = useQuery({
-    queryKey: ["portfolio-widget", selectedUserId],
+    queryKey: ["portfolio-widget", effectiveUserId],
     queryFn: () => holdingsApi.getPortfolioSummary(selectedUserId || undefined),
     staleTime: 60_000,
   });

@@ -59,13 +59,13 @@ const fmt = (n: number): string =>
   }).format(n);
 
 const SmartInsightsWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data, isLoading, isError } = useQuery<SmartInsightsResponse>({
-    queryKey: ["smart-insights-widget", selectedUserId],
+    queryKey: ["smart-insights-widget", effectiveUserId],
     queryFn: async () => {
       const params: Record<string, string | number> = { max_insights: 5 };
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (selectedUserId) params.user_id = effectiveUserId;
       const res = await api.get("/smart-insights", { params });
       return res.data;
     },

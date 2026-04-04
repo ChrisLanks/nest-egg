@@ -369,7 +369,7 @@ const MoneyFlowSankey = ({
 export const IncomeExpensesPage = ({ embedded = false }: { embedded?: boolean }) => {
   // Use global user view context + multi-member filter
   const {
-    selectedUserId,
+    selectedUserId, effectiveUserId,
     isCombinedView,
     memberEffectiveUserId,
     selectedMemberIdsKey,

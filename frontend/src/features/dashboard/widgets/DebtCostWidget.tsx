@@ -62,12 +62,12 @@ function typLabel(t: string) {
 }
 
 const DebtCostWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data, isLoading } = useQuery<DebtCostData>({
-    queryKey: ["debt-cost-widget", selectedUserId],
+    queryKey: ["debt-cost-widget", effectiveUserId],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const params = selectedUserId ? { user_id: effectiveUserId } : {};
       const res = await api.get("/financial-planning/debt-cost", { params });
       return res.data;
     },

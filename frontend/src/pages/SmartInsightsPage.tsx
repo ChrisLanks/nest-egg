@@ -152,15 +152,15 @@ function InsightCard({ insight }: { insight: InsightItem }) {
 // ── Page ─────────────────────────────────────────────────────────────────
 
 export const SmartInsightsPage = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["smart-insights", selectedUserId],
+    queryKey: ["smart-insights", effectiveUserId],
     queryFn: () =>
       smartInsightsApi.getInsights({
-        user_id: selectedUserId || undefined,
+        user_id: effectiveUserId || undefined,
         max_insights: 20,
       }),
   });

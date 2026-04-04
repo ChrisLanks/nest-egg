@@ -144,7 +144,7 @@ function getQuarterlySchedule(year: number) {
 }
 
 export const VariableIncomePage = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const today = new Date();
   const currentYear = today.getFullYear();
   const { isOpen: settingsOpen, onToggle: toggleSettings } = useDisclosure();
@@ -206,15 +206,14 @@ export const VariableIncomePage = () => {
 
   const { data: trend = [], isLoading } = useQuery<MonthlyTrend[]>({
     queryKey: [
-      "variable-income-trend",
-      selectedUserId,
+      "variable-income-trend", effectiveUserId,
       startStr,
       endStr,
       effectiveSettings.incomeLabelName,
     ],
     queryFn: async () => {
       const params: Record<string, string> = { start_date: startStr, end_date: endStr };
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (selectedUserId) params.user_id = effectiveUserId;
       if (effectiveSettings.incomeLabelName) params.label_name = effectiveSettings.incomeLabelName;
       const res = await api.get("/income-expenses/trend", { params });
       return res.data;

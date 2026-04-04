@@ -73,11 +73,11 @@ const fmt = (v: number) =>
   }).format(v);
 
 export const BeneficiaryAuditCard = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const { isOpen, onToggle } = useDisclosure({ defaultIsOpen: true });
 
   const { data, isLoading } = useQuery<AuditResponse>({
-    queryKey: ["beneficiary-audit", selectedUserId],
+    queryKey: ["beneficiary-audit", effectiveUserId],
     queryFn: () => api.get("/estate/beneficiary-audit").then((r) => r.data),
   });
 

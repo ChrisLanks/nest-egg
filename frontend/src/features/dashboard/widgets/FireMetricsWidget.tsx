@@ -27,13 +27,13 @@ const scoreColor = (ratio: number): string => {
 };
 
 const FireMetricsWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data, isLoading, isError } = useQuery<FireMetricsResponse>({
-    queryKey: ["fire-metrics-widget", selectedUserId],
+    queryKey: ["fire-metrics-widget", effectiveUserId],
     queryFn: () =>
       fireApi.getMetrics(
-        selectedUserId ? { user_id: selectedUserId } : undefined,
+        selectedUserId ? { user_id: effectiveUserId } : undefined,
       ),
     retry: false,
     staleTime: 60_000,

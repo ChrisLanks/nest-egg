@@ -209,7 +209,7 @@ function YearTable({
 // ── Page ─────────────────────────────────────────────────────────────────
 
 export const RothConversionPage = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const saved = loadAssumptions();
   const [currentIncome, setCurrentIncome] = useState(saved.currentIncome);
@@ -265,8 +265,7 @@ export const RothConversionPage = () => {
 
   const { data, isLoading, isError } = useQuery<RothConversionResponse>({
     queryKey: [
-      "roth-conversion",
-      selectedUserId,
+      "roth-conversion", effectiveUserId,
       incomeNum,
       filingStatus,
       returnNum,
@@ -276,7 +275,7 @@ export const RothConversionPage = () => {
     ],
     queryFn: () =>
       smartInsightsApi.getRothConversion({
-        user_id: selectedUserId || undefined,
+        user_id: effectiveUserId || undefined,
         current_income: incomeNum,
         filing_status: filingStatus,
         expected_return: returnNum / 100,

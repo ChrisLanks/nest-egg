@@ -185,7 +185,7 @@ const BreakdownTable = ({
 // ─── Forecast Tab ─────────────────────────────────────────────────────────────
 
 const ForecastTab = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const { formatCurrency } = useCurrency();
   const [timeRange, setTimeRange] = useState<30 | 60 | 90>(90);
   const [groupBy, setGroupBy] = useState<GroupBy>("category");
@@ -195,10 +195,10 @@ const ForecastTab = () => {
 
   // Full daily forecast (balance trajectory + per-day income/expenses)
   const { data: forecast, isLoading, isError } = useQuery<ForecastDataPoint[]>({
-    queryKey: ["cash-flow-forecast-page", timeRange, selectedUserId],
+    queryKey: ["cash-flow-forecast-page", timeRange, effectiveUserId],
     queryFn: async () => {
       const params: Record<string, unknown> = { days_ahead: timeRange };
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (selectedUserId) params.user_id = effectiveUserId;
       const response = await api.get<ForecastDataPoint[]>("/dashboard/forecast", { params });
       return response.data;
     },
@@ -206,10 +206,10 @@ const ForecastTab = () => {
 
   // Summary totals + breakdowns
   const { data: summary, isLoading: summaryLoading } = useQuery<ForecastSummary>({
-    queryKey: ["cash-flow-forecast-summary", timeRange, selectedUserId],
+    queryKey: ["cash-flow-forecast-summary", timeRange, effectiveUserId],
     queryFn: async () => {
       const params: Record<string, unknown> = { days_ahead: timeRange };
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (selectedUserId) params.user_id = effectiveUserId;
       const response = await api.get<ForecastSummary>("/dashboard/forecast/summary", { params });
       return response.data;
     },

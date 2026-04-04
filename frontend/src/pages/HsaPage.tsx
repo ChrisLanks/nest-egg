@@ -154,7 +154,7 @@ function InfoTip({ label }: { label: string }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export const HsaPage = () => {
-  const { selectedUserId, matchesMemberFilter, memberEffectiveUserId } = useUserView();
+  const { selectedUserId, effectiveUserId, matchesMemberFilter, memberEffectiveUserId } = useUserView();
   const toast = useToast();
   const queryClient = useQueryClient();
   const { isOpen, onOpen, onClose } = useDisclosure();

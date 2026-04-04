@@ -62,13 +62,13 @@ const fmtCurrency = (n: number) =>
 const fmtPct = (n: number) => `${Number(n).toFixed(1)}%`;
 
 const RebalancingWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data, isLoading, error } = useQuery<RebalancingAnalysis>({
-    queryKey: ["rebalancing-widget", selectedUserId],
+    queryKey: ["rebalancing-widget", effectiveUserId],
     queryFn: async () => {
       const params: Record<string, string> = {};
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (selectedUserId) params.user_id = effectiveUserId;
       const res = await api.get("/rebalancing/analysis", { params });
       return res.data;
     },

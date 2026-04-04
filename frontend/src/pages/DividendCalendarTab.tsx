@@ -131,15 +131,15 @@ const MonthCell = ({ month, isBest }: MonthCellProps) => {
 
 export const DividendCalendarTab = () => {
   const { formatCurrency } = useCurrency();
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
 
   const { data, isLoading, error } = useQuery<DividendCalendarResponse>({
-    queryKey: ["dividend-calendar", year, selectedUserId],
+    queryKey: ["dividend-calendar", year, effectiveUserId],
     queryFn: () => {
       const params = new URLSearchParams({ year: String(year) });
-      if (selectedUserId) params.set("user_id", selectedUserId);
+      if (effectiveUserId) params.set("user_id", effectiveUserId);
       return api.get(`/holdings/dividend-calendar?${params}`).then((r) => r.data);
     },
   });

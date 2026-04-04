@@ -59,13 +59,13 @@ function rateColor(rate: number | null): string {
 }
 
 const SavingsRateWidgetBase: React.FC = () => {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data, isLoading } = useQuery<SavingsRateData>({
-    queryKey: ["savings-rate-widget", selectedUserId],
+    queryKey: ["savings-rate-widget", effectiveUserId],
     queryFn: async () => {
       const params: Record<string, string> = { months: "12" };
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (selectedUserId) params.user_id = effectiveUserId;
       const res = await api.get("/financial-planning/savings-rate", { params });
       return res.data;
     },

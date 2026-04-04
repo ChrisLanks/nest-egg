@@ -85,7 +85,7 @@ interface AnnualSummary {
 
 export default function TrendsPage() {
   const {
-    selectedUserId,
+    selectedUserId, effectiveUserId,
     isCombinedView,
     memberEffectiveUserId,
     selectedMemberIdsKey,
