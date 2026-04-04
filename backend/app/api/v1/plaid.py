@@ -1,5 +1,6 @@
 """Plaid integration API endpoints."""
 
+import hashlib
 import json as _json
 import logging
 import uuid as _uuid_module
@@ -32,9 +33,13 @@ from app.services.plaid_transaction_sync_service import (
     MockPlaidTransactionGenerator,
     PlaidTransactionSyncService,
 )
+from app.core.cache import setnx_with_ttl as cache_setnx
 from app.services.rate_limit_service import rate_limit_service
 from app.utils.account_type_groups import PLAID_EXCLUDE_CASH_FLOW_TYPES
 from app.utils.datetime_utils import utc_now
+
+# Webhook deduplication TTL — 24 hours
+_WEBHOOK_DEDUP_TTL = 86_400
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -405,6 +410,17 @@ async def handle_plaid_webhook(
         webhook_code = webhook_data.get("webhook_code")
         item_id = webhook_data.get("item_id")
 
+        # Dedup: hash the body to detect retried webhooks (Plaid may retry on timeout)
+        body_hash = hashlib.sha256(raw_body).hexdigest()[:16]
+        dedup_key = f"plaid:webhook:dedup:{body_hash}"
+        is_new = await cache_setnx(dedup_key, _WEBHOOK_DEDUP_TTL)
+        if not is_new:
+            logger.info(
+                "Plaid webhook duplicate skipped: %s - %s (hash=%s)",
+                webhook_type, webhook_code, body_hash,
+            )
+            return {"status": "duplicate_skipped"}
+
         logger.info(f"Plaid webhook received: {webhook_type} - {webhook_code}")
 
         # Get PlaidItem — the item_id in the payload is attacker-controlled (only
@@ -655,6 +671,16 @@ async def _handle_transactions_webhook(
         "HISTORICAL_UPDATE",
         "SYNC_UPDATES_AVAILABLE",
     ]:
+        # Debounce: max 1 sync per item per 60 seconds to prevent thundering herd
+        sync_lock_key = f"plaid:sync_debounce:{plaid_item.item_id}"
+        acquired = await cache_setnx(sync_lock_key, 60)
+        if not acquired:
+            logger.info(
+                "Plaid sync debounced for item %s (code=%s) — already syncing within 60s",
+                plaid_item.item_id, webhook_code,
+            )
+            return
+
         # New transaction data is available - trigger sync
         logger.info(
             "Transaction data available for item: " f"{plaid_item.item_id} (code={webhook_code})"

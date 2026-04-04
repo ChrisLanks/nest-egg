@@ -40,6 +40,7 @@ class HealthResponse(BaseModel):
     timestamp: str
     database: str
     redis: str
+    celery: str = "unknown"
 
 
 class RateLimitStatus(BaseModel):
@@ -86,12 +87,34 @@ async def health_check(db: AsyncSession = Depends(get_db)):
     except Exception:
         redis_status = "error"
 
+    # Check Celery workers (non-blocking, 2s timeout)
+    celery_status = "ok"
+    try:
+        import asyncio
+        from app.workers.celery_app import celery_app
+
+        ping_result = await asyncio.wait_for(
+            asyncio.to_thread(
+                lambda: celery_app.control.inspect(timeout=2.0).ping()
+            ),
+            timeout=3.0,
+        )
+        if not ping_result:
+            celery_status = "no_workers"
+    except Exception:
+        celery_status = "error"
+
+    # DB + Redis are critical; Celery is non-critical (degrades background jobs only)
+    core_healthy = db_status == "ok" and redis_status == "ok"
     return HealthResponse(
-        status="healthy" if db_status == "ok" and redis_status == "ok" else "degraded",
+        status="healthy" if core_healthy and celery_status == "ok"
+        else "degraded" if core_healthy
+        else "unhealthy",
         version=settings.APP_VERSION,
         timestamp=utc_now().isoformat(),
         database=db_status,
         redis=redis_status,
+        celery=celery_status,
     )
 
 

@@ -11,7 +11,12 @@ from sqlalchemy import and_, case, exists, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from app.core.cache import get as cache_get, setex as cache_setex
 from app.core.database import get_db
+
+# Cache TTL for trend endpoints (seconds) — these aggregate historical data
+# that changes only when new transactions arrive, so 10 minutes is safe.
+_CACHE_TTL_TRENDS = 600
 from app.dependencies import (
     get_all_household_accounts,
     get_current_user,
@@ -1439,6 +1444,12 @@ async def get_year_over_year_comparison(
     - Seasonality analysis
     - Multi-year performance comparison
     """
+    years_key = ",".join(str(y) for y in sorted(years))
+    cache_key = f"ie:yoy:{current_user.organization_id}:{user_id or 'household'}:{years_key}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     # Get accounts based on user filter
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
@@ -1457,6 +1468,7 @@ async def get_year_over_year_comparison(
         account_ids,
     )
 
+    await cache_setex(cache_key, _CACHE_TTL_TRENDS, comparison)
     return comparison
 
 
@@ -1477,6 +1489,12 @@ async def get_quarterly_summary(
     - Total expenses per quarter
     - Net income per quarter
     """
+    years_key = ",".join(str(y) for y in sorted(years))
+    cache_key = f"ie:quarterly:{current_user.organization_id}:{user_id or 'household'}:{years_key}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     # Get accounts based on user filter
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
@@ -1495,6 +1513,7 @@ async def get_quarterly_summary(
         account_ids,
     )
 
+    await cache_setex(cache_key, _CACHE_TTL_TRENDS, summary)
     return summary
 
 
@@ -1559,6 +1578,11 @@ async def get_annual_summary(
     - Average monthly values
     - Peak expense month
     """
+    cache_key = f"ie:annual:{current_user.organization_id}:{user_id or 'household'}:{year}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     # Get accounts based on user filter
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
@@ -1577,6 +1601,7 @@ async def get_annual_summary(
         account_ids,
     )
 
+    await cache_setex(cache_key, _CACHE_TTL_TRENDS, summary)
     return summary
 
 
