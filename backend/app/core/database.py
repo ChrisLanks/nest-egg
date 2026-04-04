@@ -26,6 +26,10 @@ engine = create_async_engine(
                 settings.DB_STATEMENT_TIMEOUT_MS
             ),  # Configurable query timeout
         },
+        # Disable asyncpg's prepared statement cache so schema changes
+        # (new columns, altered types) take effect immediately without
+        # needing to kill all pooled connections after a migration.
+        "prepared_statement_cache_size": 0,
     },
 )
 
