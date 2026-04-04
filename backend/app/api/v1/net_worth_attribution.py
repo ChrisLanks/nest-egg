@@ -4,14 +4,14 @@ Explains monthly net worth changes by attributing them to:
 savings, investment contributions, debt paydown, and other flows.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_filtered_accounts
 from app.services.rate_limit_service import rate_limit_service
 from app.models.user import User
 from app.services.net_worth_attribution_service import NetWorthAttributionService
@@ -32,6 +32,7 @@ async def get_monthly_attribution(
     month: int = Query(..., ge=1, le=12, description="Month (1-12)"),
     year: int = Query(..., ge=2000, le=2100, description="Year"),
     user_id: Optional[UUID] = Query(None, description="Filter by user ID"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -57,6 +58,7 @@ async def get_monthly_attribution(
 async def get_attribution_history(
     months: int = Query(12, ge=1, le=60, description="Number of months of history to return"),
     user_id: Optional[UUID] = Query(None, description="Filter by user ID"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

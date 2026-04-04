@@ -9,7 +9,7 @@ from sqlalchemy import func, select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_filtered_accounts
 from app.models.account import Account, AccountType
 from app.models.contribution import AccountContribution, ContributionFrequency, ContributionType
 from app.models.transaction import Transaction
@@ -330,6 +330,7 @@ class SalaryEstimateResponse(BaseModel):
 @router.get("/salary-estimate", response_model=SalaryEstimateResponse)
 async def get_salary_estimate(
     user_id: Optional[str] = Query(None, description="Household member user ID (org-admin only)"),
+    user_ids: Optional[list[str]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_db, get_user_accounts, verify_household_member
+from app.dependencies import get_current_user, get_db, get_filtered_accounts, get_user_accounts, verify_household_member
 from app.models.account import Account
 from app.models.recurring_transaction import RecurringFrequency, RecurringTransaction
 from app.models.user import User
@@ -119,6 +119,7 @@ async def detect_recurring_patterns(
     min_occurrences: int = Query(3, ge=2, le=50),
     lookback_days: int = Query(180, ge=30, le=730),
     user_id: Optional[UUID] = Query(None, description="Filter by user"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -131,10 +132,12 @@ async def detect_recurring_patterns(
         identifier=str(current_user.id),
     )
     account_ids = None
-    if user_id:
-        await verify_household_member(db, user_id, current_user.organization_id)
-        user_accounts = await get_user_accounts(db, user_id, current_user.organization_id)
-        account_ids = {acc.id for acc in user_accounts}
+    if user_id or user_ids:
+        accounts = await get_filtered_accounts(
+            db, current_user.organization_id, current_user.id,
+            user_id=user_id, user_ids=user_ids,
+        )
+        account_ids = {acc.id for acc in accounts}
 
     patterns = await recurring_detection_service.detect_recurring_patterns(
         db=db,
@@ -192,15 +195,18 @@ async def create_recurring_transaction(
 async def list_recurring_transactions(
     is_active: Optional[bool] = None,
     user_id: Optional[UUID] = Query(None, description="Filter by user"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get all recurring transaction patterns."""
     account_ids = None
-    if user_id:
-        await verify_household_member(db, user_id, current_user.organization_id)
-        user_accounts = await get_user_accounts(db, user_id, current_user.organization_id)
-        account_ids = {acc.id for acc in user_accounts}
+    if user_id or user_ids:
+        accounts = await get_filtered_accounts(
+            db, current_user.organization_id, current_user.id,
+            user_id=user_id, user_ids=user_ids,
+        )
+        account_ids = {acc.id for acc in accounts}
 
     patterns = await recurring_detection_service.get_recurring_transactions(
         db=db,
@@ -259,6 +265,7 @@ async def delete_recurring_transaction(
 async def get_calendar(
     days: int = Query(90, ge=1, le=365),
     user_id: Optional[UUID] = Query(None, description="Filter by user"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -275,10 +282,12 @@ async def get_calendar(
         RecurringTransaction.next_expected_date.isnot(None),
     ]
 
-    if user_id:
-        await verify_household_member(db, user_id, current_user.organization_id)
-        user_accounts = await get_user_accounts(db, user_id, current_user.organization_id)
-        account_ids = {acc.id for acc in user_accounts}
+    if user_id or user_ids:
+        accounts = await get_filtered_accounts(
+            db, current_user.organization_id, current_user.id,
+            user_id=user_id, user_ids=user_ids,
+        )
+        account_ids = {acc.id for acc in accounts}
         conditions.append(RecurringTransaction.account_id.in_(account_ids))
 
     result = await db.execute(select(RecurringTransaction).where(and_(*conditions)))
@@ -389,6 +398,7 @@ async def preview_label_matches(
 async def get_upcoming_bills(
     days_ahead: int = 30,
     user_id: Optional[UUID] = Query(None, description="Filter by user"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -428,6 +438,7 @@ async def get_price_increases(
         None,
         description="Filter to a specific household member. Omit for combined view.",
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

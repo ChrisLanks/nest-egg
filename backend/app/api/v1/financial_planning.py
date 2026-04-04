@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.financial import RETIREMENT
 from app.core.database import get_db
-from app.dependencies import get_current_user, verify_household_member
+from app.dependencies import get_current_user, get_filtered_accounts, verify_household_member
 from app.services.rate_limit_service import rate_limit_service
 from app.models.account import Account, AccountType
 from app.models.user import User
@@ -247,6 +247,7 @@ async def _get_mortgage_account(
 @router.get("/mortgage", response_model=MortgageAnalysisResponse)
 async def get_mortgage_analysis(
     user_id: Optional[UUID] = Query(None),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     account_id: Optional[UUID] = Query(None, description="Specific mortgage account ID"),
     refinance_rate: Optional[float] = Query(
         None, ge=0.0, le=0.30, description="New rate as decimal (e.g. 0.055)"
@@ -382,6 +383,7 @@ async def get_mortgage_analysis(
 @router.get("/ss-claiming", response_model=SSClaimingResponse)
 async def get_ss_claiming_strategy(
     user_id: Optional[UUID] = Query(None),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_salary: float = Query(..., ge=0, description="Current annual gross salary"),
     birth_year: int = Query(..., ge=1940, le=2000),
     career_start_age: int = Query(22, ge=16, le=40),
@@ -438,6 +440,7 @@ async def get_ss_claiming_strategy(
 @router.get("/tax-projection", response_model=TaxProjectionResponse)
 async def get_tax_projection(
     user_id: Optional[UUID] = Query(None),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     filing_status: str = Query("single", pattern="^(single|married)$"),
     self_employment_income: float = Query(0.0, ge=0),
     estimated_capital_gains: float = Query(0.0, ge=0),
@@ -525,6 +528,7 @@ async def get_savings_rate(
         None,
         description="Filter to a specific household member. Omit for combined view.",
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     months: int = Query(12, ge=3, le=24),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -559,6 +563,7 @@ async def get_debt_cost(
         None,
         description="Filter to a specific household member. Omit for combined view.",
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> DebtCostResponse:
@@ -595,6 +600,7 @@ async def get_mortgage_rates(
         None,
         description="Filter to a specific household member for 'your rate' comparison.",
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> MortgageRateResponse:
@@ -1035,6 +1041,7 @@ class InflationTrackingResponse(BaseModel):
 @router.get("/inflation-tracking", response_model=InflationTrackingResponse)
 async def get_inflation_tracking(
     user_id: Optional[UUID] = Query(None),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> InflationTrackingResponse:

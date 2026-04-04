@@ -110,12 +110,26 @@ const MemberFilterApiInjector = () => {
 
   useEffect(() => {
     registerMemberFilterGetter(() => {
-      const effective =
+      // Single user: dropdown selection or exactly 1 checkbox
+      const singleUserId =
         viewContext?.selectedUserId ?? memberFilter.memberEffectiveUserId ?? null;
-      return effective;
+      if (singleUserId) {
+        return { userId: singleUserId, userIds: null };
+      }
+      // Multiple users: 2+ checkboxes selected (but not all)
+      if (memberFilter.isPartialMemberSelection && memberFilter.selectedMemberIds.size > 1) {
+        return { userId: null, userIds: [...memberFilter.selectedMemberIds] };
+      }
+      // Combined view (all selected or no filter) — no param needed
+      return { userId: null, userIds: null };
     });
-    return () => registerMemberFilterGetter(() => null);
-  }, [viewContext?.selectedUserId, memberFilter.memberEffectiveUserId]);
+    return () => registerMemberFilterGetter(() => ({ userId: null, userIds: null }));
+  }, [
+    viewContext?.selectedUserId,
+    memberFilter.memberEffectiveUserId,
+    memberFilter.isPartialMemberSelection,
+    memberFilter.selectedMemberIds,
+  ]);
 
   return null;
 };

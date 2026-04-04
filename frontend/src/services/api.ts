@@ -51,10 +51,14 @@ export const registerHouseholdGetter = (getter: () => string | null) => {
 };
 
 // Member filter injection — registered by UserViewContext to auto-append user_id
-// to every GET request so pages don't need to pass it manually.
-let _getMemberFilterUserId: (() => string | null) | null = null;
-export const registerMemberFilterGetter = (getter: () => string | null) => {
-  _getMemberFilterUserId = getter;
+// or user_ids to every GET request so pages don't need to pass it manually.
+export type MemberFilterResult = {
+  userId: string | null;       // Single user (dropdown or 1 checkbox)
+  userIds: string[] | null;    // Multiple users (2+ checkboxes, not all)
+};
+let _getMemberFilter: (() => MemberFilterResult) | null = null;
+export const registerMemberFilterGetter = (getter: () => MemberFilterResult) => {
+  _getMemberFilter = getter;
 };
 
 // Token refresh timer and in-flight promise
@@ -274,15 +278,16 @@ api.interceptors.request.use(
       }
     }
 
-    // Auto-inject user_id for member filter on GET requests.
+    // Auto-inject user_id / user_ids for member filter on GET requests.
     // Skips if the caller already set user_id explicitly (manual override).
-    if (_getMemberFilterUserId && config.method?.toUpperCase() === "GET") {
-      const filterId = _getMemberFilterUserId();
-      if (filterId) {
-        if (!config.params) config.params = {};
-        // Don't overwrite if the page already set user_id explicitly
-        if (!config.params.user_id) {
-          config.params.user_id = filterId;
+    if (_getMemberFilter && config.method?.toUpperCase() === "GET") {
+      const filter = _getMemberFilter();
+      if (!config.params) config.params = {};
+      if (!config.params.user_id && !config.params.user_ids) {
+        if (filter.userId) {
+          config.params.user_id = filter.userId;
+        } else if (filter.userIds && filter.userIds.length > 0) {
+          config.params.user_ids = filter.userIds;
         }
       }
     }

@@ -1,6 +1,7 @@
 """FastAPI dependencies for authentication and authorization."""
 
 import logging
+from typing import List, Optional
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, Path, Request, Response, status
@@ -420,3 +421,60 @@ async def get_all_household_accounts(
         .where(Account.organization_id == organization_id, Account.is_active.is_(True))
     )
     return result.unique().scalars().all()
+
+
+async def get_filtered_accounts(
+    db: AsyncSession,
+    organization_id: UUID,
+    current_user_id: UUID,
+    user_id: Optional[UUID] = None,
+    user_ids: Optional[List[UUID]] = None,
+    deduplicate: bool = True,
+) -> list[Account]:
+    """Get accounts filtered by member selection.
+
+    Centralizes the user_id / user_ids filtering pattern used by ~47 endpoints.
+    Handles verification, deduplication, and falls through to household-wide
+    when no filter is applied.
+
+    Args:
+        db: Database session
+        organization_id: Household organization ID
+        current_user_id: The authenticated user's ID (for permission checks)
+        user_id: Single user filter (from dropdown or single checkbox)
+        user_ids: Multi-user filter (from partial checkbox selection)
+        deduplicate: Whether to deduplicate shared accounts in combined view
+
+    Returns:
+        Filtered list of active accounts
+    """
+    from app.services.deduplication_service import DeduplicationService
+
+    if user_id:
+        # Single user — verify membership then fetch their accounts
+        if user_id != current_user_id:
+            await verify_household_member(db, user_id, organization_id)
+        return await get_user_accounts(db, user_id, organization_id)
+
+    if user_ids:
+        # Multiple users — verify each, then fetch accounts for all of them
+        for uid in user_ids:
+            if uid != current_user_id:
+                await verify_household_member(db, uid, organization_id)
+        result = await db.execute(
+            select(Account)
+            .options(joinedload(Account.plaid_item), joinedload(Account.teller_enrollment))
+            .where(
+                Account.organization_id == organization_id,
+                Account.is_active.is_(True),
+                Account.user_id.in_(user_ids),
+            )
+        )
+        return result.unique().scalars().all()
+
+    # No filter — all household accounts
+    accounts = await get_all_household_accounts(db, organization_id)
+    if deduplicate:
+        dedup = DeduplicationService()
+        accounts = dedup.deduplicate_accounts(accounts)
+    return accounts

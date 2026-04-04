@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.dependencies import get_current_user, verify_household_member
+from app.dependencies import get_current_user, get_filtered_accounts, verify_household_member
 from app.models.transaction import Label
 from app.models.user import User
 from app.schemas.transaction import LabelCreate, LabelResponse, LabelUpdate
@@ -107,6 +107,7 @@ async def get_tax_deductible_transactions(
     end_date: date = Query(..., description="End date for tax period (e.g., 2024-12-31)"),
     label_ids: Optional[List[UUID]] = Query(None, description="Filter by specific tax label IDs"),
     user_id: Optional[UUID] = Query(None, description="Filter by user"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -122,6 +123,9 @@ async def get_tax_deductible_transactions(
     """
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
+    if user_ids:
+        for uid in user_ids:
+            await verify_household_member(db, uid, current_user.organization_id)
     summaries = await TaxService.get_tax_deductible_summary(
         db,
         current_user.organization_id,
@@ -151,6 +155,7 @@ async def export_tax_deductible_csv(
     end_date: date = Query(..., description="End date for tax period"),
     label_ids: Optional[List[UUID]] = Query(None, description="Filter by specific tax label IDs"),
     user_id: Optional[UUID] = Query(None, description="Filter by user"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -164,6 +169,9 @@ async def export_tax_deductible_csv(
     """
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
+    if user_ids:
+        for uid in user_ids:
+            await verify_household_member(db, uid, current_user.organization_id)
     csv_data = await TaxService.generate_tax_export_csv(
         db,
         current_user.organization_id,

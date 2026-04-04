@@ -22,6 +22,7 @@ from app.core.database import get_db
 from app.dependencies import (
     get_all_household_accounts,
     get_current_user,
+    get_filtered_accounts,
     get_user_accounts,
     get_verified_account,
     verify_household_member,
@@ -141,6 +142,7 @@ async def list_accounts(
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = combined household view"
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -171,12 +173,11 @@ async def list_accounts(
         )
         accounts = result.unique().scalars().all()
     else:
-        # Normal view - use existing dependencies that filter by is_active
-        if user_id:
-            await verify_household_member(db, user_id, current_user.organization_id)
-            accounts = await get_user_accounts(db, user_id, current_user.organization_id)
-        else:
-            accounts = await get_all_household_accounts(db, current_user.organization_id)
+        # Normal view - use centralized filter
+        accounts = await get_filtered_accounts(
+            db, current_user.organization_id, current_user.id,
+            user_id=user_id, user_ids=user_ids,
+        )
 
     # Deduplicate accounts (shared accounts appear multiple
     # times when multiple household members link the same account)
@@ -256,6 +257,7 @@ async def export_accounts_csv(
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = combined household view"
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -280,12 +282,10 @@ async def export_accounts_csv(
     )
 
     # Fetch accounts based on user filter
-    if user_id:
-        await verify_household_member(db, user_id, current_user.organization_id)
-        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
-    else:
-        accounts = await get_all_household_accounts(db, current_user.organization_id)
-        accounts = deduplication_service.deduplicate_accounts(accounts)
+    accounts = await get_filtered_accounts(
+        db, current_user.organization_id, current_user.id,
+        user_id=user_id, user_ids=user_ids,
+    )
     accounts = sorted(accounts, key=lambda a: a.name)
 
     output = StringIO()

@@ -11,7 +11,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_filtered_accounts
 from app.models.account import Account
 from app.models.transaction import Label, Transaction, TransactionLabel
 from app.constants.financial import TAX, QCD
@@ -60,6 +60,7 @@ async def get_donations(
     label_ids: Optional[str] = Query(None, description="Comma-separated label UUIDs to filter on"),
     year: Optional[int] = Query(None),
     user_id: Optional[UUID] = Query(None),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -157,6 +158,7 @@ async def bunching_analysis(
 @router.get("/qcd-opportunity", response_model=Dict[str, Any])
 async def qcd_opportunity(
     user_id: Optional[UUID] = Query(None),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

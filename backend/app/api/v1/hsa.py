@@ -13,7 +13,7 @@ from sqlalchemy import func, select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_filtered_accounts
 from app.models.account import Account, AccountType
 from app.models.hsa_receipt import HsaReceipt
 from app.models.transaction import Transaction
@@ -281,6 +281,7 @@ async def update_receipt(
 async def get_ytd_summary(
     year: Optional[int] = Query(None, description="Tax year (defaults to current year)"),
     user_id: Optional[UUID] = Query(None, description="Filter to a specific household member"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

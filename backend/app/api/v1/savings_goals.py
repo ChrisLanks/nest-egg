@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_db, verify_household_member
+from app.dependencies import get_current_user, get_db, get_filtered_accounts, verify_household_member
 from app.models.savings_goal import SavingsGoal
 from app.models.user import User
 from app.schemas.savings_goal import (
@@ -109,12 +109,16 @@ async def create_goal(
 async def list_goals(
     is_completed: Optional[bool] = None,
     user_id: Optional[UUID] = Query(None, description="Filter by user"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get all savings goals for current user's organization."""
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
+    if user_ids:
+        for uid in user_ids:
+            await verify_household_member(db, uid, current_user.organization_id)
     goals = await savings_goal_service.get_goals(
         db=db,
         user=current_user,

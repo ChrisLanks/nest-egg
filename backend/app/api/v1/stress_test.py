@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.financial import STRESS_TEST
 from app.core.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_filtered_accounts
 from app.models.user import User
 from app.services.rate_limit_service import rate_limit_service
 from app.services.stress_test_service import StressTestService
@@ -48,6 +48,7 @@ async def run_scenario(
     http_request: Request,
     scenario_key: str = Query(..., description="Scenario key (e.g. gfc_2008, dot_com_2000)"),
     user_id: Optional[UUID] = Query(None, description="Filter to a specific user (household member)"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -78,6 +79,7 @@ async def run_scenario(
 async def run_all_scenarios(
     http_request: Request,
     user_id: Optional[UUID] = Query(None, description="Filter to a specific user (household member)"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

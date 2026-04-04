@@ -2,14 +2,14 @@
 
 import logging
 from decimal import Decimal
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_filtered_accounts
 from app.services.rate_limit_service import rate_limit_service
 from app.models.user import User
 from app.services.capital_gains_harvesting_service import CapitalGainsHarvestingService
@@ -65,6 +65,7 @@ async def get_ltcg_bracket_fill(
 async def get_harvest_candidates(
     min_gain: float = Query(500.0, description="Minimum unrealized gain threshold (USD)"),
     user_id: Optional[UUID] = Query(None, description="Filter to a specific user (household member)"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -86,6 +87,7 @@ async def get_harvest_candidates(
 async def get_ytd_realized_gains(
     tax_year: Optional[int] = Query(None, description="Tax year (defaults to current year)"),
     user_id: Optional[UUID] = Query(None, description="Filter to a specific user (household member)"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

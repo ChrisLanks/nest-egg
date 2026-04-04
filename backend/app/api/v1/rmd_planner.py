@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.financial import RMD as RMD_CONSTANTS, TAX
 from app.core.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_filtered_accounts
 from app.models.account import Account
 from app.models.user import User
 from app.utils.account_type_groups import RMD_ACCOUNT_TYPES
@@ -91,6 +91,7 @@ async def get_rmd_planner(
     filing_status: str = Query(default="single"),
     other_annual_income: float = Query(default=50_000.0, ge=0),
     user_id: Optional[str] = Query(default=None, description="Household member user ID; defaults to current user"),
+    user_ids: Optional[List[str]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

@@ -22,6 +22,7 @@ from app.core.database import AsyncSessionLocal, get_db
 from app.dependencies import (
     get_all_household_accounts,
     get_current_user,
+    get_filtered_accounts,
     get_user_accounts,
     get_verified_account,
     verify_household_member,
@@ -85,6 +86,7 @@ async def get_portfolio_summary(
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = combined household view"
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     detail_level: str = Query(
         "full",
         description="'summary' returns totals + holdings_by_ticker only (faster). "
@@ -113,18 +115,10 @@ async def get_portfolio_summary(
         return cached
 
     # Get accounts based on filter
-    if user_id:
-        # Verify user is in same household
-        await verify_household_member(db, user_id, current_user.organization_id)
-
-        # Get accounts for specific user (owned + shared)
-        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
-    else:
-        # Get all household accounts
-        accounts = await get_all_household_accounts(db, current_user.organization_id)
-
-        # Deduplicate accounts (remove duplicates where same real account added by multiple users)
-        accounts = deduplication_service.deduplicate_accounts(accounts)
+    accounts = await get_filtered_accounts(
+        db, current_user.organization_id, current_user.id,
+        user_id=user_id, user_ids=user_ids,
+    )
 
     # Filter accounts for investment accounts only
     investment_account_ids = [
@@ -1476,6 +1470,7 @@ async def get_historical_snapshots(
         None,
         description="Filter by user ID. Omit for household-level snapshots.",
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1853,6 +1848,7 @@ async def get_rmd_summary(
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = combined household view"
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -2053,6 +2049,7 @@ async def get_roth_analysis(
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = requester's own accounts"
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -2064,16 +2061,16 @@ async def get_roth_analysis(
     """
     retirement_types = ROTH_CONVERSION_ELIGIBLE_TYPES
 
+    accounts = await get_filtered_accounts(
+        db, current_user.organization_id, current_user.id,
+        user_id=user_id, user_ids=user_ids,
+    )
     if user_id:
-        await verify_household_member(db, user_id, current_user.organization_id)
-        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
         user_result = await db.execute(
             select(User).where(User.id == user_id, User.organization_id == current_user.organization_id)
         )
         target_user = user_result.scalar_one_or_none()
     else:
-        accounts = await get_all_household_accounts(db, current_user.organization_id)
-        accounts = deduplication_service.deduplicate_accounts(accounts)
         target_user = current_user
 
     # Only include pre-tax retirement accounts (eligible for Roth conversion).
@@ -2271,14 +2268,13 @@ async def _get_holdings_for_user(
     db: AsyncSession,
     current_user: User,
     user_id: Optional[UUID],
+    user_ids: Optional[List[UUID]] = None,
 ) -> list:
     """Shared helper to fetch investment holdings for fee analysis endpoints."""
-    if user_id:
-        await verify_household_member(db, user_id, current_user.organization_id)
-        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
-    else:
-        accounts = await get_all_household_accounts(db, current_user.organization_id)
-        accounts = deduplication_service.deduplicate_accounts(accounts)
+    accounts = await get_filtered_accounts(
+        db, current_user.organization_id, current_user.id,
+        user_id=user_id, user_ids=user_ids,
+    )
 
     investment_account_ids = [
         acc.id for acc in accounts if acc.account_type in INVESTMENT_ACCOUNT_TYPES
@@ -2298,6 +2294,7 @@ async def get_fee_analysis(
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = combined household view"
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -2318,7 +2315,7 @@ async def get_fee_analysis(
     if cached is not None:
         return cached
 
-    holdings = await _get_holdings_for_user(db, current_user, user_id)
+    holdings = await _get_holdings_for_user(db, current_user, user_id, user_ids=user_ids)
 
     # Aggregate by ticker (same as portfolio summary)
     ticker_data: dict[str, dict] = {}
@@ -2426,6 +2423,7 @@ async def get_fund_overlap(
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = combined household view"
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -2443,7 +2441,7 @@ async def get_fund_overlap(
     if cached is not None:
         return cached
 
-    holdings = await _get_holdings_for_user(db, current_user, user_id)
+    holdings = await _get_holdings_for_user(db, current_user, user_id, user_ids=user_ids)
 
     # Build ticker → value map
     ticker_values: dict[str, float] = {}
@@ -2499,6 +2497,7 @@ async def get_fund_overlap(
 async def get_allocation_history(
     months: int = Query(12, ge=1, le=60),
     user_id: Optional[UUID] = Query(None),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

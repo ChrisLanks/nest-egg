@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_db, verify_household_member
+from app.dependencies import get_current_user, get_db, get_filtered_accounts, verify_household_member
 from app.models.user import User
 from app.schemas.budget import (
     BudgetCreate,
@@ -59,12 +59,16 @@ async def create_budget(
 async def list_budgets(
     is_active: Optional[bool] = None,
     user_id: Optional[UUID] = Query(None, description="Filter by user"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get all budgets for current user's organization."""
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
+    if user_ids:
+        for uid in user_ids:
+            await verify_household_member(db, uid, current_user.organization_id)
     budgets = await budget_service.get_budgets(
         db=db,
         user=current_user,
@@ -81,6 +85,7 @@ async def export_budgets_csv(
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = all household budgets"
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -159,6 +164,7 @@ async def export_budgets_csv(
 @router.get("/suggestions", response_model=Dict[str, Any])
 async def get_budget_suggestions(
     user_id: Optional[UUID] = Query(None, description="Scope suggestions to a specific member"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -175,6 +181,9 @@ async def get_budget_suggestions(
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
         scoped_user_id = user_id
+    if user_ids:
+        for uid in user_ids:
+            await verify_household_member(db, uid, current_user.organization_id)
 
     return await budget_suggestion_service.get_cached_suggestions(
         db=db,

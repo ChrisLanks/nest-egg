@@ -13,6 +13,7 @@ from app.core.database import get_db
 from app.dependencies import (
     get_all_household_accounts,
     get_current_user,
+    get_filtered_accounts,
     get_user_accounts,
     verify_household_member,
 )
@@ -408,6 +409,7 @@ async def execute_report(
     request: ExecuteReportRequest,
     http_request: Request,
     user_id: Optional[UUID] = Query(None, description="Filter by user"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -423,14 +425,12 @@ async def execute_report(
         identifier=str(current_user.id),
     )
     # Get accounts based on user filter
-    if user_id:
-        if getattr(current_user, "_is_guest", False):
-            raise _GUEST_USER_ID_FILTER_FORBIDDEN
-        await verify_household_member(db, user_id, current_user.organization_id)
-        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
-    else:
-        accounts = await get_all_household_accounts(db, current_user.organization_id)
-        accounts = deduplication_service.deduplicate_accounts(accounts)
+    if (user_id or user_ids) and getattr(current_user, "_is_guest", False):
+        raise _GUEST_USER_ID_FILTER_FORBIDDEN
+    accounts = await get_filtered_accounts(
+        db, current_user.organization_id, current_user.id,
+        user_id=user_id, user_ids=user_ids,
+    )
 
     account_ids = [acc.id for acc in accounts]
 
@@ -451,6 +451,7 @@ async def execute_saved_report(
     template_id: UUID,
     http_request: Request,
     user_id: Optional[UUID] = Query(None, description="Filter by user"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -481,14 +482,12 @@ async def execute_saved_report(
         raise HTTPException(status_code=403, detail="Access denied")
 
     # Get accounts based on user filter
-    if user_id:
-        if getattr(current_user, "_is_guest", False):
-            raise _GUEST_USER_ID_FILTER_FORBIDDEN
-        await verify_household_member(db, user_id, current_user.organization_id)
-        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
-    else:
-        accounts = await get_all_household_accounts(db, current_user.organization_id)
-        accounts = deduplication_service.deduplicate_accounts(accounts)
+    if (user_id or user_ids) and getattr(current_user, "_is_guest", False):
+        raise _GUEST_USER_ID_FILTER_FORBIDDEN
+    accounts = await get_filtered_accounts(
+        db, current_user.organization_id, current_user.id,
+        user_id=user_id, user_ids=user_ids,
+    )
 
     account_ids = [acc.id for acc in accounts]
 
@@ -516,6 +515,7 @@ async def export_report_csv(
     template_id: UUID,
     http_request: Request,
     user_id: Optional[UUID] = Query(None, description="Filter by user"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -545,14 +545,12 @@ async def export_report_csv(
         raise HTTPException(status_code=403, detail="Access denied")
 
     # Get accounts based on user filter
-    if user_id:
-        if getattr(current_user, "_is_guest", False):
-            raise _GUEST_USER_ID_FILTER_FORBIDDEN
-        await verify_household_member(db, user_id, current_user.organization_id)
-        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
-    else:
-        accounts = await get_all_household_accounts(db, current_user.organization_id)
-        accounts = deduplication_service.deduplicate_accounts(accounts)
+    if (user_id or user_ids) and getattr(current_user, "_is_guest", False):
+        raise _GUEST_USER_ID_FILTER_FORBIDDEN
+    accounts = await get_filtered_accounts(
+        db, current_user.organization_id, current_user.id,
+        user_id=user_id, user_ids=user_ids,
+    )
 
     account_ids = [acc.id for acc in accounts]
 
@@ -585,17 +583,20 @@ async def get_tax_loss_harvesting(
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = combined household view"
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get tax-loss harvesting opportunities."""
     account_ids = None
-    if user_id:
+    if user_id or user_ids:
         if getattr(current_user, "_is_guest", False):
             raise _GUEST_USER_ID_FILTER_FORBIDDEN
-        await verify_household_member(db, user_id, current_user.organization_id)
-        user_accounts = await get_user_accounts(db, user_id, current_user.organization_id)
-        account_ids = {acc.id for acc in user_accounts}
+        accounts = await get_filtered_accounts(
+            db, current_user.organization_id, current_user.id,
+            user_id=user_id, user_ids=user_ids,
+        )
+        account_ids = {acc.id for acc in accounts}
 
     opportunities = await tax_loss_harvesting_service.get_opportunities(
         db=db,

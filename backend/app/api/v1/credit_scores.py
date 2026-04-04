@@ -11,7 +11,7 @@ from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_filtered_accounts
 from app.models.credit_score import CreditScore
 from app.models.user import User
 from app.services.rate_limit_service import rate_limit_service
@@ -80,6 +80,7 @@ class CreditScoreHistory(BaseModel):
 @router.get("/credit-scores", response_model=CreditScoreHistory)
 async def get_credit_score_history(
     user_id: Optional[str] = Query(default=None, description="Household member user ID; defaults to current user"),
+    user_ids: Optional[list[str]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

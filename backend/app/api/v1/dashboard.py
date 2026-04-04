@@ -20,6 +20,7 @@ from app.core.database import get_db
 from app.dependencies import (
     get_all_household_accounts,
     get_current_user,
+    get_filtered_accounts,
     get_user_accounts,
     verify_household_member,
 )
@@ -187,6 +188,7 @@ async def get_dashboard_summary(
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = combined household view"
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -204,12 +206,10 @@ async def get_dashboard_summary(
         validate_date_range(start_date, end_date)
 
     # Get accounts based on user filter
-    if user_id:
-        await verify_household_member(db, user_id, current_user.organization_id)
-        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
-    else:
-        accounts = await get_all_household_accounts(db, current_user.organization_id)
-    accounts = deduplication_service.deduplicate_accounts(accounts)
+    accounts = await get_filtered_accounts(
+        db, current_user.organization_id, current_user.id,
+        user_id=user_id, user_ids=user_ids,
+    )
 
     account_ids = [acc.id for acc in accounts]
 
@@ -295,6 +295,7 @@ async def get_dashboard_data(
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = combined household view"
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -312,12 +313,10 @@ async def get_dashboard_data(
         logger.debug("Dashboard cache read failed for key %s", cache_key, exc_info=True)
 
     # Get accounts based on user filter
-    if user_id:
-        await verify_household_member(db, user_id, current_user.organization_id)
-        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
-    else:
-        accounts = await get_all_household_accounts(db, current_user.organization_id)
-        accounts = deduplication_service.deduplicate_accounts(accounts)
+    accounts = await get_filtered_accounts(
+        db, current_user.organization_id, current_user.id,
+        user_id=user_id, user_ids=user_ids,
+    )
 
     account_ids = [acc.id for acc in accounts]
 
@@ -472,17 +471,16 @@ async def get_spending_insights(
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = combined household view"
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get smart spending insights for dashboard."""
     # Get accounts based on user filter
-    if user_id:
-        await verify_household_member(db, user_id, current_user.organization_id)
-        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
-    else:
-        accounts = await get_all_household_accounts(db, current_user.organization_id)
-        accounts = deduplication_service.deduplicate_accounts(accounts)
+    accounts = await get_filtered_accounts(
+        db, current_user.organization_id, current_user.id,
+        user_id=user_id, user_ids=user_ids,
+    )
 
     account_ids = [acc.id for acc in accounts]
 
@@ -513,6 +511,7 @@ async def get_cash_flow_forecast(
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = combined household view"
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -520,6 +519,9 @@ async def get_cash_flow_forecast(
     # Verify household member if user_id provided
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
+    if user_ids:
+        for uid in user_ids:
+            await verify_household_member(db, uid, current_user.organization_id)
 
     # Generate forecast
     forecast = await ForecastService.generate_forecast(
@@ -535,12 +537,16 @@ async def get_cash_flow_forecast_summary(
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = combined household view"
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get aggregated forecast summary: totals and breakdowns by category/merchant/label/account."""
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
+    if user_ids:
+        for uid in user_ids:
+            await verify_household_member(db, uid, current_user.organization_id)
 
     summary = await ForecastService.generate_forecast_summary(
         db, current_user.organization_id, user_id, days_ahead
@@ -585,6 +591,7 @@ async def get_financial_health(
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = combined household view"
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -599,12 +606,10 @@ async def get_financial_health(
         logger.debug("Financial-health cache read failed for key %s", cache_key, exc_info=True)
 
     # Get accounts based on user filter
-    if user_id:
-        await verify_household_member(db, user_id, current_user.organization_id)
-        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
-    else:
-        accounts = await get_all_household_accounts(db, current_user.organization_id)
-        accounts = deduplication_service.deduplicate_accounts(accounts)
+    accounts = await get_filtered_accounts(
+        db, current_user.organization_id, current_user.id,
+        user_id=user_id, user_ids=user_ids,
+    )
 
     account_ids = [acc.id for acc in accounts]
 
@@ -714,6 +719,7 @@ async def get_financial_calendar(
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = combined household view"
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -729,16 +735,11 @@ async def get_financial_calendar(
     last_day = cal_mod.monthrange(year, month_num)[1]
     month_end = date(year, month_num, last_day)
 
-    # Verify household member if user_id provided
-    if user_id:
-        await verify_household_member(db, user_id, current_user.organization_id)
-
     # Get accounts for filtering and name lookups
-    if user_id:
-        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
-    else:
-        accounts = await get_all_household_accounts(db, current_user.organization_id)
-        accounts = deduplication_service.deduplicate_accounts(accounts)
+    accounts = await get_filtered_accounts(
+        db, current_user.organization_id, current_user.id,
+        user_id=user_id, user_ids=user_ids,
+    )
 
     account_ids = {acc.id for acc in accounts}
     account_name_map = {acc.id: acc.name for acc in accounts}
@@ -921,6 +922,7 @@ async def get_year_in_review(
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = combined household view"
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -928,12 +930,10 @@ async def get_year_in_review(
     org_id = current_user.organization_id
 
     # Resolve account IDs
-    if user_id:
-        await verify_household_member(db, user_id, org_id)
-        raw_accounts = await get_user_accounts(db, user_id, org_id)
-    else:
-        raw_accounts = await get_all_household_accounts(db, org_id)
-        raw_accounts = deduplication_service.deduplicate_accounts(raw_accounts)
+    raw_accounts = await get_filtered_accounts(
+        db, org_id, current_user.id,
+        user_id=user_id, user_ids=user_ids,
+    )
     account_ids = [acc.id for acc in raw_accounts]
 
     # Check cache
@@ -1218,6 +1218,7 @@ async def get_net_worth_history(
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = combined household view"
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

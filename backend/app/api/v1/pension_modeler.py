@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.financial import PENSION_MODELER
 from app.core.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_filtered_accounts
 from app.models.account import Account, AccountType
 from app.models.user import User
 from app.services.rate_limit_service import rate_limit_service
@@ -143,6 +143,7 @@ def _analyze_pension(account: Account) -> PensionAnalysis:
 async def get_pension_model(
     http_request: Request,
     user_id: Optional[str] = Query(default=None, description="Household member user ID; defaults to current user"),
+    user_ids: Optional[list[str]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

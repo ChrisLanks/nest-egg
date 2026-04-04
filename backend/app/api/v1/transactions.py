@@ -8,7 +8,7 @@ import re
 from datetime import date, datetime
 from decimal import Decimal
 from io import StringIO
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
 logger = logging.getLogger(__name__)
@@ -34,6 +34,7 @@ async def _invalidate_transaction_caches(organization_id: str) -> None:
 from app.dependencies import (
     get_all_household_accounts,
     get_current_user,
+    get_filtered_accounts,
     get_user_accounts,
     verify_household_member,
 )
@@ -319,6 +320,7 @@ async def list_transactions(
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = combined household view"
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     search: Optional[str] = None,
@@ -836,6 +838,7 @@ async def export_transactions_csv(
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = combined household view"
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -856,11 +859,10 @@ async def export_transactions_csv(
         )
 
     # Resolve account scope based on user filter
-    if user_id:
-        await verify_household_member(db, user_id, current_user.organization_id)
-        scoped_accounts = await get_user_accounts(db, user_id, current_user.organization_id)
-    else:
-        scoped_accounts = await get_all_household_accounts(db, current_user.organization_id)
+    scoped_accounts = await get_filtered_accounts(
+        db, current_user.organization_id, current_user.id,
+        user_id=user_id, user_ids=user_ids,
+    )
     scoped_account_ids = [acc.id for acc in scoped_accounts]
 
     # Validate account_id belongs to the user's scoped accounts

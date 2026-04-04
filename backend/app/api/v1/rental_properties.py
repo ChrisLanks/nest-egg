@@ -2,7 +2,7 @@
 
 from datetime import date
 from decimal import Decimal
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.dependencies import get_current_user, verify_household_member
+from app.dependencies import get_current_user, get_filtered_accounts, verify_household_member
 from app.services.rate_limit_service import rate_limit_service
 from app.models.user import User
 from app.services.input_sanitization_service import input_sanitization_service
@@ -48,6 +48,7 @@ class RentalFieldsResponse(BaseModel):
 @router.get("", response_model=Dict[str, Any])
 async def list_rental_properties(
     user_id: Optional[UUID] = Query(None, description="Filter by user"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -67,6 +68,7 @@ async def list_rental_properties(
 async def get_properties_summary(
     year: int = Query(default=None, description="Year for P&L (defaults to current)"),
     user_id: Optional[UUID] = Query(None, description="Filter by user"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

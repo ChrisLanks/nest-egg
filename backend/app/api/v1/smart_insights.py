@@ -32,7 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.financial import FIRE
 from app.core.database import get_db
-from app.dependencies import get_current_user, verify_household_member
+from app.dependencies import get_current_user, get_filtered_accounts, verify_household_member
 from app.models.account import Account, AccountType
 from app.models.holding import Holding
 from app.models.user import User
@@ -229,6 +229,7 @@ async def get_smart_insights(
     user_id: Optional[UUID] = Query(
         None, description="Filter to a specific household member. None = household view."
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     max_insights: int = Query(10, ge=1, le=20),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -273,6 +274,7 @@ async def get_smart_insights(
 async def get_roth_conversion(
     http_request: Request,
     user_id: Optional[UUID] = Query(None),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_income: float = Query(
         ...,
         ge=0,
@@ -345,6 +347,7 @@ async def get_roth_conversion(
 async def get_fund_fees(
     http_request: Request,
     user_id: Optional[UUID] = Query(None),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> FundFeeResponse:

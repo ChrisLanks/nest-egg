@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.dependencies import get_current_user, verify_household_member
+from app.dependencies import get_current_user, get_filtered_accounts, verify_household_member
 from app.services.rate_limit_service import rate_limit_service
 from app.models.user import User
 from app.services.payoff_strategy_service import PayoffStrategyService
@@ -27,6 +27,7 @@ router = APIRouter(dependencies=[Depends(_rate_limit)])
 @router.get("/debts", response_model=List[Any])
 async def list_debt_accounts(
     user_id: Optional[UUID] = Query(None, description="Filter by user"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -59,6 +60,7 @@ async def list_debt_accounts(
 async def compare_payoff_strategies(
     extra_payment: Decimal = Query(..., description="Extra monthly payment amount"),
     user_id: Optional[UUID] = Query(None, description="Filter by user"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     account_ids: Optional[str] = Query(None, description="Comma-separated account IDs to include"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -101,6 +103,7 @@ async def compare_payoff_strategies(
 @router.get("/summary", response_model=Dict[str, Any])
 async def get_debt_summary(
     user_id: Optional[UUID] = Query(None, description="Filter by user"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

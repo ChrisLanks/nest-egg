@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.financial import FIRE
 from app.core.database import get_db
-from app.dependencies import get_current_user, verify_household_member
+from app.dependencies import get_current_user, get_filtered_accounts, verify_household_member
 from app.services.rate_limit_service import rate_limit_service
 from app.models.user import User
 from app.services.tax_bucket_service import TaxBucketService
@@ -29,26 +29,19 @@ router = APIRouter(prefix="/tax-buckets", tags=["Tax Buckets"], dependencies=[De
 @router.get("/summary", response_model=Dict[str, Any])
 async def get_bucket_summary(
     user_id: Optional[UUID] = Query(None, description="Single user filter"),
-    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter (comma-separated)"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # Support both single user_id and multi user_ids for member filter
-    effective_user_ids = None
-    if user_id:
-        if user_id != current_user.id:
-            await verify_household_member(db, user_id, current_user.organization_id)
-        effective_user_ids = [user_id]
-    elif user_ids:
-        for uid in user_ids:
-            if uid != current_user.id:
-                await verify_household_member(db, uid, current_user.organization_id)
-        effective_user_ids = list(user_ids)
+    accounts = await get_filtered_accounts(
+        db, current_user.organization_id, current_user.id,
+        user_id=user_id, user_ids=user_ids,
+    )
 
     return await TaxBucketService.get_bucket_summary(
         db, current_user.organization_id,
-        user_id=effective_user_ids[0] if effective_user_ids and len(effective_user_ids) == 1 else None,
-        user_ids=effective_user_ids if effective_user_ids and len(effective_user_ids) > 1 else None,
+        user_id=user_id,
+        user_ids=user_ids,
     )
 
 

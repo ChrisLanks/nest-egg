@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.financial import MEDICARE
 from app.core.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_filtered_accounts
 from app.services.rate_limit_service import rate_limit_service
 from app.models.user import User
 
@@ -77,6 +77,7 @@ async def get_irmaa_projection(
     income_growth_rate: float = Query(default=0.03, ge=0.0, le=0.20),
     projection_years: int = Query(default=15, ge=1, le=40),
     user_id: Optional[str] = Query(default=None, description="Household member user ID; defaults to current user"),
+    user_ids: Optional[list[str]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

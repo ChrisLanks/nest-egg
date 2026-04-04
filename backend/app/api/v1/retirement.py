@@ -668,6 +668,7 @@ async def get_social_security_estimate(
     override_salary: Optional[float] = Query(default=None, ge=0),
     override_pia: Optional[float] = Query(default=None, ge=0),
     user_id: Optional[UUID] = Query(None, description="Filter by user. None = current user"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -707,6 +708,7 @@ async def get_healthcare_estimate(
     medical_inflation_rate: float = Query(default=6.0, ge=0, le=20),
     include_ltc: bool = Query(default=True),
     user_id: Optional[UUID] = Query(None, description="Filter by user. None = current user"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
