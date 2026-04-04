@@ -1045,11 +1045,12 @@ export const Layout = () => {
   const analyticsMenuItems = filterVisible(allAnalyticsItems);
   const planningMenuItems = filterVisible(allPlanningItems);
 
-  // Fetch dashboard summary for net worth (filtered by user)
+  // Fetch dashboard summary for net worth (respect both single-user and member filter)
+  const summaryUserId = selectedUserId ?? memberEffectiveUserId ?? null;
   const { data: dashboardSummary } = useQuery({
-    queryKey: ["dashboard-summary", selectedUserId],
+    queryKey: ["dashboard-summary", summaryUserId, isPartialMemberSelection],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const params = summaryUserId ? { user_id: summaryUserId } : {};
       const response = await api.get("/dashboard/summary", { params });
       return response.data;
     },
@@ -1698,18 +1699,27 @@ export const Layout = () => {
                   </HStack>
                 )}
               </VStack>
-              {dashboardSummary?.net_worth !== undefined && (
+              {(dashboardSummary?.net_worth !== undefined || isPartialMemberSelection) && (
                 <VStack align="end" spacing={0}>
                   <Text
                     fontSize="md"
                     fontWeight="bold"
                     color={
-                      dashboardSummary.net_worth >= 0
-                        ? "finance.positive"
-                        : "finance.negative"
+                      (() => {
+                        // When multiple members are partially selected, compute net worth
+                        // from the already-filtered accounts instead of the summary endpoint
+                        const nw = isPartialMemberSelection && !summaryUserId
+                          ? dedupedAccounts.reduce((sum, a) => sum + Number(a.current_balance ?? 0), 0)
+                          : Number(dashboardSummary?.net_worth ?? 0);
+                        return nw >= 0 ? "finance.positive" : "finance.negative";
+                      })()
                     }
                   >
-                    {formatCurrency(Number(dashboardSummary.net_worth))}
+                    {formatCurrency(
+                      isPartialMemberSelection && !summaryUserId
+                        ? dedupedAccounts.reduce((sum, a) => sum + Number(a.current_balance ?? 0), 0)
+                        : Number(dashboardSummary?.net_worth ?? 0)
+                    )}
                   </Text>
                   {(() => {
                     // Show oldest sync time across linked accounts so users know
