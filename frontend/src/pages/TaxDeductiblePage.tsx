@@ -160,7 +160,7 @@ export default function TaxDeductiblePage() {
         start_date: startDate,
         end_date: endDate,
       });
-      if (selectedUserId) params.append("user_id", selectedUserId);
+      if (selectedUserId) params.append("user_id", effectiveUserId);
 
       const response = await api.get(`/labels/tax-deductible?${params}`);
       return response.data;
@@ -175,7 +175,7 @@ export default function TaxDeductiblePage() {
         start_date: startDate,
         end_date: endDate,
       });
-      if (selectedUserId) params.append("user_id", selectedUserId);
+      if (selectedUserId) params.append("user_id", effectiveUserId);
 
       const url = `/labels/tax-deductible/export?${params}`;
 

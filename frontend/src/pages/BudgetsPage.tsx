@@ -329,7 +329,7 @@ export default function BudgetsPage() {
             {canEdit && (isSelfView || !selectedUserId) && (
               <BudgetSuggestions
                 onAccept={handleAcceptSuggestion}
-                userId={selectedUserId}
+                userId={effectiveUserId}
                 existingBudgetCount={0}
               />
             )}
@@ -375,7 +375,7 @@ export default function BudgetsPage() {
           (isSelfView || !selectedUserId) && (
             <BudgetSuggestions
               onAccept={handleAcceptSuggestion}
-              userId={selectedUserId}
+              userId={effectiveUserId}
               existingBudgetCount={budgets.length}
             />
           )}

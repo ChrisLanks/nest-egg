@@ -118,7 +118,7 @@ export function YearInReviewPage() {
   const selectedIdsKey = selectedMemberIdsKey;
   const activeUserId = isCombinedView
     ? (multiEffectiveUserId ?? null)
-    : selectedUserId;
+    : effectiveUserId;
 
   // Default to previous year if we are in January, otherwise current year
   const currentDate = new Date();

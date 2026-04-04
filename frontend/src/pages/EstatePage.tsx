@@ -157,7 +157,7 @@ export const EstatePage = () => {
     queryKey: ["estate-beneficiaries", effectiveUserId],
     queryFn: async () => {
       const p: Record<string, string> = {};
-      if (selectedUserId) p.user_id = selectedUserId;
+      if (effectiveUserId) p.user_id = effectiveUserId;
       const { data } = await api.get("/estate/beneficiaries", { params: p });
       return data;
     },
@@ -169,7 +169,7 @@ export const EstatePage = () => {
     queryKey: ["estate-documents", effectiveUserId],
     queryFn: async () => {
       const p: Record<string, string> = {};
-      if (selectedUserId) p.user_id = selectedUserId;
+      if (effectiveUserId) p.user_id = effectiveUserId;
       const { data } = await api.get("/estate/documents", { params: p });
       return data;
     },
@@ -181,7 +181,7 @@ export const EstatePage = () => {
     queryKey: ["dashboard-summary", effectiveUserId],
     queryFn: async () => {
       const p: Record<string, string> = {};
-      if (selectedUserId) p.user_id = selectedUserId;
+      if (effectiveUserId) p.user_id = effectiveUserId;
       const { data } = await api.get("/dashboard/summary", { params: p });
       return data;
     },
@@ -193,7 +193,7 @@ export const EstatePage = () => {
     queryKey: ["accounts", effectiveUserId],
     queryFn: async () => {
       const p: Record<string, string> = {};
-      if (selectedUserId) p.user_id = selectedUserId;
+      if (effectiveUserId) p.user_id = effectiveUserId;
       const { data } = await api.get("/accounts/", { params: p });
       return data;
     },
@@ -209,7 +209,7 @@ export const EstatePage = () => {
     queryKey: ["estate-tax", effectiveNetWorth, filingStatus, effectiveUserId],
     queryFn: async () => {
       const p: Record<string, string | number> = { net_worth: effectiveNetWorth, filing_status: filingStatus };
-      if (selectedUserId) p.user_id = selectedUserId;
+      if (effectiveUserId) p.user_id = effectiveUserId;
       const { data } = await api.get("/estate/tax-exposure", { params: p });
       return data;
     },

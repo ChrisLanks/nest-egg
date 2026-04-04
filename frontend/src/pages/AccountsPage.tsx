@@ -138,7 +138,7 @@ export const AccountsPage = () => {
   const selectedIdsKey = selectedMemberIdsKey;
 
   // In combined view, use multi-member filter; otherwise use global selectedUserId
-  const queryUserId = isCombinedView ? multiEffectiveUserId : selectedUserId;
+  const queryUserId = isCombinedView ? multiEffectiveUserId : effectiveUserId;
 
   // Fetch current user for permission checks
   const { data: currentUser } = useQuery({

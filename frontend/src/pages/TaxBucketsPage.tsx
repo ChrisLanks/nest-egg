@@ -165,7 +165,7 @@ export const TaxBucketsPage = () => {
     isError: summaryError,
   } = useQuery({
     queryKey: ["tax-bucket-summary", effectiveUserId],
-    queryFn: () => fetchBucketSummary(selectedUserId || undefined),
+    queryFn: () => fetchBucketSummary(effectiveUserId || undefined),
     placeholderData: (prev) => prev,
   });
 

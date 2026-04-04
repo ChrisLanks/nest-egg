@@ -294,7 +294,7 @@ export const InvestmentsPage = () => {
   // In combined view, use multi-member filter; otherwise use global selectedUserId
   const activeUserId = isCombinedView
     ? (multiEffectiveUserId ?? null)
-    : selectedUserId;
+    : effectiveUserId;
 
   // Retirement account data for monthly contribution in growth projections
   const { data: retirementAccountData } = useRetirementAccountData();

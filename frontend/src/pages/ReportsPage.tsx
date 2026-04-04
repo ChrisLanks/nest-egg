@@ -107,7 +107,7 @@ function CustomReportsTab() {
     memberEffectiveUserId,
   } = useUserView();
   // In combined view, use multi-member filter; otherwise use global selectedUserId
-  const queryUserId = isCombinedView ? memberEffectiveUserId : selectedUserId;
+  const queryUserId = isCombinedView ? memberEffectiveUserId : effectiveUserId;
   const canEdit = canWriteResource("report");
   const isMobile = useBreakpointValue({ base: true, md: false });
   const queryClient = useQueryClient();

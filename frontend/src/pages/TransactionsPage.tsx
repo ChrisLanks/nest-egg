@@ -667,7 +667,7 @@ export const TransactionsPage = () => {
   const isMobile = useBreakpointValue({ base: true, md: false });
 
   // In combined view, use multi-member filter; otherwise use global selectedUserId
-  const queryUserId = isCombinedView ? memberEffectiveUserId : selectedUserId;
+  const queryUserId = isCombinedView ? memberEffectiveUserId : effectiveUserId;
 
   // Fetch current user for ownership checks
   const { data: currentUser } = useQuery({

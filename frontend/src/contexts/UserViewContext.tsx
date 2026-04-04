@@ -67,6 +67,8 @@ type FullUserViewContextType = UserViewContextType & {
   isPartialMemberSelection: boolean;
   matchesMemberFilter: (itemUserId: string | null | undefined) => boolean;
   selectedMemberIdsKey: string;
+  /** Resolved user ID for API calls — combines dropdown + checkbox filter. */
+  effectiveUserId: string | null;
 };
 
 const UserViewContext = createContext<UserViewContextType | undefined>(

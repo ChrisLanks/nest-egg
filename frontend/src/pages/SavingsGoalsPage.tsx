@@ -189,6 +189,7 @@ export default function SavingsGoalsPage() {
     isOtherUserView,
     isSelfView,
     selectedUserId,
+    effectiveUserId,
     selectedMemberIds,
     matchesMemberFilter,
     isPartialMemberSelection,
@@ -228,10 +229,10 @@ export default function SavingsGoalsPage() {
     isError: goalsError,
     refetch: refetchGoals,
   } = useQuery({
-    queryKey: ["goals", selectedUserId],
+    queryKey: ["goals", effectiveUserId],
     queryFn: () =>
       savingsGoalsApi.getAll(
-        selectedUserId ? { user_id: selectedUserId } : undefined,
+        effectiveUserId ? { user_id: effectiveUserId } : undefined,
       ),
   });
 
@@ -465,7 +466,7 @@ export default function SavingsGoalsPage() {
     });
 
     savingsGoalsApi.reorder(newIds).catch(() => {
-      queryClient.invalidateQueries({ queryKey: ["goals", selectedUserId] });
+      queryClient.invalidateQueries({ queryKey: ["goals", effectiveUserId] });
     });
   };
 

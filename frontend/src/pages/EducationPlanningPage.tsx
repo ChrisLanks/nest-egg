@@ -392,7 +392,7 @@ export default function EducationPlanningPage() {
 
   const effectiveUserId = isCombinedView
     ? memberEffectiveUserId
-    : selectedUserId;
+    : effectiveUserId;
 
   const { data: plansData, isLoading, isError } = useQuery<EducationPlansResponse>({
     queryKey: ["education-plans", effectiveUserId, selectedMemberIdsKey],

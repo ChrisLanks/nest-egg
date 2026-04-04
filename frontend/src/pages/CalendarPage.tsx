@@ -187,7 +187,7 @@ export const CalendarPage: React.FC = () => {
     refetch: refetchCalendar,
   } = useQuery<FinancialCalendarResponse>({
     queryKey: ["financial-calendar", calMonthStr, effectiveUserId],
-    queryFn: () => financialCalendarApi.getMonth(calMonthStr, selectedUserId),
+    queryFn: () => financialCalendarApi.getMonth(calMonthStr, effectiveUserId),
     staleTime: 2 * 60 * 1000,
   });
 

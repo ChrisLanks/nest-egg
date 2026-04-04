@@ -151,7 +151,7 @@ export const FireMetricsPage = () => {
   // In combined view, use multi-member filter; otherwise use the global selected user
   const effectiveUserId = isCombinedView
     ? multiEffectiveUserId
-    : selectedUserId;
+    : effectiveUserId;
 
   const withdrawalNum = parseFloat(withdrawalRate) || 0;
   const returnNum = parseFloat(expectedReturn) || 0;

@@ -147,7 +147,7 @@ export const CharitableGivingPage = () => {
         label_ids: selectedLabelIds.join(","),
         year: String(currentYear),
       };
-      if (selectedUserId) p.user_id = selectedUserId;
+      if (effectiveUserId) p.user_id = effectiveUserId;
       const { data } = await api.get("/charitable-giving/donations", { params: p });
       return data;
     },
@@ -164,7 +164,7 @@ export const CharitableGivingPage = () => {
         marginal_rate: Number(marginalRate) / 100,
         filing_status: filingStatus,
       };
-      if (selectedUserId) p.user_id = selectedUserId;
+      if (effectiveUserId) p.user_id = effectiveUserId;
       const { data } = await api.get("/charitable-giving/bunching-analysis", { params: p });
       return data;
     },
@@ -177,7 +177,7 @@ export const CharitableGivingPage = () => {
     queryKey: ["qcd", effectiveUserId],
     queryFn: async () => {
       const p: Record<string, string> = {};
-      if (selectedUserId) p.user_id = selectedUserId;
+      if (effectiveUserId) p.user_id = effectiveUserId;
       const { data } = await api.get("/charitable-giving/qcd-opportunity", { params: p });
       return data;
     },

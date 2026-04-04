@@ -378,7 +378,7 @@ export const IncomeExpensesPage = ({ embedded = false }: { embedded?: boolean })
   const selectedIdsKey = selectedMemberIdsKey;
   const activeUserId = isCombinedView
     ? (multiEffectiveUserId ?? null)
-    : selectedUserId;
+    : effectiveUserId;
   const tooltipBg = useColorModeValue("#FFFFFF", "#2D3748");
   const navigate = useNavigate();
 

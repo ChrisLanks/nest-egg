@@ -94,7 +94,7 @@ export default function TrendsPage() {
   const selectedIdsKey = selectedMemberIdsKey;
   const activeUserId = isCombinedView
     ? (multiEffectiveUserId ?? null)
-    : selectedUserId;
+    : effectiveUserId;
   const toast = useToast();
   const tooltipBg = useColorModeValue("#FFFFFF", "#2D3748");
 

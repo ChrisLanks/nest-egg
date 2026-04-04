@@ -195,7 +195,7 @@ export const CostBasisAgingTab = () => {
     setIsExporting(true);
     try {
       const exportParams = new URLSearchParams({ year: String(exportYear) });
-      if (selectedUserId) exportParams.set("user_id", selectedUserId);
+      if (selectedUserId) exportParams.set("user_id", effectiveUserId);
       const response = await api.get(`/tax-lots/export/8949?${exportParams}`, {
         responseType: "blob",
       });

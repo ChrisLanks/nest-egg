@@ -92,7 +92,7 @@ export const RentalPropertiesPage = () => {
 
   const effectiveUserId = isCombinedView
     ? multiEffectiveUserId
-    : selectedUserId;
+    : effectiveUserId;
 
   const [year, setYear] = useState(currentYear);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(

@@ -125,7 +125,7 @@ export const LoanModelerPage = () => {
     queryKey: ["accounts", effectiveUserId],
     queryFn: async () => {
       const p: Record<string, string> = {};
-      if (selectedUserId) p.user_id = selectedUserId;
+      if (effectiveUserId) p.user_id = effectiveUserId;
       const { data } = await api.get("/accounts/", { params: p });
       return data;
     },
@@ -151,7 +151,7 @@ export const LoanModelerPage = () => {
         annual_gross_income: Number(annualIncome),
         existing_monthly_debt: Number(existingDebt) || 0,
       };
-      if (selectedUserId) p.user_id = selectedUserId;
+      if (effectiveUserId) p.user_id = effectiveUserId;
       const { data } = await api.get("/loan-modeling/calculate", { params: p });
       return data;
     },
@@ -167,7 +167,7 @@ export const LoanModelerPage = () => {
         annual_rate: rateDecimal,
         term_months: termMonths,
       };
-      if (selectedUserId) p.user_id = selectedUserId;
+      if (effectiveUserId) p.user_id = effectiveUserId;
       const { data } = await api.get("/loan-modeling/amortization", { params: p });
       return data;
     },
@@ -192,7 +192,7 @@ export const LoanModelerPage = () => {
         lease_term_months: Number(leaseTerm),
         residual_value_pct: Number(residualPct) / 100,
       };
-      if (selectedUserId) p.user_id = selectedUserId;
+      if (effectiveUserId) p.user_id = effectiveUserId;
       const { data } = await api.get("/loan-modeling/buy-vs-lease", { params: p });
       return data;
     },
