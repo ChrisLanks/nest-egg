@@ -38,7 +38,6 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { FiDownload, FiTag } from "react-icons/fi";
 import api from "../services/api";
-import { EmptyState } from "../components/EmptyState";
 import { useUserView } from "../contexts/UserViewContext";
 import HelpHint from "../components/HelpHint";
 import { helpContent } from "../constants/helpContent";
@@ -99,6 +98,27 @@ export default function TaxDeductiblePage() {
   const taxLabelsExist = taxLabelNames.every((name) =>
     allLabels.some((label) => label.name === name),
   );
+
+  const taxLabelDescriptions: Record<string, string> = {
+    "Medical & Dental":
+      "Deductible if total medical expenses exceed 7.5% of your AGI (Schedule A). Includes doctor visits, prescriptions, dental work, vision care, and health insurance premiums not paid with pre-tax dollars.",
+    "Charitable Donations":
+      "Deductible up to 60% of AGI for cash donations to qualified 501(c)(3) organizations (Schedule A). Keep receipts for donations over $250.",
+    "Business Expenses":
+      "Deductible on Schedule C if you are self-employed or have a side business. Includes supplies, software, travel, and professional services.",
+    Education:
+      "Deductible via Lifetime Learning Credit (up to $2,000) or tuition/fees deduction. Student loan interest is deductible up to $2,500 (above-the-line).",
+    "Home Office":
+      "Deductible if you use a dedicated space regularly and exclusively for business. Simplified method: $5/sq ft up to 300 sq ft ($1,500 max).",
+  };
+
+  const taxLabelColors: Record<string, string> = {
+    "Medical & Dental": "#48BB78",
+    "Charitable Donations": "#4299E1",
+    "Business Expenses": "#9F7AEA",
+    Education: "#ED8936",
+    "Home Office": "#F56565",
+  };
 
   // Initialize tax labels
   const initializeMutation = useMutation({
@@ -362,11 +382,106 @@ export default function TaxDeductiblePage() {
 
             {/* Empty State */}
             {!isLoading && !summariesError && totalTransactions === 0 && (
-              <EmptyState
-                icon={"💼" as any}
-                title="No tax-deductible transactions"
-                description="Categorize transactions as tax-deductible to track your deductible expenses here. Go to Transactions and apply a tax category like 'Medical & Dental' or 'Business Expenses'."
-              />
+              <Card>
+                <CardBody>
+                  <VStack spacing={6} align="stretch">
+                    <VStack spacing={2} textAlign="center">
+                      <Heading size="md">
+                        No tax-deductible transactions yet
+                      </Heading>
+                      <Text color="text.secondary" maxW="lg" mx="auto">
+                        Label your transactions with tax categories to track
+                        deductible expenses. Here are the categories you can
+                        use:
+                      </Text>
+                    </VStack>
+
+                    <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                      {taxLabelNames.map((name) => (
+                        <Box
+                          key={name}
+                          p={4}
+                          borderWidth={1}
+                          borderColor="border.default"
+                          borderRadius="md"
+                          bg="bg.subtle"
+                        >
+                          <HStack mb={2}>
+                            <Box
+                              width="10px"
+                              height="10px"
+                              borderRadius="sm"
+                              bg={taxLabelColors[name]}
+                              flexShrink={0}
+                            />
+                            <Text fontWeight="semibold" fontSize="sm">
+                              {name}
+                            </Text>
+                          </HStack>
+                          <Text fontSize="xs" color="text.secondary">
+                            {taxLabelDescriptions[name]}
+                          </Text>
+                        </Box>
+                      ))}
+                    </SimpleGrid>
+
+                    <Box
+                      p={4}
+                      bg="bg.info"
+                      borderRadius="md"
+                      borderWidth={1}
+                      borderColor="blue.200"
+                    >
+                      <Text fontWeight="semibold" mb={2} fontSize="sm">
+                        How to use
+                      </Text>
+                      <VStack align="start" spacing={1}>
+                        <HStack spacing={2} fontSize="sm" color="text.secondary">
+                          <Badge
+                            colorScheme="blue"
+                            borderRadius="full"
+                            minW="20px"
+                            textAlign="center"
+                          >
+                            1
+                          </Badge>
+                          <Text>
+                            Go to the <strong>Transactions</strong> page
+                          </Text>
+                        </HStack>
+                        <HStack spacing={2} fontSize="sm" color="text.secondary">
+                          <Badge
+                            colorScheme="blue"
+                            borderRadius="full"
+                            minW="20px"
+                            textAlign="center"
+                          >
+                            2
+                          </Badge>
+                          <Text>
+                            Select a transaction and apply a tax label (e.g.,
+                            "Medical & Dental")
+                          </Text>
+                        </HStack>
+                        <HStack spacing={2} fontSize="sm" color="text.secondary">
+                          <Badge
+                            colorScheme="blue"
+                            borderRadius="full"
+                            minW="20px"
+                            textAlign="center"
+                          >
+                            3
+                          </Badge>
+                          <Text>
+                            Return here to view totals by category and export a
+                            CSV for tax prep
+                          </Text>
+                        </HStack>
+                      </VStack>
+                    </Box>
+                  </VStack>
+                </CardBody>
+              </Card>
             )}
 
             {/* Tax Categories */}
@@ -383,7 +498,16 @@ export default function TaxDeductiblePage() {
                             borderRadius="sm"
                             bg={summary.label_color}
                           />
-                          <Heading size="md">{summary.label_name}</Heading>
+                          <Heading size="md">
+                            {summary.label_name}
+                            {taxLabelDescriptions[summary.label_name] && (
+                              <HelpHint
+                                hint={taxLabelDescriptions[summary.label_name]}
+                                size="md"
+                                placement="right"
+                              />
+                            )}
+                          </Heading>
                         </HStack>
                         <VStack align="end" spacing={0}>
                           <Text

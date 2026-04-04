@@ -2,7 +2,7 @@
 Tax bucket analysis API endpoints.
 """
 from decimal import Decimal
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -39,7 +39,7 @@ async def get_bucket_summary(
     )
 
 
-@router.get("/rmd-projection", response_model=Dict[str, Any])
+@router.get("/rmd-projection", response_model=List[Dict[str, Any]])
 async def get_rmd_projection(
     pre_tax_balance: float = Query(..., ge=0, le=50_000_000),
     current_age: int = Query(..., ge=0, le=120),

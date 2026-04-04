@@ -43,9 +43,10 @@ import {
   Tooltip,
   Tr,
   VStack,
+  useColorModeValue,
 } from "@chakra-ui/react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FiChevronDown, FiChevronUp, FiInfo } from "react-icons/fi";
 import {
   financialPlanningApi,
@@ -87,10 +88,11 @@ function InfoTip({ label }: { label: string }) {
 
 export const TaxProjectionPage = () => {
   const { selectedUserId } = useUserView();
-  const [showW4, setShowW4] = useState(false);
+  const [showW4, setShowW4] = useState(true);
   const [w4Salary, setW4Salary] = useState("");
   const [w4YtdWithheld, setW4YtdWithheld] = useState("");
   const [w4OtherIncome, setW4OtherIncome] = useState("");
+  const activeBracketBg = useColorModeValue("orange.50", "orange.900");
 
   const [filingStatus, setFilingStatus] = useLocalStorage<"single" | "married">(
     "tax-filing-status",
@@ -133,9 +135,17 @@ export const TaxProjectionPage = () => {
     state: selectedState || undefined,
   };
 
+  // Debounce params so the query only fires after 500ms of inactivity
+  const [debouncedParams, setDebouncedParams] = useState(params);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedParams(params), 500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(params)]);
+
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["tax-projection", selectedUserId, params],
-    queryFn: () => financialPlanningApi.getTaxProjection(params),
+    queryKey: ["tax-projection", selectedUserId, debouncedParams],
+    queryFn: () => financialPlanningApi.getTaxProjection(debouncedParams),
     placeholderData: (prev) => prev,
   });
 
@@ -567,7 +577,7 @@ export const TaxProjectionPage = () => {
                           key={i}
                           bg={
                             i === data.bracket_breakdown.length - 1
-                              ? "orange.50"
+                              ? activeBracketBg
                               : undefined
                           }
                         >
@@ -703,23 +713,32 @@ export const TaxProjectionPage = () => {
                   </InputGroup>
                 </FormControl>
               </SimpleGrid>
-              <Button
-                size="sm"
-                colorScheme="brand"
-                isLoading={w4Mutation.isPending}
-                isDisabled={!w4Salary}
-                onClick={() => {
-                  w4Mutation.mutate({
-                    filing_status: filingStatus,
-                    annual_salary: parseFloat(w4Salary),
-                    ytd_withheld: parseFloat(w4YtdWithheld || "0"),
-                    months_remaining: monthsRemaining,
-                    other_income: parseFloat(w4OtherIncome || "0"),
-                  });
-                }}
+              <Tooltip
+                label={!w4Salary ? "Enter your annual salary above to run the withholding check" : ""}
+                isDisabled={!!w4Salary}
+                placement="top"
+                hasArrow
               >
-                Check Withholding
-              </Button>
+                <Box display="inline-block">
+                  <Button
+                    size="sm"
+                    colorScheme="brand"
+                    isLoading={w4Mutation.isPending}
+                    isDisabled={!w4Salary}
+                    onClick={() => {
+                      w4Mutation.mutate({
+                        filing_status: filingStatus,
+                        annual_salary: parseFloat(w4Salary),
+                        ytd_withheld: parseFloat(w4YtdWithheld || "0"),
+                        months_remaining: monthsRemaining,
+                        other_income: parseFloat(w4OtherIncome || "0"),
+                      });
+                    }}
+                  >
+                    Check Withholding
+                  </Button>
+                </Box>
+              </Tooltip>
 
               {w4Mutation.data && (
                 <Box mt={4}>

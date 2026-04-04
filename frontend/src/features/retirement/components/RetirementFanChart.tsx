@@ -133,7 +133,7 @@ export function RetirementFanChart({
             tick={{ fill: textColor, fontSize: 12 }}
             width={70}
           />
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={<CustomTooltip />} isAnimationActive={false} />
 
           {/* Invisible base area for stacking */}
           <Area

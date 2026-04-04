@@ -548,19 +548,23 @@ export const TaxBucketsPage = () => {
                       {rothHeadroom.conversion_headroom > 0 && (
                         <Alert status="success" borderRadius="md" fontSize="sm">
                           <AlertIcon />
-                          You can convert up to{" "}
-                          <strong>
-                            {fmt(rothHeadroom.conversion_headroom)}
-                          </strong>{" "}
-                          to Roth this year and stay within the {fmtPct(rothHeadroom.target_bracket)} bracket.
-                          This reduces your future RMD liability.
+                          <Text>
+                            You can convert up to{" "}
+                            <strong>
+                              {fmt(rothHeadroom.conversion_headroom)}
+                            </strong>{" "}
+                            to Roth this year and stay within the {fmtPct(rothHeadroom.target_bracket)} bracket.
+                            This reduces your future RMD liability.
+                          </Text>
                         </Alert>
                       )}
                       {rothHeadroom.conversion_headroom === 0 && (
                         <Alert status="info" borderRadius="md" fontSize="sm">
                           <AlertIcon />
-                          Your income already exceeds the {fmtPct(rothHeadroom.target_bracket)} bracket ceiling.
-                          Any Roth conversion will be taxed above {fmtPct(rothHeadroom.target_bracket)}.
+                          <Text>
+                            Your income already exceeds the {fmtPct(rothHeadroom.target_bracket)} bracket ceiling.
+                            Any Roth conversion will be taxed above {fmtPct(rothHeadroom.target_bracket)}.
+                          </Text>
                         </Alert>
                       )}
                     </VStack>

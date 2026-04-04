@@ -1763,9 +1763,11 @@ export function RetirementPage() {
                 comparison={withdrawalComparison}
                 withdrawalRate={scenario?.withdrawal_rate ?? 4}
                 selectedStrategy={scenario?.withdrawal_strategy}
-                onStrategySelect={(strategy) =>
-                  handleUpdate({ withdrawal_strategy: strategy })
-                }
+                onStrategySelect={(strategy) => {
+                  handleUpdate({ withdrawal_strategy: strategy });
+                  // Auto-run simulation after strategy change
+                  setTimeout(() => autoSimulate(), 300);
+                }}
                 readOnly={readOnly}
               />
             )}
