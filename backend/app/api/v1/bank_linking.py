@@ -387,30 +387,29 @@ async def sync_transactions(
             )
 
         elif account.account_source == AccountSource.TELLER:
-            # Use Teller sync logic
-            teller_service = get_teller_service()
-
             if not account.teller_enrollment:
                 raise HTTPException(
                     status_code=400, detail="Account is not linked to a Teller enrollment"
                 )
 
-            transactions = await teller_service.sync_transactions(
-                db=db, account=account, days_back=90
+            # Dispatch to Celery worker
+            from app.workers.tasks.sync_tasks import sync_teller_transactions_task
+
+            sync_teller_transactions_task.delay(
+                str(account.id), str(current_user.organization_id), 90
             )
 
             return {
                 "success": True,
                 "provider": "teller",
-                "message": "Transactions synced successfully",
-                "stats": {
-                    "added": len(transactions),
-                },
+                "message": "Transaction sync queued",
+                "stats": {"queued": True},
             }
 
         elif account.account_source == AccountSource.MX:
             try:
-                mx_service = get_mx_service()
+                from app.services.mx_service import get_mx_service
+                get_mx_service()  # Validate MX is configured
             except ValueError as e:
                 logger.warning("MX service not configured: %s", e)
                 raise HTTPException(status_code=503, detail="MX integration is not available") from e
@@ -418,13 +417,18 @@ async def sync_transactions(
             if not account.mx_member:
                 raise HTTPException(status_code=400, detail="Account is not linked to an MX member")
 
-            transactions = await mx_service.sync_transactions(db=db, account=account, days_back=90)
+            # Dispatch to Celery worker
+            from app.workers.tasks.sync_tasks import sync_mx_transactions_task
+
+            sync_mx_transactions_task.delay(
+                str(account.id), str(current_user.organization_id), 90
+            )
 
             return {
                 "success": True,
                 "provider": "mx",
-                "message": "Transactions synced successfully",
-                "stats": {"added": len(transactions)},
+                "message": "Transaction sync queued",
+                "stats": {"queued": True},
             }
 
         elif account.account_source == AccountSource.MANUAL:

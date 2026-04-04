@@ -3,12 +3,16 @@ Tests for background sync tasks and storage auto-detection.
 
 1. sync_plaid_transactions_task is registered in Celery
 2. sync_teller_transactions_task is registered in Celery
-3. Plaid sync task accepts correct arguments
-4. Teller sync task accepts correct arguments
-5. Storage service auto-promotes to S3 when bucket is set
-6. Storage service stays local when no bucket configured
-7. Plaid webhook dispatches Celery task instead of inline sync
-8. Teller webhook dispatches Celery task instead of inline sync
+3. sync_mx_transactions_task is registered in Celery
+4. Plaid sync task retries up to 3 times
+5. Teller sync task retries up to 3 times
+6. MX sync task retries up to 3 times
+7. Storage service auto-promotes to S3 when bucket is set
+8. Storage service stays local when no bucket configured
+9. Storage service raises when STORAGE_BACKEND=s3 but no bucket
+10. Plaid sync task module importable (no circular imports)
+11. Teller sync task module importable
+12. MX sync task module importable
 """
 
 from unittest.mock import MagicMock, patch
@@ -47,6 +51,20 @@ def test_teller_sync_task_max_retries():
     from app.workers.tasks.sync_tasks import sync_teller_transactions_task
 
     assert sync_teller_transactions_task.max_retries == 3
+
+
+def test_mx_sync_task_registered():
+    """sync_mx_transactions is registered as a Celery task."""
+    from app.workers.tasks.sync_tasks import sync_mx_transactions_task
+
+    assert sync_mx_transactions_task.name == "sync_mx_transactions"
+
+
+def test_mx_sync_task_max_retries():
+    """MX sync task retries up to 3 times."""
+    from app.workers.tasks.sync_tasks import sync_mx_transactions_task
+
+    assert sync_mx_transactions_task.max_retries == 3
 
 
 # ---------------------------------------------------------------------------
@@ -112,3 +130,10 @@ def test_teller_webhook_imports_sync_task():
     from app.workers.tasks.sync_tasks import sync_teller_transactions_task
 
     assert callable(sync_teller_transactions_task.delay)
+
+
+def test_mx_webhook_imports_sync_task():
+    """The MX sync task module can be imported (no circular imports)."""
+    from app.workers.tasks.sync_tasks import sync_mx_transactions_task
+
+    assert callable(sync_mx_transactions_task.delay)

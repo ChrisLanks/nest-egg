@@ -135,3 +135,52 @@ async def _sync_teller_transactions_async(account_db_id: str, organization_id: s
         except Exception as exc:
             logger.error("sync_teller_transactions failed: %s", exc, exc_info=True)
             raise
+
+
+# ---------------------------------------------------------------------------
+# MX transaction sync
+# ---------------------------------------------------------------------------
+
+
+@celery_app.task(name="sync_mx_transactions", bind=True, max_retries=3)
+def sync_mx_transactions_task(self, account_db_id: str, organization_id: str, days_back: int = 90):
+    """Background sync of MX transactions for a single account.
+
+    Args:
+        account_db_id: The database UUID of the Account row.
+        organization_id: Organization UUID (for cache invalidation).
+        days_back: Number of days of history to fetch (MX default: 90).
+    """
+    asyncio.run(_sync_mx_transactions_async(account_db_id, organization_id, days_back))
+
+
+async def _sync_mx_transactions_async(account_db_id: str, organization_id: str, days_back: int):
+    from uuid import UUID
+
+    from sqlalchemy import select
+
+    from app.models.account import Account
+    from app.services.mx_service import get_mx_service
+
+    async with get_celery_session() as db:
+        try:
+            result = await db.execute(
+                select(Account).where(Account.id == UUID(account_db_id))
+            )
+            account = result.scalar_one_or_none()
+            if not account:
+                logger.warning("sync_mx_transactions: Account %s not found", account_db_id)
+                return
+
+            mx_service = get_mx_service()
+            await mx_service.sync_transactions(db, account, days_back=days_back)
+
+            logger.info(
+                "sync_mx_transactions: account=%s days_back=%d",
+                account_db_id,
+                days_back,
+            )
+
+        except Exception as exc:
+            logger.error("sync_mx_transactions failed: %s", exc, exc_info=True)
+            raise
