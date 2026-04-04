@@ -37,12 +37,21 @@ class TransactionSplitUpdate(BaseModel):
     assigned_user_id: Optional[UUID] = None
 
 
-class TransactionSplitResponse(TransactionSplitBase):
-    """Schema for transaction split response."""
+class TransactionSplitResponse(BaseModel):
+    """Schema for transaction split response.
+
+    Does NOT inherit from TransactionSplitBase because the base has
+    amount: Field(gt=0) which rejects amounts stored as-is from the DB
+    (the parent transaction's sign is preserved).
+    """
 
     id: UUID
     parent_transaction_id: UUID
     organization_id: UUID
+    amount: Decimal
+    description: Optional[str] = None
+    category_id: Optional[UUID] = None
+    assigned_user_id: Optional[UUID] = None
     settled_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
