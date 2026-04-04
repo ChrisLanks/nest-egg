@@ -179,11 +179,16 @@ def get_storage_service() -> StorageService:
     """
     FastAPI dependency that returns the configured storage backend.
 
+    Auto-promotes to S3 when AWS_S3_BUCKET is set, even if STORAGE_BACKEND
+    is still "local" (the default). This lets operators just set the bucket
+    env var without remembering to also flip STORAGE_BACKEND.
+
     Example::
 
         storage: StorageService = Depends(get_storage_service)
     """
-    if settings.STORAGE_BACKEND == "s3":
+    use_s3 = settings.STORAGE_BACKEND == "s3" or settings.AWS_S3_BUCKET
+    if use_s3:
         if not settings.AWS_S3_BUCKET:
             raise RuntimeError(
                 "STORAGE_BACKEND=s3 requires AWS_S3_BUCKET to be set in environment"

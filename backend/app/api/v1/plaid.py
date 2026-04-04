@@ -697,16 +697,14 @@ async def _handle_transactions_webhook(
         is_test_user = user and user.email == "test@test.com"
 
         if is_test_user:
-            # Generate mock transaction data for test users
+            # Generate mock transaction data for test users (inline — no Celery for test)
             logger.info("Generating mock transactions for test user")
 
-            # Get accounts for this plaid_item
             accounts_result = await db.execute(
                 select(Account).where(Account.plaid_item_id == plaid_item.id)
             )
             accounts = accounts_result.scalars().all()
 
-            # Generate transactions for each account
             all_transactions = []
             end_date = utc_now().date()
             start_date = end_date - timedelta(days=90)
@@ -720,7 +718,6 @@ async def _handle_transactions_webhook(
                 )
                 all_transactions.extend(mock_txns)
 
-            # Sync transactions
             sync_service = PlaidTransactionSyncService()
             stats = await sync_service.sync_transactions_for_item(
                 db=db,
@@ -731,29 +728,17 @@ async def _handle_transactions_webhook(
 
             logger.info(f"Synced mock transactions: {stats}")
         else:
-            # Real Plaid transaction sync
-            access_token = encryption_service.decrypt_token(plaid_item.access_token)
-            plaid_service = PlaidService()
-            transactions, removed_ids = await plaid_service.sync_transactions_real(
-                access_token=access_token
+            # Dispatch to Celery worker — webhook returns immediately
+            from app.workers.tasks.sync_tasks import sync_plaid_transactions_task
+
+            sync_plaid_transactions_task.delay(
+                str(plaid_item.id),
+                str(plaid_item.organization_id),
             )
-
-            sync_service = PlaidTransactionSyncService()
-            stats = await sync_service.sync_transactions_for_item(
-                db=db,
-                plaid_item_id=plaid_item.id,
-                transactions_data=transactions,
-                is_test_mode=False,
+            logger.info(
+                "Dispatched sync_plaid_transactions task for item %s",
+                plaid_item.item_id,
             )
-
-            if removed_ids:
-                await sync_service.remove_transactions(
-                    db=db,
-                    plaid_item_id=plaid_item.id,
-                    removed_transaction_ids=removed_ids,
-                )
-
-            logger.info(f"Synced real transactions: {stats}")
 
     elif webhook_code == "TRANSACTIONS_REMOVED":
         # Transactions were removed (e.g., duplicates)

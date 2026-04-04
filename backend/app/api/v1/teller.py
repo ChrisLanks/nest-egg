@@ -316,9 +316,14 @@ async def _handle_transaction_posted(
     if account:
         logger.info(f"New transaction posted for account: {account.name}")
 
-        # Trigger transaction sync
-        teller_service = get_teller_service()
-        await teller_service.sync_transactions(db, account, days_back=7)
+        # Dispatch to Celery worker — webhook returns immediately
+        from app.workers.tasks.sync_tasks import sync_teller_transactions_task
+
+        sync_teller_transactions_task.delay(
+            str(account.id),
+            str(account.organization_id),
+            7,
+        )
 
 
 async def _handle_transaction_pending(
@@ -345,9 +350,14 @@ async def _handle_transaction_pending(
     if account:
         logger.info(f"Pending transaction for account: {account.name}")
 
-        # Trigger transaction sync
-        teller_service = get_teller_service()
-        await teller_service.sync_transactions(db, account, days_back=7)
+        # Dispatch to Celery worker — webhook returns immediately
+        from app.workers.tasks.sync_tasks import sync_teller_transactions_task
+
+        sync_teller_transactions_task.delay(
+            str(account.id),
+            str(account.organization_id),
+            7,
+        )
 
 
 async def _handle_balance_updated(

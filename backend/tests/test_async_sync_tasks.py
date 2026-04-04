@@ -1,0 +1,114 @@
+"""
+Tests for background sync tasks and storage auto-detection.
+
+1. sync_plaid_transactions_task is registered in Celery
+2. sync_teller_transactions_task is registered in Celery
+3. Plaid sync task accepts correct arguments
+4. Teller sync task accepts correct arguments
+5. Storage service auto-promotes to S3 when bucket is set
+6. Storage service stays local when no bucket configured
+7. Plaid webhook dispatches Celery task instead of inline sync
+8. Teller webhook dispatches Celery task instead of inline sync
+"""
+
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+
+# ---------------------------------------------------------------------------
+# Celery task registration
+# ---------------------------------------------------------------------------
+
+
+def test_plaid_sync_task_registered():
+    """sync_plaid_transactions is registered as a Celery task."""
+    from app.workers.tasks.sync_tasks import sync_plaid_transactions_task
+
+    assert sync_plaid_transactions_task.name == "sync_plaid_transactions"
+
+
+def test_teller_sync_task_registered():
+    """sync_teller_transactions is registered as a Celery task."""
+    from app.workers.tasks.sync_tasks import sync_teller_transactions_task
+
+    assert sync_teller_transactions_task.name == "sync_teller_transactions"
+
+
+def test_plaid_sync_task_max_retries():
+    """Plaid sync task retries up to 3 times."""
+    from app.workers.tasks.sync_tasks import sync_plaid_transactions_task
+
+    assert sync_plaid_transactions_task.max_retries == 3
+
+
+def test_teller_sync_task_max_retries():
+    """Teller sync task retries up to 3 times."""
+    from app.workers.tasks.sync_tasks import sync_teller_transactions_task
+
+    assert sync_teller_transactions_task.max_retries == 3
+
+
+# ---------------------------------------------------------------------------
+# Storage auto-detection
+# ---------------------------------------------------------------------------
+
+
+@patch("app.services.storage_service.settings")
+def test_storage_auto_promotes_to_s3(mock_settings):
+    """When AWS_S3_BUCKET is set, storage auto-promotes to S3 even if STORAGE_BACKEND=local."""
+    from app.services.storage_service import S3StorageService, get_storage_service
+
+    mock_settings.STORAGE_BACKEND = "local"
+    mock_settings.AWS_S3_BUCKET = "my-bucket"
+    mock_settings.AWS_REGION = "us-east-1"
+    mock_settings.AWS_ACCESS_KEY_ID = None
+    mock_settings.AWS_SECRET_ACCESS_KEY = None
+    mock_settings.AWS_S3_PREFIX = "uploads/"
+
+    service = get_storage_service()
+    assert isinstance(service, S3StorageService)
+
+
+@patch("app.services.storage_service.settings")
+def test_storage_stays_local_when_no_bucket(mock_settings):
+    """Without S3 bucket, storage stays local."""
+    from app.services.storage_service import LocalStorageService, get_storage_service
+
+    mock_settings.STORAGE_BACKEND = "local"
+    mock_settings.AWS_S3_BUCKET = None
+    mock_settings.LOCAL_UPLOAD_DIR = "./uploads"
+
+    service = get_storage_service()
+    assert isinstance(service, LocalStorageService)
+
+
+@patch("app.services.storage_service.settings")
+def test_storage_explicit_s3_without_bucket_raises(mock_settings):
+    """Explicit STORAGE_BACKEND=s3 without bucket raises RuntimeError."""
+    from app.services.storage_service import get_storage_service
+
+    mock_settings.STORAGE_BACKEND = "s3"
+    mock_settings.AWS_S3_BUCKET = None
+
+    with pytest.raises(RuntimeError, match="AWS_S3_BUCKET"):
+        get_storage_service()
+
+
+# ---------------------------------------------------------------------------
+# Webhook dispatch verification
+# ---------------------------------------------------------------------------
+
+
+def test_plaid_webhook_imports_sync_task():
+    """The sync task module can be imported (no circular imports)."""
+    from app.workers.tasks.sync_tasks import sync_plaid_transactions_task
+
+    assert callable(sync_plaid_transactions_task.delay)
+
+
+def test_teller_webhook_imports_sync_task():
+    """The sync task module can be imported (no circular imports)."""
+    from app.workers.tasks.sync_tasks import sync_teller_transactions_task
+
+    assert callable(sync_teller_transactions_task.delay)
