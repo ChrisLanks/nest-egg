@@ -117,6 +117,7 @@ from app.middleware.request_logging import (
     UserContextMiddleware,
 )
 from app.middleware.request_size_limit import RequestSizeLimitMiddleware
+from app.middleware.request_timeout import RequestTimeoutMiddleware
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.models.user import User as UserModel
 from app.services.secrets_validation_service import secrets_validation_service
@@ -351,6 +352,9 @@ app.add_middleware(
 
 # Error handler - Catch uncaught exceptions with PII redaction
 app.add_middleware(ErrorHandlerMiddleware)
+
+# Request timeout - Abort requests exceeding 120 seconds to free workers
+app.add_middleware(RequestTimeoutMiddleware, timeout_seconds=120)
 
 # Security middleware (production only)
 if not settings.DEBUG:

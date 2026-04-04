@@ -24,6 +24,13 @@ from app.core.cache import delete_pattern as cache_delete_pattern
 from app.core.cache import get as cache_get
 from app.core.cache import setex as cache_setex
 from app.core.database import get_db
+
+
+async def _invalidate_transaction_caches(organization_id: str) -> None:
+    """Invalidate all caches that depend on transaction data."""
+    await cache_delete_pattern(f"transactions:{organization_id}:*")
+    await cache_delete_pattern(f"ie:*:{organization_id}:*")
+    await cache_delete_pattern(f"dashboard:summary:{organization_id}:*")
 from app.dependencies import (
     get_all_household_accounts,
     get_current_user,
@@ -150,7 +157,7 @@ async def create_transaction(
     db.add(txn)
     await db.commit()
     await db.refresh(txn)
-    await cache_delete_pattern(f"transactions:{current_user.organization_id}:*")
+    await _invalidate_transaction_caches(str(current_user.organization_id))
 
     # Load related data
     result = await db.execute(
@@ -707,7 +714,7 @@ async def update_transaction(
 
     await db.commit()
     await db.refresh(txn, ["labels"])
-    await cache_delete_pattern(f"transactions:{current_user.organization_id}:*")
+    await _invalidate_transaction_caches(str(current_user.organization_id))
 
     # Extract labels from the many-to-many relationship
     transaction_labels = [tl.label for tl in txn.labels if tl.label]

@@ -4,6 +4,7 @@
 
 import { memo } from "react";
 import {
+  Button,
   Card,
   CardBody,
   Heading,
@@ -55,7 +56,7 @@ const YearOverYearWidgetBase: React.FC = () => {
   const currentYear = new Date().getFullYear();
   const years = [currentYear, currentYear - 1];
 
-  const { data, isLoading, isError } = useQuery<YoYMonth[]>({
+  const { data, isLoading, isError, refetch } = useQuery<YoYMonth[]>({
     queryKey: ["yoy-widget", selectedUserId, years],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -64,7 +65,7 @@ const YearOverYearWidgetBase: React.FC = () => {
       const res = await api.get("/income-expenses/year-over-year", { params });
       return res.data;
     },
-    retry: false,
+    retry: 1,
     staleTime: 10 * 60 * 1000,
   });
 
@@ -78,7 +79,25 @@ const YearOverYearWidgetBase: React.FC = () => {
     );
   }
 
-  if (isError || !data || data.length === 0) {
+  if (isError) {
+    return (
+      <Card h="100%">
+        <CardBody>
+          <Heading size="md" mb={4}>
+            Year over Year
+          </Heading>
+          <Text color="red.400" fontSize="sm" mb={2}>
+            Failed to load year-over-year data.
+          </Text>
+          <Button size="xs" variant="outline" onClick={() => refetch()}>
+            Try again
+          </Button>
+        </CardBody>
+      </Card>
+    );
+  }
+
+  if (!data || data.length === 0) {
     return (
       <Card h="100%">
         <CardBody>

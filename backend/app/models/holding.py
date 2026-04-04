@@ -80,6 +80,8 @@ class Holding(Base):
         Index("ix_holdings_asset_type", "organization_id", "asset_type"),
         # Sector analysis across large portfolios
         Index("ix_holdings_sector", "organization_id", "sector"),
+        # Login/daily price refresh: find stale holdings for an org efficiently
+        Index("ix_holdings_org_price_as_of", "organization_id", "price_as_of"),
     )
 
     # Relationships

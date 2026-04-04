@@ -16,7 +16,7 @@ from uuid import UUID
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.cache import redis_client
+from app.core.cache import delete_pattern as cache_delete_pattern, redis_client
 from app.models.account import Account, PlaidItem
 from app.models.transaction import Transaction
 from app.services.dividend_detection_service import DividendDetectionService
@@ -189,6 +189,12 @@ class PlaidTransactionSyncService:
                     logger.warning("Dividend auto-detection failed (non-fatal): %s", e)
 
             await db.commit()
+
+            # Invalidate caches that depend on transaction data
+            if organization_id and (stats["added"] > 0 or stats["updated"] > 0):
+                await cache_delete_pattern(f"transactions:{organization_id}:*")
+                await cache_delete_pattern(f"ie:*:{organization_id}:*")
+                await cache_delete_pattern(f"dashboard:summary:{organization_id}:*")
 
             logger.info(
                 f"Synced transactions for PlaidItem {plaid_item_id}: "

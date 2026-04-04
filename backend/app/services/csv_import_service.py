@@ -11,6 +11,7 @@ from uuid import UUID
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.cache import delete_pattern as cache_delete_pattern
 from app.models.transaction import Transaction
 from app.models.account import Account
 from app.models.user import User
@@ -284,6 +285,13 @@ class CSVImportService:
 
         # Final commit
         await db.commit()
+
+        # Invalidate caches that depend on transaction data
+        if imported > 0:
+            org_id = str(user.organization_id)
+            await cache_delete_pattern(f"transactions:{org_id}:*")
+            await cache_delete_pattern(f"ie:*:{org_id}:*")
+            await cache_delete_pattern(f"dashboard:summary:{org_id}:*")
 
         return {
             "imported": imported,

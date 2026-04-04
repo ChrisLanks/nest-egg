@@ -110,8 +110,12 @@ class TrendAnalysisService:
 
         # Populate with actual data
         for row in result.all():
+            if row.year is None or row.month is None:
+                continue
             year = int(row.year)
             month = int(row.month)
+            if month < 1 or month > 12:
+                continue
             income = float(row.income or 0)
             expenses = abs(float(row.expenses or 0))
 
@@ -214,8 +218,12 @@ class TrendAnalysisService:
 
         # Populate with actual data
         for row in result.all():
+            if row.year is None or row.quarter is None:
+                continue
             year = int(row.year)
             quarter = int(row.quarter)
+            if quarter < 1 or quarter > 4:
+                continue
             income = float(row.income or 0)
             expenses = abs(float(row.expenses or 0))
 
@@ -451,7 +459,7 @@ class TrendAnalysisService:
             "December",
         ]
 
-        if peak_month_row:
+        if peak_month_row and peak_month_row.month is not None:
             peak_month = month_names[int(peak_month_row.month) - 1]
             peak_amount = float(peak_month_row.total or 0)
         else:

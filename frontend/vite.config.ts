@@ -20,6 +20,23 @@ export default defineConfig({
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     exclude: ["src/App.test.tsx"],
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-react": ["react", "react-dom", "react-router-dom"],
+          "vendor-charts": ["recharts"],
+          "vendor-ui": [
+            "@chakra-ui/react",
+            "@emotion/react",
+            "@emotion/styled",
+            "framer-motion",
+          ],
+          "vendor-query": ["@tanstack/react-query"],
+        },
+      },
+    },
+  },
   server: {
     // Proxy /api → backend so the httpOnly refresh cookie is treated as same-origin
     // in dev (frontend: 5173, backend: 8000).
