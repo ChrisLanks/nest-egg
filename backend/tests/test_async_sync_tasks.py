@@ -15,7 +15,7 @@ Tests for background sync tasks and storage auto-detection.
 12. MX sync task module importable
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -137,3 +137,37 @@ def test_mx_webhook_imports_sync_task():
     from app.workers.tasks.sync_tasks import sync_mx_transactions_task
 
     assert callable(sync_mx_transactions_task.delay)
+
+
+# ---------------------------------------------------------------------------
+# Org-id verification (defense-in-depth)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@patch("app.core.cache.delete_pattern", new_callable=AsyncMock)
+async def test_invalidate_org_caches_clears_all_patterns(mock_del):
+    """Cache invalidation helper clears transactions, trends, and dashboard."""
+    from app.workers.tasks.sync_tasks import _invalidate_org_caches
+
+    await _invalidate_org_caches("org-abc")
+
+    assert mock_del.call_count == 3
+    patterns = [c.args[0] for c in mock_del.call_args_list]
+    assert "transactions:org-abc:*" in patterns
+    assert "ie:*:org-abc:*" in patterns
+    assert "dashboard:summary:org-abc:*" in patterns
+
+
+def test_sync_tasks_have_org_verification_in_source():
+    """All three sync tasks contain org mismatch checks in source code."""
+    import inspect
+    from app.workers.tasks.sync_tasks import (
+        _sync_plaid_transactions_async,
+        _sync_teller_transactions_async,
+        _sync_mx_transactions_async,
+    )
+
+    for fn in [_sync_plaid_transactions_async, _sync_teller_transactions_async, _sync_mx_transactions_async]:
+        source = inspect.getsource(fn)
+        assert "org mismatch" in source, f"{fn.__name__} missing org verification"
