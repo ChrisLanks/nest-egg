@@ -48,6 +48,7 @@ import { useState } from "react";
 import { FiInfo } from "react-icons/fi";
 import { useQuery } from "@tanstack/react-query";
 import api from "../services/api";
+import { useUserView } from "../contexts/UserViewContext";
 
 function InfoTip({ label }: { label: string }) {
   return (
@@ -114,6 +115,7 @@ interface QcdResult {
 }
 
 export const CharitableGivingPage = () => {
+  const { selectedUserId } = useUserView();
   const currentYear = new Date().getFullYear();
 
   // ── Label selection ─────────────────────────────────────────────────────────
@@ -127,9 +129,11 @@ export const CharitableGivingPage = () => {
 
   // ── Fetch all org labels ────────────────────────────────────────────────────
   const { data: labels = [], isLoading: labelsLoading } = useQuery<OrgLabel[]>({
-    queryKey: ["charitable-labels"],
+    queryKey: ["charitable-labels", selectedUserId],
     queryFn: async () => {
-      const { data } = await api.get("/charitable-giving/labels");
+      const params: Record<string, string> = {};
+      if (selectedUserId) params.user_id = selectedUserId;
+      const { data } = await api.get("/charitable-giving/labels", { params });
       return data;
     },
     staleTime: 60_000,
@@ -137,14 +141,14 @@ export const CharitableGivingPage = () => {
 
   // ── Fetch donations based on selected labels ────────────────────────────────
   const { data: donationsResult, isLoading: donationsLoading } = useQuery<DonationsResult>({
-    queryKey: ["charitable-donations", selectedLabelIds.join(","), currentYear],
+    queryKey: ["charitable-donations", selectedLabelIds.join(","), currentYear, selectedUserId],
     queryFn: async () => {
-      const { data } = await api.get("/charitable-giving/donations", {
-        params: {
-          label_ids: selectedLabelIds.join(","),
-          year: currentYear,
-        },
-      });
+      const p: Record<string, string> = {
+        label_ids: selectedLabelIds.join(","),
+        year: String(currentYear),
+      };
+      if (selectedUserId) p.user_id = selectedUserId;
+      const { data } = await api.get("/charitable-giving/donations", { params: p });
       return data;
     },
     enabled: selectedLabelIds.length > 0,
@@ -153,15 +157,15 @@ export const CharitableGivingPage = () => {
 
   // ── Bunching analysis ───────────────────────────────────────────────────────
   const { data: bunchResult } = useQuery<BunchingResult>({
-    queryKey: ["bunching", annualGiving, marginalRate, filingStatus],
+    queryKey: ["bunching", annualGiving, marginalRate, filingStatus, selectedUserId],
     queryFn: async () => {
-      const { data } = await api.get("/charitable-giving/bunching-analysis", {
-        params: {
-          annual_giving: Number(annualGiving),
-          marginal_rate: Number(marginalRate) / 100,
-          filing_status: filingStatus,
-        },
-      });
+      const p: Record<string, string | number> = {
+        annual_giving: Number(annualGiving),
+        marginal_rate: Number(marginalRate) / 100,
+        filing_status: filingStatus,
+      };
+      if (selectedUserId) p.user_id = selectedUserId;
+      const { data } = await api.get("/charitable-giving/bunching-analysis", { params: p });
       return data;
     },
     enabled: bunchEnabled && !!annualGiving,
@@ -170,9 +174,11 @@ export const CharitableGivingPage = () => {
 
   // ── QCD ─────────────────────────────────────────────────────────────────────
   const { data: qcdResult } = useQuery<QcdResult>({
-    queryKey: ["qcd"],
+    queryKey: ["qcd", selectedUserId],
     queryFn: async () => {
-      const { data } = await api.get("/charitable-giving/qcd-opportunity");
+      const p: Record<string, string> = {};
+      if (selectedUserId) p.user_id = selectedUserId;
+      const { data } = await api.get("/charitable-giving/qcd-opportunity", { params: p });
       return data;
     },
     staleTime: 60_000,

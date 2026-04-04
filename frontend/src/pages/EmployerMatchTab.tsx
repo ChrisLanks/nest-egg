@@ -26,6 +26,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link as RouterLink } from "react-router-dom";
 import api from "../services/api";
 import { useCurrency } from "../contexts/CurrencyContext";
+import { useUserView } from "../contexts/UserViewContext";
 
 interface EmployerMatchItem {
   account_id: string;
@@ -81,10 +82,15 @@ const matchAlertStatus = (isCapturing: boolean | undefined): "success" | "warnin
 
 export const EmployerMatchTab = () => {
   const { formatCurrency } = useCurrency();
+  const { selectedUserId } = useUserView();
 
   const { data, isLoading, error } = useQuery<EmployerMatchResponse>({
-    queryKey: ["employer-match"],
-    queryFn: () => api.get("/retirement/employer-match").then((r) => r.data),
+    queryKey: ["employer-match", selectedUserId],
+    queryFn: () => {
+      const params: Record<string, string> = {};
+      if (selectedUserId) params.user_id = selectedUserId;
+      return api.get("/retirement/employer-match", { params }).then((r) => r.data);
+    },
   });
 
   return (

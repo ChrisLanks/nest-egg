@@ -19,6 +19,7 @@ import {
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import api from "../services/api";
+import { useUserView } from "../contexts/UserViewContext";
 
 interface PeAccount {
   account_id: string;
@@ -39,10 +40,13 @@ const fmt = (n: number) =>
 
 
 export default function PePerformancePage() {
+  const { selectedUserId } = useUserView();
   const { data, isLoading, error } = useQuery<PeAccount[]>({
-    queryKey: ["pe-performance"],
+    queryKey: ["pe-performance", selectedUserId],
     queryFn: async () => {
-      const res = await api.get("/pe-performance/portfolio");
+      const params: Record<string, string> = {};
+      if (selectedUserId) params.user_id = selectedUserId;
+      const res = await api.get("/pe-performance/portfolio", { params });
       return res.data.accounts ?? [];
     },
   });

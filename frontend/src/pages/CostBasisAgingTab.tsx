@@ -34,6 +34,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import api from "../services/api";
 import { useCurrency } from "../contexts/CurrencyContext";
+import { useUserView } from "../contexts/UserViewContext";
 
 interface TaxLotItem {
   lot_id: string;
@@ -172,13 +173,18 @@ const LotTable = ({ lots }: LotTableProps) => {
 
 export const CostBasisAgingTab = () => {
   const { formatCurrency } = useCurrency();
+  const { selectedUserId } = useUserView();
   const currentYear = new Date().getFullYear();
   const [exportYear, setExportYear] = useState(currentYear - 1);
   const [isExporting, setIsExporting] = useState(false);
 
   const { data, isLoading, error } = useQuery<CostBasisAgingResponse>({
-    queryKey: ["cost-basis-aging"],
-    queryFn: () => api.get("/holdings/cost-basis-aging").then((r) => r.data),
+    queryKey: ["cost-basis-aging", selectedUserId],
+    queryFn: () => {
+      const params: Record<string, string> = {};
+      if (selectedUserId) params.user_id = selectedUserId;
+      return api.get("/holdings/cost-basis-aging", { params }).then((r) => r.data);
+    },
   });
 
   const approachingLots = data?.lots.filter((l) => l.bucket === "approaching") ?? [];
@@ -188,7 +194,9 @@ export const CostBasisAgingTab = () => {
   const handleExport8949 = async () => {
     setIsExporting(true);
     try {
-      const response = await api.get(`/tax-lots/export/8949?year=${exportYear}`, {
+      const exportParams = new URLSearchParams({ year: String(exportYear) });
+      if (selectedUserId) exportParams.set("user_id", selectedUserId);
+      const response = await api.get(`/tax-lots/export/8949?${exportParams}`, {
         responseType: "blob",
       });
       const url = window.URL.createObjectURL(new Blob([response.data]));

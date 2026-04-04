@@ -29,6 +29,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import api from "../services/api";
 import { useCurrency } from "../contexts/CurrencyContext";
+import { useUserView } from "../contexts/UserViewContext";
 
 interface DividendEvent {
   id: string;
@@ -130,13 +131,17 @@ const MonthCell = ({ month, isBest }: MonthCellProps) => {
 
 export const DividendCalendarTab = () => {
   const { formatCurrency } = useCurrency();
+  const { selectedUserId } = useUserView();
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
 
   const { data, isLoading, error } = useQuery<DividendCalendarResponse>({
-    queryKey: ["dividend-calendar", year],
-    queryFn: () =>
-      api.get(`/holdings/dividend-calendar?year=${year}`).then((r) => r.data),
+    queryKey: ["dividend-calendar", year, selectedUserId],
+    queryFn: () => {
+      const params = new URLSearchParams({ year: String(year) });
+      if (selectedUserId) params.set("user_id", selectedUserId);
+      return api.get(`/holdings/dividend-calendar?${params}`).then((r) => r.data);
+    },
   });
 
   return (

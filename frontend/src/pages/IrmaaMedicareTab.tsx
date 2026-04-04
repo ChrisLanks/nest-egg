@@ -41,6 +41,7 @@ import {
   YAxis,
 } from "recharts";
 import api from "../services/api";
+import { useUserView } from "../contexts/UserViewContext";
 import { NumberInput, NumberInputField } from "@chakra-ui/react";
 
 interface IrmaaYearPoint {
@@ -87,6 +88,7 @@ const fmtCompact = (v: number) =>
   }).format(v);
 
 export const IrmaaMedicareTab = () => {
+  const { selectedUserId } = useUserView();
   const [magi, setMagi] = useState<number>(120000);
   const [filingStatus, setFilingStatus] = useState("single");
   const [growthRate, setGrowthRate] = useState(3);
@@ -97,9 +99,10 @@ export const IrmaaMedicareTab = () => {
     income_growth_rate: String(growthRate / 100),
     projection_years: "20",
   });
+  if (selectedUserId) params.set("user_id", selectedUserId);
 
   const { data, isLoading, error } = useQuery<IrmaaResponse>({
-    queryKey: ["irmaa-projection", magi, filingStatus, growthRate],
+    queryKey: ["irmaa-projection", magi, filingStatus, growthRate, selectedUserId],
     queryFn: () => api.get(`/tax/irmaa-projection?${params}`).then((r) => r.data),
     enabled: magi > 0,
   });

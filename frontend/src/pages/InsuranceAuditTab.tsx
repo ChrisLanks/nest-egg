@@ -30,6 +30,7 @@ import { useState } from "react";
 import { FiX } from "react-icons/fi";
 import api from "../services/api";
 import { useCurrency } from "../contexts/CurrencyContext";
+import { useUserView } from "../contexts/UserViewContext";
 
 interface InsuranceCoverageItem {
   insurance_type: string;
@@ -154,6 +155,7 @@ const InsuranceCard = ({ item, onDismiss, isDismissed }: InsuranceCardProps) => 
 
 export const InsuranceAuditTab = () => {
   const { formatCurrency } = useCurrency();
+  const { selectedUserId } = useUserView();
   const { isOpen: isDismissedOpen, onToggle: onDismissedToggle } = useDisclosure();
 
   const [dismissed, setDismissed] = useState<Set<string>>(() => {
@@ -178,8 +180,12 @@ export const InsuranceAuditTab = () => {
   };
 
   const { data, isLoading, error } = useQuery<InsuranceAuditResponse>({
-    queryKey: ["insurance-audit"],
-    queryFn: () => api.get("/estate/insurance-audit").then((r) => r.data),
+    queryKey: ["insurance-audit", selectedUserId],
+    queryFn: () => {
+      const params: Record<string, string> = {};
+      if (selectedUserId) params.user_id = selectedUserId;
+      return api.get("/estate/insurance-audit", { params }).then((r) => r.data);
+    },
   });
 
   const activeItems = data?.coverage_items.filter((i) => !dismissed.has(i.insurance_type)) ?? [];

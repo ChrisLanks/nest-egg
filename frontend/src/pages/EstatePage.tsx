@@ -53,6 +53,7 @@ import { FiCheckCircle, FiInfo, FiPlus, FiTrash2 } from "react-icons/fi";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import api from "../services/api";
+import { useUserView } from "../contexts/UserViewContext";
 
 function InfoTip({ label }: { label: string }) {
   return (
@@ -130,6 +131,7 @@ const DOC_TYPES = [
 ];
 
 export const EstatePage = () => {
+  const { selectedUserId } = useUserView();
   const toast = useToast();
   const qc = useQueryClient();
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -152,9 +154,11 @@ export const EstatePage = () => {
 
   // ── Fetch beneficiaries ─────────────────────────────────────────────────────
   const { data: beneficiaries = [], isLoading: bensLoading } = useQuery<Beneficiary[]>({
-    queryKey: ["estate-beneficiaries"],
+    queryKey: ["estate-beneficiaries", selectedUserId],
     queryFn: async () => {
-      const { data } = await api.get("/estate/beneficiaries");
+      const p: Record<string, string> = {};
+      if (selectedUserId) p.user_id = selectedUserId;
+      const { data } = await api.get("/estate/beneficiaries", { params: p });
       return data;
     },
     staleTime: 30_000,
@@ -162,9 +166,11 @@ export const EstatePage = () => {
 
   // ── Fetch documents ─────────────────────────────────────────────────────────
   const { data: documents = [] } = useQuery<EstateDoc[]>({
-    queryKey: ["estate-documents"],
+    queryKey: ["estate-documents", selectedUserId],
     queryFn: async () => {
-      const { data } = await api.get("/estate/documents");
+      const p: Record<string, string> = {};
+      if (selectedUserId) p.user_id = selectedUserId;
+      const { data } = await api.get("/estate/documents", { params: p });
       return data;
     },
     staleTime: 30_000,
@@ -172,9 +178,11 @@ export const EstatePage = () => {
 
   // ── Fetch net worth from dashboard (for default) ────────────────────────────
   const { data: dashSummary } = useQuery<{ net_worth?: number }>({
-    queryKey: ["dashboard-summary"],
+    queryKey: ["dashboard-summary", selectedUserId],
     queryFn: async () => {
-      const { data } = await api.get("/dashboard/summary");
+      const p: Record<string, string> = {};
+      if (selectedUserId) p.user_id = selectedUserId;
+      const { data } = await api.get("/dashboard/summary", { params: p });
       return data;
     },
     staleTime: 60_000,
@@ -182,9 +190,11 @@ export const EstatePage = () => {
 
   // ── Fetch accounts (for beneficiary account picker) ─────────────────────────
   const { data: accounts = [] } = useQuery<{ id: string; name: string; account_type: string }[]>({
-    queryKey: ["accounts"],
+    queryKey: ["accounts", selectedUserId],
     queryFn: async () => {
-      const { data } = await api.get("/accounts/");
+      const p: Record<string, string> = {};
+      if (selectedUserId) p.user_id = selectedUserId;
+      const { data } = await api.get("/accounts/", { params: p });
       return data;
     },
     staleTime: 60_000,
@@ -196,11 +206,11 @@ export const EstatePage = () => {
     : (dashSummary?.net_worth ?? 0);
 
   const { data: taxResult } = useQuery<TaxExposureResult>({
-    queryKey: ["estate-tax", effectiveNetWorth, filingStatus],
+    queryKey: ["estate-tax", effectiveNetWorth, filingStatus, selectedUserId],
     queryFn: async () => {
-      const { data } = await api.get("/estate/tax-exposure", {
-        params: { net_worth: effectiveNetWorth, filing_status: filingStatus },
-      });
+      const p: Record<string, string | number> = { net_worth: effectiveNetWorth, filing_status: filingStatus };
+      if (selectedUserId) p.user_id = selectedUserId;
+      const { data } = await api.get("/estate/tax-exposure", { params: p });
       return data;
     },
     enabled: taxCalcEnabled || effectiveNetWorth > 0,

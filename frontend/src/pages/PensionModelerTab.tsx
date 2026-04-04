@@ -23,6 +23,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import api from "../services/api";
 import { useCurrency } from "../contexts/CurrencyContext";
+import { useUserView } from "../contexts/UserViewContext";
 
 interface PensionAnalysis {
   account_id: string;
@@ -87,10 +88,15 @@ const fmtCompact = (v: number) =>
 
 export const PensionModelerTab = () => {
   const { formatCurrency } = useCurrency();
+  const { selectedUserId } = useUserView();
 
   const { data, isLoading, error } = useQuery<PensionModelerResponse>({
-    queryKey: ["pension-modeler"],
-    queryFn: () => api.get("/retirement/pension-model").then((r) => r.data),
+    queryKey: ["pension-modeler", selectedUserId],
+    queryFn: () => {
+      const params: Record<string, string> = {};
+      if (selectedUserId) params.user_id = selectedUserId;
+      return api.get("/retirement/pension-model", { params }).then((r) => r.data);
+    },
   });
 
   return (

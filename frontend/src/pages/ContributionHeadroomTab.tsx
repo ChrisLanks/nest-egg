@@ -33,6 +33,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import api from "../services/api";
 import { ACCOUNT_TYPE_LABELS } from "../constants/accountTypeGroups";
+import { useUserView } from "../contexts/UserViewContext";
 
 interface AccountHeadroom {
   account_id: string;
@@ -77,13 +78,17 @@ const progressColor = (pct: number) => {
 };
 
 export const ContributionHeadroomTab = () => {
+  const { selectedUserId } = useUserView();
   const currentYear = new Date().getFullYear();
   const [taxYear, setTaxYear] = useState(currentYear);
 
   const { data, isLoading, error } = useQuery<HeadroomResponse>({
-    queryKey: ["contribution-headroom", taxYear],
-    queryFn: () =>
-      api.get(`/tax/contribution-headroom?tax_year=${taxYear}`).then((r) => r.data),
+    queryKey: ["contribution-headroom", taxYear, selectedUserId],
+    queryFn: () => {
+      const params = new URLSearchParams({ tax_year: String(taxYear) });
+      if (selectedUserId) params.set("user_id", selectedUserId);
+      return api.get(`/tax/contribution-headroom?${params}`).then((r) => r.data);
+    },
   });
 
   return (

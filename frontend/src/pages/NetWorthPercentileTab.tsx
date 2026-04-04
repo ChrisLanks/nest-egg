@@ -35,6 +35,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import api from "../services/api";
 import { useCurrency } from "../contexts/CurrencyContext";
+import { useUserView } from "../contexts/UserViewContext";
 
 interface PercentileBenchmark {
   label: string;
@@ -87,13 +88,15 @@ const fmtCompact = (v: number) =>
 
 export const NetWorthPercentileTab = () => {
   const { formatCurrency } = useCurrency();
+  const { selectedUserId } = useUserView();
   const [ageOverride, setAgeOverride] = useState<number | undefined>(undefined);
 
   const params = new URLSearchParams();
   if (ageOverride !== undefined) params.set("age", String(ageOverride));
+  if (selectedUserId) params.set("user_id", selectedUserId);
 
   const { data, isLoading, error } = useQuery<NetWorthPercentileResponse>({
-    queryKey: ["net-worth-percentile", ageOverride],
+    queryKey: ["net-worth-percentile", ageOverride, selectedUserId],
     queryFn: () =>
       api.get(`/dashboard/net-worth-percentile?${params}`).then((r) => r.data),
   });

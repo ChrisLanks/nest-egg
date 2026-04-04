@@ -35,6 +35,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import api from "../services/api";
 import { useCurrency } from "../contexts/CurrencyContext";
+import { useUserView } from "../contexts/UserViewContext";
 import * as AccountTypeGroups from "../constants/accountTypeGroups";
 const ACCOUNT_TYPE_LABELS: Record<string, string> = AccountTypeGroups.ACCOUNT_TYPE_LABELS ?? {};
 
@@ -99,13 +100,15 @@ const fmtCompact = (v: number) =>
 
 export const LiquidityDashboardTab = () => {
   const { formatCurrency } = useCurrency();
+  const { selectedUserId } = useUserView();
   const [monthlySpending, setMonthlySpending] = useState<number | undefined>(undefined);
 
   const params = new URLSearchParams();
   if (monthlySpending !== undefined) params.set("monthly_spending", String(monthlySpending));
+  if (selectedUserId) params.set("user_id", selectedUserId);
 
   const { data, isLoading, error } = useQuery<LiquidityDashboardResponse>({
-    queryKey: ["liquidity-dashboard", monthlySpending],
+    queryKey: ["liquidity-dashboard", monthlySpending, selectedUserId],
     queryFn: () =>
       api.get(`/dashboard/liquidity?${params}`).then((r) => r.data),
   });

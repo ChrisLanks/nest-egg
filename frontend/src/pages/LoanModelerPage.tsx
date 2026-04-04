@@ -43,6 +43,7 @@ import { useState } from "react";
 import { FiInfo } from "react-icons/fi";
 import { useQuery } from "@tanstack/react-query";
 import api from "../services/api";
+import { useUserView } from "../contexts/UserViewContext";
 
 function InfoTip({ label }: { label: string }) {
   return (
@@ -100,6 +101,7 @@ interface BuyLeaseResult {
 }
 
 export const LoanModelerPage = () => {
+  const { selectedUserId } = useUserView();
   // ── Loan calculator inputs ──────────────────────────────────────────────────
   const [principal, setPrincipal] = useState("");
   const [rate, setRate] = useState("");
@@ -120,9 +122,11 @@ export const LoanModelerPage = () => {
 
   // Pull existing monthly debt hint from linked accounts
   const { data: accounts = [] } = useQuery<{ account_type: string; current_balance: string | number | null }[]>({
-    queryKey: ["accounts"],
+    queryKey: ["accounts", selectedUserId],
     queryFn: async () => {
-      const { data } = await api.get("/accounts/");
+      const p: Record<string, string> = {};
+      if (selectedUserId) p.user_id = selectedUserId;
+      const { data } = await api.get("/accounts/", { params: p });
       return data;
     },
     staleTime: 60_000,
@@ -138,17 +142,17 @@ export const LoanModelerPage = () => {
   const rateDecimal = Number(rate) / 100;
 
   const { data: calcResult, isFetching: calcLoading } = useQuery<LoanCalcResult>({
-    queryKey: ["loan-calc", principal, rate, termMonths, annualIncome, existingDebt],
+    queryKey: ["loan-calc", principal, rate, termMonths, annualIncome, existingDebt, selectedUserId],
     queryFn: async () => {
-      const { data } = await api.get("/loan-modeling/calculate", {
-        params: {
-          principal: Number(principal),
-          annual_rate: rateDecimal,
-          term_months: termMonths,
-          annual_gross_income: Number(annualIncome),
-          existing_monthly_debt: Number(existingDebt) || 0,
-        },
-      });
+      const p: Record<string, string | number> = {
+        principal: Number(principal),
+        annual_rate: rateDecimal,
+        term_months: termMonths,
+        annual_gross_income: Number(annualIncome),
+        existing_monthly_debt: Number(existingDebt) || 0,
+      };
+      if (selectedUserId) p.user_id = selectedUserId;
+      const { data } = await api.get("/loan-modeling/calculate", { params: p });
       return data;
     },
     enabled: calcEnabled && !!principal && !!rate && !!annualIncome,
@@ -156,15 +160,15 @@ export const LoanModelerPage = () => {
   });
 
   const { data: amortData } = useQuery<{ schedule: AmortRow[] }>({
-    queryKey: ["loan-amort", principal, rate, termMonths],
+    queryKey: ["loan-amort", principal, rate, termMonths, selectedUserId],
     queryFn: async () => {
-      const { data } = await api.get("/loan-modeling/amortization", {
-        params: {
-          principal: Number(principal),
-          annual_rate: rateDecimal,
-          term_months: termMonths,
-        },
-      });
+      const p: Record<string, string | number> = {
+        principal: Number(principal),
+        annual_rate: rateDecimal,
+        term_months: termMonths,
+      };
+      if (selectedUserId) p.user_id = selectedUserId;
+      const { data } = await api.get("/loan-modeling/amortization", { params: p });
       return data;
     },
     enabled: calcEnabled && !!principal && !!rate,
@@ -176,20 +180,20 @@ export const LoanModelerPage = () => {
     queryKey: [
       "bvl",
       vehiclePrice, downPayment, loanRate, loanTermYears,
-      leaseMonthly, leaseTerm, residualPct,
+      leaseMonthly, leaseTerm, residualPct, selectedUserId,
     ],
     queryFn: async () => {
-      const { data } = await api.get("/loan-modeling/buy-vs-lease", {
-        params: {
-          vehicle_price: Number(vehiclePrice),
-          down_payment: Number(downPayment) || 0,
-          loan_rate: Number(loanRate) / 100,
-          loan_term_months: Math.round(Number(loanTermYears) * 12),
-          lease_monthly: Number(leaseMonthly),
-          lease_term_months: Number(leaseTerm),
-          residual_value_pct: Number(residualPct) / 100,
-        },
-      });
+      const p: Record<string, string | number> = {
+        vehicle_price: Number(vehiclePrice),
+        down_payment: Number(downPayment) || 0,
+        loan_rate: Number(loanRate) / 100,
+        loan_term_months: Math.round(Number(loanTermYears) * 12),
+        lease_monthly: Number(leaseMonthly),
+        lease_term_months: Number(leaseTerm),
+        residual_value_pct: Number(residualPct) / 100,
+      };
+      if (selectedUserId) p.user_id = selectedUserId;
+      const { data } = await api.get("/loan-modeling/buy-vs-lease", { params: p });
       return data;
     },
     enabled: bvlEnabled && !!vehiclePrice && !!loanRate && !!leaseMonthly,
