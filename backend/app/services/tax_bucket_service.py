@@ -6,6 +6,7 @@ Analyzes the distribution of retirement assets across tax treatment buckets
 """
 from __future__ import annotations
 from decimal import Decimal
+from typing import List, Optional
 from uuid import UUID
 
 from sqlalchemy import select
@@ -23,6 +24,7 @@ class TaxBucketService:
         db: AsyncSession,
         organization_id: UUID,
         user_id: UUID | None = None,
+        user_ids: Optional[List[UUID]] = None,
     ) -> dict:
         """
         Returns account balances grouped by tax treatment bucket.
@@ -34,6 +36,8 @@ class TaxBucketService:
         )
         if user_id:
             stmt = stmt.where(Account.user_id == user_id)
+        elif user_ids:
+            stmt = stmt.where(Account.user_id.in_(user_ids))
         result = await db.execute(stmt)
         accounts = result.scalars().all()
 

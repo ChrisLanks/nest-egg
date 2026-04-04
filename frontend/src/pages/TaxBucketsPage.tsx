@@ -106,9 +106,15 @@ function InfoTip({ label }: { label: string }) {
 
 // ── API helpers ────────────────────────────────────────────────────────────
 
-async function fetchBucketSummary(userId?: string): Promise<BucketSummary> {
-  const params = userId ? `?user_id=${userId}` : "";
-  const res = await api.get(`/tax-buckets/summary${params}`);
+async function fetchBucketSummary(userId?: string, userIds?: string[]): Promise<BucketSummary> {
+  const p = new URLSearchParams();
+  if (userId) {
+    p.set("user_id", userId);
+  } else if (userIds && userIds.length > 0) {
+    userIds.forEach((id) => p.append("user_ids", id));
+  }
+  const qs = p.toString();
+  const res = await api.get(`/tax-buckets/summary${qs ? `?${qs}` : ""}`);
   return res.data;
 }
 
@@ -137,7 +143,7 @@ async function fetchRothHeadroom(
 // ── Page ──────────────────────────────────────────────────────────────────
 
 export const TaxBucketsPage = () => {
-  const { selectedUserId, effectiveUserId } = useUserView();
+  const { selectedUserId, effectiveUserId, isPartialMemberSelection, selectedMemberIds } = useUserView();
 
   const [currentAge, setCurrentAge] = useLocalStorage("tax-buckets-age", "55");
   const [growthRate, setGrowthRate] = useLocalStorage(
@@ -164,8 +170,14 @@ export const TaxBucketsPage = () => {
     isLoading: summaryLoading,
     isError: summaryError,
   } = useQuery({
-    queryKey: ["tax-bucket-summary", effectiveUserId],
-    queryFn: () => fetchBucketSummary(effectiveUserId || undefined),
+    queryKey: ["tax-bucket-summary", effectiveUserId, isPartialMemberSelection ? [...selectedMemberIds].sort().join(",") : ""],
+    queryFn: () => {
+      if (effectiveUserId) return fetchBucketSummary(effectiveUserId);
+      if (isPartialMemberSelection && selectedMemberIds.size > 0) {
+        return fetchBucketSummary(undefined, [...selectedMemberIds]);
+      }
+      return fetchBucketSummary();
+    },
     placeholderData: (prev) => prev,
   });
 

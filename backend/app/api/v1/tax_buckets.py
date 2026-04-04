@@ -28,14 +28,27 @@ router = APIRouter(prefix="/tax-buckets", tags=["Tax Buckets"], dependencies=[De
 
 @router.get("/summary", response_model=Dict[str, Any])
 async def get_bucket_summary(
-    user_id: Optional[UUID] = Query(None),
+    user_id: Optional[UUID] = Query(None, description="Single user filter"),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter (comma-separated)"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if user_id and user_id != current_user.id:
-        await verify_household_member(db, user_id, current_user.organization_id)
+    # Support both single user_id and multi user_ids for member filter
+    effective_user_ids = None
+    if user_id:
+        if user_id != current_user.id:
+            await verify_household_member(db, user_id, current_user.organization_id)
+        effective_user_ids = [user_id]
+    elif user_ids:
+        for uid in user_ids:
+            if uid != current_user.id:
+                await verify_household_member(db, uid, current_user.organization_id)
+        effective_user_ids = list(user_ids)
+
     return await TaxBucketService.get_bucket_summary(
-        db, current_user.organization_id, user_id
+        db, current_user.organization_id,
+        user_id=effective_user_ids[0] if effective_user_ids and len(effective_user_ids) == 1 else None,
+        user_ids=effective_user_ids if effective_user_ids and len(effective_user_ids) > 1 else None,
     )
 
 
