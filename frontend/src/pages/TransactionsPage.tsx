@@ -2591,7 +2591,7 @@ export const TransactionsPage = () => {
                             {availableLabels
                               .filter(
                                 (label: any) =>
-                                  !pendingLabelsToAdd.includes(label.id),
+                                  label.id != null && !pendingLabelsToAdd.includes(label.id),
                               )
                               .map((label: any) => (
                                 <option key={label.id} value={label.id}>
@@ -2652,7 +2652,7 @@ export const TransactionsPage = () => {
                             {availableLabels
                               .filter(
                                 (label: any) =>
-                                  !pendingLabelsToRemove.includes(label.id),
+                                  label.id != null && !pendingLabelsToRemove.includes(label.id),
                               )
                               .map((label: any) => (
                                 <option key={label.id} value={label.id}>
@@ -2729,7 +2729,9 @@ export const TransactionsPage = () => {
                           }}
                           isDisabled={bulkChangeCategoryMutation.isPending}
                         >
-                          {availableCategories.map((category: any) => (
+                          {availableCategories
+                            .filter((c: any) => c.id != null)
+                            .map((category: any) => (
                             <option key={category.id} value={category.name}>
                               {category.parent_name
                                 ? `${category.parent_name} > ${category.name}`
