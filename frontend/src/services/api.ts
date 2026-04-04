@@ -50,6 +50,13 @@ export const registerHouseholdGetter = (getter: () => string | null) => {
   _getActiveHouseholdId = getter;
 };
 
+// Member filter injection — registered by UserViewContext to auto-append user_id
+// to every GET request so pages don't need to pass it manually.
+let _getMemberFilterUserId: (() => string | null) | null = null;
+export const registerMemberFilterGetter = (getter: () => string | null) => {
+  _getMemberFilterUserId = getter;
+};
+
 // Token refresh timer and in-flight promise
 let refreshTimer: NodeJS.Timeout | null = null;
 
@@ -264,6 +271,19 @@ api.interceptors.request.use(
       const id = _getActiveHouseholdId();
       if (id && config.headers) {
         config.headers["X-Household-Id"] = id;
+      }
+    }
+
+    // Auto-inject user_id for member filter on GET requests.
+    // Skips if the caller already set user_id explicitly (manual override).
+    if (_getMemberFilterUserId && config.method?.toUpperCase() === "GET") {
+      const filterId = _getMemberFilterUserId();
+      if (filterId) {
+        if (!config.params) config.params = {};
+        // Don't overwrite if the page already set user_id explicitly
+        if (!config.params.user_id) {
+          config.params.user_id = filterId;
+        }
       }
     }
 

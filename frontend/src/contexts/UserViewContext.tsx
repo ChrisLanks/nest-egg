@@ -25,6 +25,7 @@ import {
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "../features/auth/stores/authStore";
+import { registerMemberFilterGetter } from "../services/api";
 import {
   permissionsApi,
   type PermissionGrant,
@@ -93,6 +94,30 @@ const saveStoredView = (userId: string | null): void => {
   } catch {
     /* ignore */
   }
+};
+
+/**
+ * Invisible bridge that registers the member filter getter with the axios
+ * interceptor.  Must be rendered inside both UserViewContext and
+ * MemberFilterProvider so it can read the resolved effectiveUserId.
+ *
+ * This is the centralized "DRY" mechanism: every GET request automatically
+ * includes user_id when a member filter is active — no per-page wiring.
+ */
+const MemberFilterApiInjector = () => {
+  const viewContext = useContext(UserViewContext);
+  const memberFilter = useMemberFilter();
+
+  useEffect(() => {
+    registerMemberFilterGetter(() => {
+      const effective =
+        viewContext?.selectedUserId ?? memberFilter.memberEffectiveUserId ?? null;
+      return effective;
+    });
+    return () => registerMemberFilterGetter(() => null);
+  }, [viewContext?.selectedUserId, memberFilter.memberEffectiveUserId]);
+
+  return null;
 };
 
 /** Inner component that provides view + permissions context */
@@ -282,6 +307,7 @@ const UserViewInner = ({ children }: { children: ReactNode }) => {
         isCombinedView={isCombinedView}
         onSelectionChange={handleSelectionChange}
       >
+        <MemberFilterApiInjector />
         {children}
       </MemberFilterProvider>
     </UserViewContext.Provider>
