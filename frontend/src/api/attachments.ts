@@ -29,7 +29,7 @@ export const attachmentsApi = {
     transactionId: string,
   ): Promise<{ attachments: Attachment[] }> => {
     const { data } = await api.get(
-      `/attachments/transactions/${transactionId}/attachments`,
+      `/transactions/${transactionId}/attachments`,
     );
     return data;
   },
@@ -38,7 +38,7 @@ export const attachmentsApi = {
     const formData = new FormData();
     formData.append("file", file);
     const { data } = await api.post(
-      `/attachments/transactions/${transactionId}/attachments`,
+      `/transactions/${transactionId}/attachments`,
       formData,
       { headers: { "Content-Type": "multipart/form-data" } },
     );
@@ -46,10 +46,10 @@ export const attachmentsApi = {
   },
 
   download: (attachmentId: string): string => {
-    return `${api.defaults.baseURL}/attachments/attachments/${attachmentId}/download`;
+    return `${api.defaults.baseURL}/attachments/${attachmentId}/download`;
   },
 
   delete: async (attachmentId: string): Promise<void> => {
-    await api.delete(`/attachments/attachments/${attachmentId}`);
+    await api.delete(`/attachments/${attachmentId}`);
   },
 };
