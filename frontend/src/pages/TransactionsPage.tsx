@@ -2168,12 +2168,29 @@ export const TransactionsPage = () => {
           >
             <HStack justify="space-between">
               <Text fontWeight="medium">
-                {selectedTransactions.size} transaction(s) selected
+                {selectedTransactions.size} transaction{selectedTransactions.size > 1 ? "s" : ""} selected
               </Text>
               <HStack spacing={2}>
-                <Button colorScheme="brand" size="sm" onClick={onBulkEditOpen}>
-                  Bulk Edit
-                </Button>
+                {selectedTransactions.size === 1 ? (
+                  <Button
+                    colorScheme="brand"
+                    size="sm"
+                    onClick={() => {
+                      const txnId = [...selectedTransactions][0];
+                      const txn = processedTransactions.find((t) => t.id === txnId);
+                      if (txn) {
+                        setSelectedTransaction(txn);
+                        setIsModalOpen(true);
+                      }
+                    }}
+                  >
+                    Edit
+                  </Button>
+                ) : (
+                  <Button colorScheme="brand" size="sm" onClick={onBulkEditOpen}>
+                    Bulk Edit
+                  </Button>
+                )}
                 <Button
                   colorScheme="blue"
                   size="sm"
