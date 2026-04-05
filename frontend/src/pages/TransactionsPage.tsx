@@ -171,6 +171,8 @@ interface TransactionDesktopRowProps {
   onAccountClick: (name: string, e: React.MouseEvent) => void;
   onCategoryClick: (name: string, e: React.MouseEvent) => void;
   onLabelClick: (name: string, e: React.MouseEvent) => void;
+  onDateClick: (dateStr: string, e: React.MouseEvent) => void;
+  onMerchantClick: (name: string, e: React.MouseEvent) => void;
   formatDate: (dateStr: string) => string;
 }
 
@@ -193,6 +195,8 @@ const TransactionDesktopRow = memo(
     onAccountClick,
     onCategoryClick,
     onLabelClick,
+    onDateClick,
+    onMerchantClick,
     formatDate,
   }: TransactionDesktopRowProps) => (
     <Tr
@@ -209,10 +213,34 @@ const TransactionDesktopRow = memo(
           }
         />
       </Td>
-      {showDateColumn && <Td>{formatDate(txn.date)}</Td>}
+      {showDateColumn && (
+        <Td
+          onClick={(e) => onDateClick(txn.date, e)}
+        >
+          <Text
+            fontSize="sm"
+            color="brand.accent"
+            cursor="pointer"
+            _hover={{ textDecoration: "underline" }}
+          >
+            {formatDate(txn.date)}
+          </Text>
+        </Td>
+      )}
       {showMerchantColumn && (
         <Td>
-          <Text fontWeight="medium">{txn.merchant_name}</Text>
+          <Text
+            fontWeight="medium"
+            color="brand.accent"
+            cursor="pointer"
+            _hover={{ textDecoration: "underline" }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (txn.merchant_name) onMerchantClick(txn.merchant_name, e);
+            }}
+          >
+            {txn.merchant_name}
+          </Text>
           {txn.description && (
             <Text fontSize="sm" color="text.secondary">
               {txn.description}
@@ -337,6 +365,8 @@ interface TransactionMobileCardProps {
   onAccountClick: (name: string, e: React.MouseEvent) => void;
   onCategoryClick: (name: string, e: React.MouseEvent) => void;
   onLabelClick: (name: string, e: React.MouseEvent) => void;
+  onDateClick: (dateStr: string, e: React.MouseEvent) => void;
+  onMerchantClick: (name: string, e: React.MouseEvent) => void;
   formatDate: (dateStr: string) => string;
 }
 
@@ -353,6 +383,8 @@ const TransactionMobileCard = memo(
     onAccountClick,
     onCategoryClick,
     onLabelClick,
+    onDateClick,
+    onMerchantClick,
     formatDate,
   }: TransactionMobileCardProps) => (
     <Card
@@ -376,7 +408,17 @@ const TransactionMobileCard = memo(
                 }}
                 mb={2}
               />
-              <Text fontWeight="bold" fontSize="md">
+              <Text
+                fontWeight="bold"
+                fontSize="md"
+                color="brand.accent"
+                cursor="pointer"
+                _hover={{ textDecoration: "underline" }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (txn.merchant_name) onMerchantClick(txn.merchant_name, e);
+                }}
+              >
                 {txn.merchant_name}
               </Text>
               {txn.description && (
@@ -405,7 +447,18 @@ const TransactionMobileCard = memo(
               <Text fontSize="sm" color="text.muted">
                 Date
               </Text>
-              <Text fontSize="sm">{formatDate(txn.date)}</Text>
+              <Text
+                fontSize="sm"
+                color="brand.accent"
+                cursor="pointer"
+                _hover={{ textDecoration: "underline" }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDateClick(txn.date, e);
+                }}
+              >
+                {formatDate(txn.date)}
+              </Text>
             </HStack>
 
             {/* Account */}
@@ -725,6 +778,12 @@ export const TransactionsPage = () => {
       console.error("Failed to save date range to localStorage:", error);
     }
   }, [dateRange]);
+
+  // Clear selection when member view changes (hidden transactions shouldn't stay selected)
+  useEffect(() => {
+    setSelectedTransactions(new Set());
+    setLastSelectedIndex(null);
+  }, [effectiveUserId, memberEffectiveUserId]);
 
   // Debounce search query (300ms delay)
   useEffect(() => {
@@ -1588,6 +1647,18 @@ export const TransactionsPage = () => {
     setSearchQuery(searchQuery ? `${searchQuery} ${newFilter}` : newFilter);
   };
 
+  const handleDateClick = (dateStr: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    // Set the date range to the clicked date (single day)
+    setDateRange({ start: dateStr, end: dateStr, label: dateStr });
+  };
+
+  const handleMerchantClick = (name: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    // Set the search query to the merchant name
+    setSearchQuery(name);
+  };
+
   const sortIconProps = { sortField, sortDirection };
 
   const handleBulkCreateRule = () => {
@@ -2172,20 +2243,28 @@ export const TransactionsPage = () => {
               </Text>
               <HStack spacing={2}>
                 {selectedTransactions.size === 1 ? (
-                  <Button
-                    colorScheme="brand"
-                    size="sm"
-                    onClick={() => {
-                      const txnId = [...selectedTransactions][0];
-                      const txn = processedTransactions.find((t) => t.id === txnId);
-                      if (txn) {
-                        setSelectedTransaction(txn);
-                        setIsModalOpen(true);
-                      }
-                    }}
-                  >
-                    Edit
-                  </Button>
+                  (() => {
+                    const txnId = [...selectedTransactions][0];
+                    const txn = processedTransactions.find((t) => t.id === txnId);
+                    const canModify = txn ? canModifyTransaction(txn) : false;
+                    return (
+                      <Tooltip label={canModify ? undefined : "You don't have edit access to this transaction"} hasArrow>
+                        <Button
+                          colorScheme="brand"
+                          size="sm"
+                          isDisabled={!canModify}
+                          onClick={() => {
+                            if (txn) {
+                              setSelectedTransaction(txn);
+                              setIsModalOpen(true);
+                            }
+                          }}
+                        >
+                          Edit
+                        </Button>
+                      </Tooltip>
+                    );
+                  })()
                 ) : (
                   <Button colorScheme="brand" size="sm" onClick={onBulkEditOpen}>
                     Bulk Edit
@@ -2407,6 +2486,8 @@ export const TransactionsPage = () => {
                             onAccountClick={handleAccountClick}
                             onCategoryClick={handleCategoryClick}
                             onLabelClick={handleLabelClick}
+                            onDateClick={handleDateClick}
+                            onMerchantClick={handleMerchantClick}
                             formatDate={formatDate}
                           />
                         );
@@ -2462,6 +2543,8 @@ export const TransactionsPage = () => {
                           onAccountClick={handleAccountClick}
                           onCategoryClick={handleCategoryClick}
                           onLabelClick={handleLabelClick}
+                          onDateClick={handleDateClick}
+                          onMerchantClick={handleMerchantClick}
                           formatDate={formatDate}
                         />
                       );
