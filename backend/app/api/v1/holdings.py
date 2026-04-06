@@ -2496,7 +2496,7 @@ async def get_fund_overlap(
     return result
 
 
-@router.get("/portfolio/allocation-history", response_model=Dict[str, Any])
+@router.get("/portfolio/allocation-history", response_model=List[Dict[str, Any]])
 async def get_allocation_history(
     months: int = Query(12, ge=1, le=60),
     user_id: Optional[UUID] = Query(None),

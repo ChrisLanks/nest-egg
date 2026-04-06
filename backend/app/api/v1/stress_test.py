@@ -74,7 +74,7 @@ async def run_scenario(
         "Applies every hardcoded stress scenario to the current portfolio and returns "
         "results sorted from worst to best outcome."
     ),
-    response_model=Dict[str, Any],
+    response_model=List[Dict[str, Any]],
 )
 async def run_all_scenarios(
     http_request: Request,

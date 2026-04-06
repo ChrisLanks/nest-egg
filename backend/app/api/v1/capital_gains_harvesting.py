@@ -34,7 +34,7 @@ router = APIRouter(dependencies=[Depends(_rate_limit)])
         "Returns how much long-term capital gain can be realized at 0% federal rate "
         "given the user's current taxable income and filing status."
     ),
-    response_model=Dict[str, Any],
+    response_model=List[Dict[str, Any]],
 )
 async def get_ltcg_bracket_fill(
     current_income: float = Query(..., description="Current taxable income (USD)"),
