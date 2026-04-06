@@ -16,7 +16,7 @@ class RecurringTransactionBase(BaseModel):
     merchant_name: str
     account_id: UUID
     frequency: RecurringFrequency
-    average_amount: Decimal = Field(ge=0)
+    average_amount: Decimal
     amount_variance: Decimal = Field(default=Decimal("5.00"), ge=0)
     category_id: Optional[UUID] = None
     is_bill: bool = False
@@ -33,7 +33,7 @@ class RecurringTransactionUpdate(BaseModel):
 
     merchant_name: Optional[str] = None
     frequency: Optional[RecurringFrequency] = None
-    average_amount: Optional[Decimal] = Field(None, ge=0)
+    average_amount: Optional[Decimal] = None
     amount_variance: Optional[Decimal] = Field(None, ge=0)
     category_id: Optional[UUID] = None
     is_active: Optional[bool] = None
