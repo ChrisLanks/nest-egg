@@ -20,6 +20,7 @@ import {
   TabPanels,
   Tabs,
   Text,
+  Tooltip,
 } from "@chakra-ui/react";
 import { lazy, Suspense, useState } from "react";
 
@@ -78,10 +79,10 @@ export const RetirementHubPage = () => {
       >
         <TabList>
           <Tab fontSize="sm">Retirement Planner</Tab>
-          <Tab fontSize="sm">SS Optimizer</Tab>
-          <Tab fontSize="sm">RMD Planner</Tab>
+          <Tooltip label="Find the optimal age to claim Social Security benefits — delaying can significantly increase your lifetime payout" hasArrow placement="bottom" openDelay={300}><Tab fontSize="sm">SS Optimizer</Tab></Tooltip>
+          <Tooltip label="Required Minimum Distributions — the IRS forces annual withdrawals from pre-tax retirement accounts starting at age 73" hasArrow placement="bottom" openDelay={300}><Tab fontSize="sm">RMD Planner</Tab></Tooltip>
           <Tab fontSize="sm">Pension</Tab>
-          <Tab fontSize="sm">Variable Income</Tab>
+          <Tooltip label="Plan for irregular income from self-employment, freelancing, or seasonal work" hasArrow placement="bottom" openDelay={300}><Tab fontSize="sm">Variable Income</Tab></Tooltip>
         </TabList>
         <TabPanels>
           <TabPanel px={0}>

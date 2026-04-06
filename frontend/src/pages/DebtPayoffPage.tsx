@@ -56,6 +56,7 @@ import { EmptyState } from "../components/EmptyState";
 import { FiCreditCard, FiChevronDown, FiChevronUp } from "react-icons/fi";
 import HelpHint from "../components/HelpHint";
 import { helpContent } from "../constants/helpContent";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 interface DebtAccount {
   account_id: string;
@@ -159,6 +160,7 @@ function SortIndicator({
 }
 
 export default function DebtPayoffPage() {
+  const { currency } = useCurrency();
   const { selectedUserId, effectiveUserId, canWriteResource } = useUserView();
   const canEdit = canWriteResource("account");
   const toast = useToast();
@@ -480,7 +482,7 @@ export default function DebtPayoffPage() {
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "USD",
+      currency,
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
@@ -636,7 +638,7 @@ export default function DebtPayoffPage() {
                   <StatNumber>
                     {summary.average_interest_rate.toFixed(2)}%
                   </StatNumber>
-                  <StatHelpText>Weighted average</StatHelpText>
+                  <Tooltip label="Weighted by balance size — larger debts count more toward this average" hasArrow placement="top"><StatHelpText cursor="help">Weighted average</StatHelpText></Tooltip>
                 </Stat>
               </CardBody>
             </Card>
@@ -838,7 +840,7 @@ export default function DebtPayoffPage() {
                                     <>
                                       <HStack justify="space-between" mb={3} flexWrap="wrap" gap={2}>
                                         <Text fontSize="sm" fontWeight="semibold">
-                                          Amortization Schedule — {debt.name}
+                                          <Tooltip label="A month-by-month breakdown showing how each payment is split between reducing your balance (principal) and paying the lender (interest)" hasArrow placement="top"><Text as="span" cursor="help" textDecoration="underline dotted">Amortization Schedule</Text></Tooltip> — {debt.name}
                                         </Text>
                                         <Text fontSize="sm" color="text.secondary">
                                           Paid off in {amortizationData[debt.account_id].total_months} months
@@ -868,8 +870,8 @@ export default function DebtPayoffPage() {
                                             <Th>Month</Th>
                                             <Th>Date</Th>
                                             <Th isNumeric>Payment</Th>
-                                            <Th isNumeric>Principal</Th>
-                                            <Th isNumeric>Interest</Th>
+                                            <Tooltip label="The portion of your payment that reduces your actual debt balance" hasArrow placement="top"><Th isNumeric cursor="help">Principal</Th></Tooltip>
+                                            <Tooltip label="The cost the lender charges for borrowing — this portion does not reduce your balance" hasArrow placement="top"><Th isNumeric cursor="help">Interest</Th></Tooltip>
                                             <Th isNumeric>Balance</Th>
                                           </Tr>
                                         </Thead>

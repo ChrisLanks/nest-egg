@@ -74,6 +74,7 @@ import HelpHint from "../components/HelpHint";
 import { helpContent } from "../constants/helpContent";
 import { AddAccountModal } from "../features/accounts/components/AddAccountModal";
 import { useAuthStore } from "../features/auth/stores/authStore";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 interface Holding {
   id: string;
@@ -277,6 +278,7 @@ const AccountHoldingsCard = memo(
 AccountHoldingsCard.displayName = "AccountHoldingsCard";
 
 export const InvestmentsPage = () => {
+  const { currency } = useCurrency();
   // Use global user view context + multi-member filter
   const {
     selectedUserId, effectiveUserId,
@@ -629,7 +631,7 @@ export const InvestmentsPage = () => {
     if (isNaN(num)) return "N/A";
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "USD",
+      currency,
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(num);
@@ -1082,7 +1084,7 @@ export const InvestmentsPage = () => {
                   <Card>
                     <CardBody>
                       <Stat>
-                        <StatLabel>Total Gain/Loss</StatLabel>
+                        <Tooltip label="The difference between what your investments are worth now and what you originally paid — an unrealized gain/loss until you sell"><StatLabel cursor="help">Total Gain/Loss</StatLabel></Tooltip>
                         <StatNumber
                           fontSize="2xl"
                           color={
@@ -1114,7 +1116,7 @@ export const InvestmentsPage = () => {
                     <Card>
                       <CardBody>
                         <Stat>
-                          <StatLabel>Annual Fees</StatLabel>
+                          <Tooltip label="The total yearly cost of fund expense ratios across your portfolio — these fees are deducted automatically from your returns"><StatLabel cursor="help">Annual Fees</StatLabel></Tooltip>
                           <StatNumber fontSize="2xl" color="orange.600">
                             {formatCurrency(portfolio.total_annual_fees)}
                           </StatNumber>
@@ -1204,7 +1206,7 @@ export const InvestmentsPage = () => {
                     <Card variant="outline">
                       <CardBody>
                         <Stat>
-                          <StatLabel>Retirement Accounts</StatLabel>
+                          <Tooltip label="Tax-advantaged accounts like 401(k), IRA, and Roth IRA — contributions or growth receive special tax treatment, but early withdrawals may incur penalties"><StatLabel cursor="help">Retirement Accounts</StatLabel></Tooltip>
                           <StatNumber fontSize="xl">
                             {formatCurrency(
                               portfolio.category_breakdown.retirement_value,
@@ -1225,7 +1227,7 @@ export const InvestmentsPage = () => {
                     <Card variant="outline">
                       <CardBody>
                         <Stat>
-                          <StatLabel>Taxable Accounts</StatLabel>
+                          <Tooltip label="Standard brokerage accounts with no special tax benefits — you pay capital gains tax when you sell, but there are no contribution limits or withdrawal restrictions"><StatLabel cursor="help">Taxable Accounts</StatLabel></Tooltip>
                           <StatNumber fontSize="xl">
                             {formatCurrency(
                               portfolio.category_breakdown.taxable_value,
@@ -1267,9 +1269,9 @@ export const InvestmentsPage = () => {
                 {portfolio.geographic_breakdown && (
                   <>
                     <Divider my={4} />
-                    <Heading size="sm" mb={4}>
+                    <Tooltip label="How your investments are split between U.S. (domestic) and non-U.S. (international) markets — diversifying globally can reduce risk from any single economy"><Heading size="sm" mb={4} cursor="help">
                       Geographic Allocation
-                    </Heading>
+                    </Heading></Tooltip>
                     <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
                       {/* Domestic */}
                       {portfolio.geographic_breakdown.domestic_value > 0 && (

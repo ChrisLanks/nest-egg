@@ -38,6 +38,7 @@ import {
   Tr,
   VStack,
   useColorModeValue,
+  Tooltip as ChakraTooltip,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -372,7 +373,7 @@ const ForecastTab = () => {
           {/* Summary stat cards */}
           <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4}>
             <Stat bg="bg.card" borderRadius="lg" p={4} borderWidth="1px" borderColor="border.subtle">
-              <StatLabel fontSize="xs" color="text.secondary">Current Balance</StatLabel>
+              <ChakraTooltip label="Today's estimated balance based on your connected accounts and recurring transactions" hasArrow placement="top"><StatLabel fontSize="xs" color="text.secondary" cursor="help">Current Balance</StatLabel></ChakraTooltip>
               <StatNumber
                 fontSize="xl"
                 color={
@@ -388,7 +389,7 @@ const ForecastTab = () => {
               <StatHelpText fontSize="xs">Today's projected</StatHelpText>
             </Stat>
             <Stat bg="bg.card" borderRadius="lg" p={4} borderWidth="1px" borderColor="border.subtle">
-              <StatLabel fontSize="xs" color="text.secondary">Lowest Projected</StatLabel>
+              <ChakraTooltip label="The lowest your balance is expected to drop during this period — if this is near zero, consider building a buffer" hasArrow placement="top"><StatLabel fontSize="xs" color="text.secondary" cursor="help">Lowest Projected</StatLabel></ChakraTooltip>
               <StatNumber
                 fontSize="xl"
                 color={
@@ -661,12 +662,12 @@ export const CashFlowPage = () => {
         isLazy
       >
         <TabList px={6} borderBottomWidth="1px" borderColor="border.subtle">
-          <Tooltip label="Income vs. spending breakdown — see your total money in vs. money out by week or month" hasArrow placement="bottom" openDelay={300}>
+          <ChakraTooltip label="Income vs. spending breakdown — see your total money in vs. money out by week or month" hasArrow placement="bottom" openDelay={300}>
             <Tab fontSize="sm" fontWeight="medium">Overview</Tab>
-          </Tooltip>
-          <Tooltip label="30/60/90-day balance projection — see where your checking account balance is headed based on recent trends" hasArrow placement="bottom" openDelay={300}>
+          </ChakraTooltip>
+          <ChakraTooltip label="30/60/90-day balance projection — see where your checking account balance is headed based on recent trends" hasArrow placement="bottom" openDelay={300}>
             <Tab fontSize="sm" fontWeight="medium">Forecast</Tab>
-          </Tooltip>
+          </ChakraTooltip>
         </TabList>
         <TabPanels>
           <TabPanel p={0}>
