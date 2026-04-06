@@ -1380,6 +1380,8 @@ export const Layout = () => {
                     localStorage.setItem("nest-egg-show-advanced-nav", String(next));
                     window.dispatchEvent(new StorageEvent("storage", { key: "nest-egg-show-advanced-nav", newValue: String(next) }));
                   } catch {}
+                  // Persist to backend for cross-device sync
+                  api.patch("/settings/profile", { show_advanced_nav: next }).catch(() => {});
                 }}
                 aria-label={showAdvancedNav ? "Simple mode" : "Advanced mode"}
                 fontWeight="medium"
