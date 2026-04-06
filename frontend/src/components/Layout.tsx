@@ -244,7 +244,7 @@ const UserMenu = ({
       icon: <FiSettings />,
       path: "/preferences",
       badge: (loginCount ?? 0) <= 5 ? "Setup" : undefined,
-      subtitle: "Simple / Advanced mode, display",
+      subtitle: "Profile, appearance, notifications, navigation",
     },
   ];
 
