@@ -227,7 +227,7 @@ const UserMenu = ({
   }, [isOpen]);
 
   const menuItems = [
-    { label: "Household Settings", icon: <FiUsers />, path: "/household", badge: undefined as string | undefined, subtitle: undefined as string | undefined },
+    { label: "Household Settings", icon: <FiUsers />, path: "/household", badge: undefined as string | undefined, subtitle: "Members, invitations, guest access, org prefs" },
     ...(isMultiMemberHousehold
       ? [
           {
@@ -235,7 +235,7 @@ const UserMenu = ({
             icon: <FiSettings />,
             path: "/permissions",
             badge: undefined as string | undefined,
-            subtitle: undefined as string | undefined,
+            subtitle: "Access granted and received between members",
           },
         ]
       : []),
