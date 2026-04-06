@@ -86,14 +86,6 @@ const AMT_UPPER_THRESHOLD = 220_700; // AMTI where 28% kicks in (approx 2026)
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function fmt(v: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(v);
-}
-
 function fmtShares(v: number) {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(v);
 }
@@ -145,6 +137,15 @@ function InfoTip({ label }: { label: string }) {
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export const EquityPage = () => {
+  const { currency } = useCurrency();
+
+  function fmt(v: number) {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0,
+    }).format(v);
+  }
   const { selectedUserId, effectiveUserId } = useUserView();
   const navigate = useNavigate();
   const today = new Date();

@@ -74,14 +74,6 @@ interface DividendCalendarResponse {
 
 const DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-const formatCurrencyShort = (amount: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-
 const eventTypeColor = (type: string) => {
   if (type === "income") return "green";
   if (type === "subscription") return "orange";
@@ -137,6 +129,15 @@ function saveCalendarPrefs(prefs: CalendarPrefs): void {
 // ─── CalendarPage ─────────────────────────────────────────────────────────────
 
 export const CalendarPage: React.FC = () => {
+  const { currency } = useCurrency();
+
+  const formatCurrencyShort = (amount: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
   const { selectedUserId, effectiveUserId } = useUserView();
 
   // Hoisted color mode value (cannot call hooks inside callbacks)

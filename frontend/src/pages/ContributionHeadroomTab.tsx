@@ -64,14 +64,6 @@ interface HeadroomResponse {
 }
 
 
-const fmt = (v: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(v);
-
 const progressColor = (pct: number) => {
   if (pct >= 90) return "red";
   if (pct >= 50) return "yellow";
@@ -79,6 +71,15 @@ const progressColor = (pct: number) => {
 };
 
 export const ContributionHeadroomTab = () => {
+  const { currency } = useCurrency();
+
+  const fmt = (v: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(v);
   const { selectedUserId, effectiveUserId } = useUserView();
   const currentYear = new Date().getFullYear();
   const [taxYear, setTaxYear] = useState(currentYear);

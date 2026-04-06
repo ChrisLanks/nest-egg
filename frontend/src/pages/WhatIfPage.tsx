@@ -29,9 +29,6 @@ import { useMutation } from "@tanstack/react-query";
 import api from "../services/api";
 import { useCurrency } from "../contexts/CurrencyContext";
 
-const fmt = (n: number) =>
-  n.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 });
-
 interface ScenarioCardProps {
   title: string;
   description: string;
@@ -67,6 +64,8 @@ function MortgageVsInvest() {
     monthly_payment: "1900",
     extra_monthly_payment: "500",
     expected_investment_return: "0.08",
+  const { currency } = useCurrency();
+  const fmt = (n: number) => n.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 });
     tax_bracket: "0.22",
   });
 
@@ -131,6 +130,8 @@ function SalaryChange() {
     current_salary: "100000",
     new_salary: "120000",
     current_state: "CA",
+  const { currency } = useCurrency();
+  const fmt = (n: number) => n.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 });
     new_state: "TX",
     filing_status: "single",
   });
@@ -189,6 +190,8 @@ function SalaryChange() {
 function RelocationTax() {
   const [form, setForm] = useState({
     current_state: "CA",
+  const { currency } = useCurrency();
+  const fmt = (n: number) => n.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 });
     target_state: "TX",
     annual_income: "150000",
   });
@@ -242,6 +245,8 @@ function RelocationTax() {
 }
 
 function EarlyRetirement() {
+  const { currency } = useCurrency();
+  const fmt = (n: number) => n.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 });
   const [form, setForm] = useState({
     current_age: "35",
     target_retirement_age: "50",

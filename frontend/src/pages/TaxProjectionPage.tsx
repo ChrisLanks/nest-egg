@@ -59,14 +59,6 @@ import { useCurrency } from "../contexts/CurrencyContext";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(n);
-
 const fmtPct = (n: number) => `${(n * 100).toFixed(1)}%`;
 
 function InfoTip({ label }: { label: string }) {
@@ -88,6 +80,15 @@ function InfoTip({ label }: { label: string }) {
 // ── Page ──────────────────────────────────────────────────────────────────
 
 export const TaxProjectionPage = () => {
+  const { currency } = useCurrency();
+
+  const fmt = (n: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(n);
   const { selectedUserId, effectiveUserId } = useUserView();
   const [showW4, setShowW4] = useState(true);
   const [w4Salary, setW4Salary] = useState("");

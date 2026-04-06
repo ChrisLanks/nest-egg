@@ -52,22 +52,6 @@ interface EmployerMatchResponse {
   summary: string;
 }
 
-const fmt = (v: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(v);
-
-const fmtCompact = (v: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(v);
-
 const matchStatusBadge = (isCapturing: boolean | undefined) => {
   if (isCapturing === true) return <Badge colorScheme="green">Full Match ✓</Badge>;
   if (isCapturing === false) return <Badge colorScheme="red">Match Gap</Badge>;
@@ -81,7 +65,23 @@ const matchAlertStatus = (isCapturing: boolean | undefined): "success" | "warnin
 };
 
 export const EmployerMatchTab = () => {
+
   const { formatCurrency , currency } = useCurrency();
+  const fmt = (v: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(v);
+
+  const fmtCompact = (v: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(v);
   const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data, isLoading, error } = useQuery<EmployerMatchResponse>({

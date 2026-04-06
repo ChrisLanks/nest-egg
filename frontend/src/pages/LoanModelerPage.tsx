@@ -56,10 +56,6 @@ function InfoTip({ label }: { label: string }) {
   );
 }
 
-function fmt(n: number) {
-  return n.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 });
-}
-
 function fmtPct(n: number) {
   return (n * 100).toFixed(1) + "%";
 }
@@ -102,6 +98,11 @@ interface BuyLeaseResult {
 }
 
 export const LoanModelerPage = () => {
+  const { currency } = useCurrency();
+
+  function fmt(n: number) {
+    return n.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 });
+  }
   const { selectedUserId, effectiveUserId } = useUserView();
   // ── Loan calculator inputs ──────────────────────────────────────────────────
   const [principal, setPrincipal] = useState("");

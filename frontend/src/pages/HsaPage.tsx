@@ -117,13 +117,6 @@ interface Receipt {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const fmt = (v: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(v);
-
 /** Safely convert a Decimal-serialized string or number to a JS float. */
 function toFloat(v: string | number | null | undefined): number {
   if (v === null || v === undefined) return 0;
@@ -155,6 +148,14 @@ function InfoTip({ label }: { label: string }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export const HsaPage = () => {
+  const { currency } = useCurrency();
+
+  const fmt = (v: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0,
+    }).format(v);
   const { selectedUserId, effectiveUserId, matchesMemberFilter, memberEffectiveUserId } = useUserView();
   const toast = useToast();
   const queryClient = useQueryClient();

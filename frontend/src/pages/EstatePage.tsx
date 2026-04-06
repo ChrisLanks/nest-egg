@@ -66,10 +66,6 @@ function InfoTip({ label }: { label: string }) {
   );
 }
 
-function fmt(n: number) {
-  return n.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 });
-}
-
 interface Beneficiary {
   id: string;
   account_id: string | null;
@@ -132,6 +128,11 @@ const DOC_TYPES = [
 ];
 
 export const EstatePage = () => {
+  const { currency } = useCurrency();
+
+  function fmt(n: number) {
+    return n.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 });
+  }
   const { selectedUserId, effectiveUserId } = useUserView();
   const toast = useToast();
   const qc = useQueryClient();

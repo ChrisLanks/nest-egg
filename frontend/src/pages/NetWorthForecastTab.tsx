@@ -58,14 +58,6 @@ interface ForecastResponse {
   annual_return_used: number;
 }
 
-const fmt = (v: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(v);
-
 interface FinancialDefaults {
   default_retirement_age: number;
   default_expected_return: number;
@@ -73,8 +65,16 @@ interface FinancialDefaults {
 }
 
 export const NetWorthForecastTab = () => {
-  const { selectedUserId, effectiveUserId } = useUserView();
+
   const { formatCurrency , currency } = useCurrency();
+  const fmt = (v: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(v);
+  const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data: defaults } = useQuery<FinancialDefaults>({
     queryKey: ["financial-defaults"],

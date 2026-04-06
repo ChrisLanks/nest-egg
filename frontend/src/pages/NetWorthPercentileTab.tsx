@@ -70,24 +70,24 @@ const encouragementStatus = (pct: number): "success" | "info" | "warning" => {
   return "warning";
 };
 
-const fmt = (v: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(v);
-
-const fmtCompact = (v: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(v);
-
 export const NetWorthPercentileTab = () => {
+
   const { formatCurrency , currency } = useCurrency();
+  const fmt = (v: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(v);
+
+  const fmtCompact = (v: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(v);
   const { selectedUserId, effectiveUserId } = useUserView();
   const [ageOverride, setAgeOverride] = useState<number | undefined>(undefined);
 

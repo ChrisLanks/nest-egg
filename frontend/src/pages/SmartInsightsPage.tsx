@@ -39,14 +39,6 @@ import { useCurrency } from "../contexts/CurrencyContext";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
-const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-
 const priorityColor: Record<string, string> = {
   high: "red",
   medium: "orange",
@@ -153,6 +145,15 @@ function InsightCard({ insight }: { insight: InsightItem }) {
 // ── Page ─────────────────────────────────────────────────────────────────
 
 export const SmartInsightsPage = () => {
+  const { currency } = useCurrency();
+
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
   const { selectedUserId, effectiveUserId } = useUserView();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const navigate = useNavigate();

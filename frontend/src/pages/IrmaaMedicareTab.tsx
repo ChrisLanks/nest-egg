@@ -72,23 +72,24 @@ interface IrmaaResponse {
 
 const TIER_COLORS = ["green", "yellow", "orange", "red", "red", "purple"];
 
-const fmt = (v: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(v);
-
-const fmtCompact = (v: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(v);
-
 export const IrmaaMedicareTab = () => {
+  const { currency } = useCurrency();
+
+  const fmt = (v: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(v);
+
+  const fmtCompact = (v: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(v);
   const { selectedUserId, effectiveUserId } = useUserView();
   const [magi, setMagi] = useState<number>(120000);
   const [filingStatus, setFilingStatus] = useState("single");

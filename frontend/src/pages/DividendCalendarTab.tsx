@@ -66,22 +66,6 @@ interface DividendCalendarResponse {
   best_month?: string;
 }
 
-const fmt = (v: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(v);
-
-const fmtCompact = (v: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(v);
-
 interface MonthCellProps {
   month: MonthlyDividend;
   isBest: boolean;
@@ -130,7 +114,23 @@ const MonthCell = ({ month, isBest }: MonthCellProps) => {
 };
 
 export const DividendCalendarTab = () => {
+
   const { formatCurrency , currency } = useCurrency();
+  const fmt = (v: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(v);
+
+  const fmtCompact = (v: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(v);
   const { selectedUserId, effectiveUserId } = useUserView();
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);

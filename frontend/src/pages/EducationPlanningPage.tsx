@@ -53,14 +53,6 @@ import { EmptyState } from "../components/EmptyState";
 import { FiBookOpen } from "react-icons/fi";
 import { useCurrency } from "../contexts/CurrencyContext";
 
-const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-
 const COLLEGE_TYPE_LABELS: Record<string, string> = {
   public_in_state: "Public (In-State)",
   public_out_of_state: "Public (Out-of-State)",
@@ -76,6 +68,15 @@ interface AccountProjectionProps {
 }
 
 function AccountProjection({ plan }: AccountProjectionProps) {
+  const { currency } = useCurrency();
+
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
   const currentYear = new Date().getFullYear();
   const [childName, setChildName] = useState("");
   const [birthYear, setBirthYear] = useState<number | "">("");

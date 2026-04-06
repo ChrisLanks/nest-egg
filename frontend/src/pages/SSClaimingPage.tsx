@@ -60,14 +60,6 @@ import { useCurrency } from "../contexts/CurrencyContext";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(n);
-
 const CURRENT_YEAR = new Date().getFullYear();
 
 function InfoTip({ label }: { label: string }) {
@@ -89,6 +81,15 @@ function InfoTip({ label }: { label: string }) {
 // ── Page ──────────────────────────────────────────────────────────────────
 
 export const SSClaimingPage = () => {
+  const { currency } = useCurrency();
+
+  const fmt = (n: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(n);
   const { selectedUserId, effectiveUserId } = useUserView();
 
   // Form state — persisted across page refreshes

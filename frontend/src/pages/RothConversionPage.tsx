@@ -50,14 +50,6 @@ import { useCurrency } from "../contexts/CurrencyContext";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(n);
-
 const fmtPct = (n: number) => `${(n * 100).toFixed(0)}%`;
 
 const STORAGE_KEY = "roth-conversion-assumptions";
@@ -210,6 +202,15 @@ function YearTable({
 // ── Page ─────────────────────────────────────────────────────────────────
 
 export const RothConversionPage = () => {
+  const { currency } = useCurrency();
+
+  const fmt = (n: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(n);
   const { selectedUserId, effectiveUserId } = useUserView();
 
   const saved = loadAssumptions();

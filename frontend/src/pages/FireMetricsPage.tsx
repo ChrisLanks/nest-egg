@@ -54,14 +54,6 @@ function loadAssumptions(): {
   return { withdrawalRate: "4", expectedReturn: "7", retirementAge: "65", _fromStorage: false };
 }
 
-const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-
 const formatPercent = (value: number) => {
   const pct = value * 100;
   // Drop unnecessary trailing ".0" (e.g. 100.0% → 100%)
@@ -85,6 +77,15 @@ const noDataHint =
   "Add accounts and categorize transactions so we can calculate this.";
 
 export const FireMetricsPage = () => {
+  const { currency } = useCurrency();
+
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
   const {
     selectedUserId,
     isCombinedView,

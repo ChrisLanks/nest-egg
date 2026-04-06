@@ -79,14 +79,6 @@ interface RothHeadroom {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(n);
-
 const fmtPct = (n: number) => `${(n * 100).toFixed(1)}%`;
 
 function InfoTip({ label }: { label: string }) {
@@ -144,6 +136,15 @@ async function fetchRothHeadroom(
 // ── Page ──────────────────────────────────────────────────────────────────
 
 export const TaxBucketsPage = () => {
+  const { currency } = useCurrency();
+
+  const fmt = (n: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(n);
   const { selectedUserId, effectiveUserId, isPartialMemberSelection, selectedMemberIds } = useUserView();
 
   const [currentAge, setCurrentAge] = useLocalStorage("tax-buckets-age", "55");

@@ -61,10 +61,6 @@ function InfoTip({ label }: { label: string }) {
   );
 }
 
-function fmt(n: number) {
-  return n.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 });
-}
-
 interface OrgLabel {
   id: string;
   name: string;
@@ -116,6 +112,11 @@ interface QcdResult {
 }
 
 export const CharitableGivingPage = () => {
+  const { currency } = useCurrency();
+
+  function fmt(n: number) {
+    return n.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 });
+  }
   const { selectedUserId, effectiveUserId } = useUserView();
   const currentYear = new Date().getFullYear();
 

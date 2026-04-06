@@ -36,11 +36,12 @@ interface PeAccount {
   net_profit: number;
 }
 
-const fmt = (n: number) =>
-  n.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 });
-
 
 export default function PePerformancePage() {
+  const { currency } = useCurrency();
+
+  const fmt = (n: number) =>
+    n.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 });
   const { selectedUserId, effectiveUserId } = useUserView();
   const { data, isLoading, error } = useQuery<PeAccount[]>({
     queryKey: ["pe-performance", effectiveUserId],

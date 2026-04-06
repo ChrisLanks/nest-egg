@@ -78,10 +78,11 @@ interface LadderResult {
   reinvestment_note: string;
 }
 
-const fmt = (n: number) =>
-  n.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 });
-
 export default function BondLadderPage() {
+  const { currency } = useCurrency();
+
+  const fmt = (n: number) =>
+    n.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 });
   const [totalInvestment, setTotalInvestment] = useState("500000");
   const [numRungs, setNumRungs] = useState("10");
   const [incomeNeeded, setIncomeNeeded] = useState("50000");

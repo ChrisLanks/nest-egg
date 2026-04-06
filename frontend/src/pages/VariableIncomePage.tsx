@@ -127,14 +127,6 @@ function InfoTip({ label }: { label: string }) {
   );
 }
 
-function fmt(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
 function getQuarterlySchedule(year: number) {
   return [
     { quarter: `Q1 ${year}`, period: "Jan 1 – Mar 31", dueDate: `Apr 15, ${year}` },
@@ -145,6 +137,15 @@ function getQuarterlySchedule(year: number) {
 }
 
 export const VariableIncomePage = () => {
+  const { currency } = useCurrency();
+
+  function fmt(value: number): string {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
   const { selectedUserId, effectiveUserId } = useUserView();
   const today = new Date();
   const currentYear = today.getFullYear();

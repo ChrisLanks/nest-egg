@@ -41,14 +41,6 @@ import { useCurrency } from "../contexts/CurrencyContext";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(n);
-
 const fmtPct = (n: number, decimals = 2) => `${(n * 100).toFixed(decimals)}%`;
 
 const flagColors: Record<HoldingFeeDetail["flag"], string> = {
@@ -152,6 +144,15 @@ function HoldingsTable({ holdings }: { holdings: HoldingFeeDetail[] }) {
 // ── Page ─────────────────────────────────────────────────────────────────
 
 export const FundFeesPage = () => {
+  const { currency } = useCurrency();
+
+  const fmt = (n: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(n);
   const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data, isLoading, isError } = useQuery({

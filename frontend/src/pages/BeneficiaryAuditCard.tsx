@@ -65,15 +65,16 @@ const SEVERITY_COLOR: Record<string, string> = {
   ok: "green",
 };
 
-const fmt = (v: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(v);
-
 export const BeneficiaryAuditCard = () => {
+  const { currency } = useCurrency();
+
+  const fmt = (v: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(v);
   const { selectedUserId, effectiveUserId } = useUserView();
   const { isOpen, onToggle } = useDisclosure({ defaultIsOpen: true });
 

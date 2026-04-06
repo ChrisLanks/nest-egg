@@ -101,9 +101,6 @@ interface FinancialPlanSummary {
   top_actions: TopAction[];
 }
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(n);
-
 const SummaryCard = ({
   title,
   icon,
@@ -136,6 +133,10 @@ const SummaryCard = ({
 );
 
 const FinancialPlanPage = () => {
+  const { currency } = useCurrency();
+
+  const fmt = (n: number) =>
+    new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(n);
   const { data, isLoading, error } = useQuery<FinancialPlanSummary>({
     queryKey: ["financial-plan-summary"],
     queryFn: async () => {

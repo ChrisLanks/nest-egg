@@ -66,22 +66,6 @@ interface CostBasisAgingResponse {
   summary_tip: string;
 }
 
-const fmt = (v: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(v);
-
-const fmtCompact = (v: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(v);
-
 interface LotTableProps {
   lots: TaxLotItem[];
 }
@@ -172,7 +156,23 @@ const LotTable = ({ lots }: LotTableProps) => {
 };
 
 export const CostBasisAgingTab = () => {
+
   const { formatCurrency , currency } = useCurrency();
+  const fmt = (v: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(v);
+
+  const fmtCompact = (v: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(v);
   const { selectedUserId, effectiveUserId } = useUserView();
   const currentYear = new Date().getFullYear();
   const [exportYear, setExportYear] = useState(currentYear - 1);

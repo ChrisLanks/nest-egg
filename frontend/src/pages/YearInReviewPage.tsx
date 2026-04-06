@@ -87,14 +87,6 @@ interface YearInReviewData {
   };
 }
 
-const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-
 const CHART_COLORS = [
   "#3182CE",
   "#38A169",
@@ -109,6 +101,15 @@ const CHART_COLORS = [
 ];
 
 export function YearInReviewPage() {
+  const { currency } = useCurrency();
+
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
   const {
     selectedUserId, effectiveUserId,
     isCombinedView,
