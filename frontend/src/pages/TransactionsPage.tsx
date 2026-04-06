@@ -120,7 +120,13 @@ const loadDateRange = (): DateRange => {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored) as DateRange;
+      // Don't restore stale single-day filters (e.g. from clicking a date)
+      // — they confuse users who reload and see "no transactions"
+      if (parsed.start === parsed.end) {
+        return getDefaultDateRange();
+      }
+      return parsed;
     }
   } catch (error) {
     console.error("Failed to load date range from localStorage:", error);
@@ -770,8 +776,9 @@ export const TransactionsPage = () => {
 
   const monthlyStartDay = orgPrefs?.monthly_start_day || 1;
 
-  // Persist date range to localStorage
+  // Persist date range to localStorage (skip single-day filters from date clicks)
   useEffect(() => {
+    if (dateRange.start === dateRange.end) return; // Don't persist single-day click filters
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(dateRange));
     } catch (error) {

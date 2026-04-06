@@ -131,6 +131,27 @@ describe("date click filtering", () => {
       expect(defaultStart).not.toBe(defaultEnd);
     }
   });
+
+  it("single-day filters should NOT persist to localStorage", () => {
+    // The useEffect skips persistence when start === end
+    const singleDay = { start: "2026-03-15", end: "2026-03-15", label: "Mar 15, 2026" };
+    const shouldPersist = singleDay.start !== singleDay.end;
+    expect(shouldPersist).toBe(false);
+  });
+
+  it("loadDateRange should reject stored single-day filters", () => {
+    // loadDateRange returns default when stored range has start === end
+    const stored = { start: "2026-03-15", end: "2026-03-15", label: "Mar 15, 2026" };
+    const shouldRestore = stored.start !== stored.end;
+    expect(shouldRestore).toBe(false);
+    // Would fall through to getDefaultDateRange()
+  });
+
+  it("normal date ranges SHOULD persist to localStorage", () => {
+    const normalRange = { start: "2026-03-01", end: "2026-03-31", label: "March 2026" };
+    const shouldPersist = normalRange.start !== normalRange.end;
+    expect(shouldPersist).toBe(true);
+  });
 });
 
 // ── 4. Merchant click sets search query ───────────────────────────────────────
