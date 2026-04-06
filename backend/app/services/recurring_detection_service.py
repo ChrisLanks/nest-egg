@@ -131,6 +131,8 @@ class RecurringDetectionService:
                 Transaction.date,
                 Transaction.amount,
                 Transaction.id,
+                Transaction.category_id,
+                Transaction.category_primary,
             )
             .where(and_(*conditions))
             .order_by(Transaction.merchant_name, Transaction.account_id, Transaction.date)
@@ -197,6 +199,18 @@ class RecurringDetectionService:
             else:
                 next_expected = None
 
+            # Determine the most common category from source transactions
+            category_counts: Dict[Optional[UUID], int] = defaultdict(int)
+            for t in txns:
+                category_counts[t.category_id] += 1
+            # Pick the most frequent non-null category
+            best_category_id = None
+            best_count = 0
+            for cid, cnt in category_counts.items():
+                if cid is not None and cnt > best_count:
+                    best_category_id = cid
+                    best_count = cnt
+
             # Check if pattern already exists
             existing_result = await db.execute(
                 select(RecurringTransaction).where(
@@ -219,6 +233,9 @@ class RecurringDetectionService:
                 existing.next_expected_date = next_expected
                 existing.occurrence_count = len(txns)
                 existing.is_no_longer_found = False  # Re-found — clear the flag
+                # Update category from latest transaction data (only if not user-set)
+                if best_category_id and not existing.category_id:
+                    existing.category_id = best_category_id
                 # Auto-reactivate if deactivated but transactions are still occurring
                 if not existing.is_active:
                     existing.is_active = True
@@ -239,6 +256,7 @@ class RecurringDetectionService:
                     next_expected_date=next_expected,
                     occurrence_count=len(txns),
                     is_user_created=False,
+                    category_id=best_category_id,
                 )
                 db.add(pattern)
                 patterns.append(pattern)
