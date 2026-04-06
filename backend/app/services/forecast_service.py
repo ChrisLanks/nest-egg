@@ -10,7 +10,7 @@ from typing import Dict, List, Optional
 from uuid import UUID
 
 from dateutil.relativedelta import relativedelta
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import cache
@@ -98,10 +98,38 @@ class ForecastService:
             user_account_ids = {a.id for a in all_accounts}
             recurring = [r for r in recurring if r.account_id in user_account_ids]
 
+        # Build a fallback category map for patterns without category_id
+        # Uses the most common category_primary from source transactions
+        uncategorized_patterns = [p for p in recurring if not p.category_id]
+        pattern_category_fallback: Dict[str, str] = {}
+        if uncategorized_patterns:
+            from app.models.transaction import Transaction as Txn
+
+            for pattern in uncategorized_patterns:
+                cat_result = await db.execute(
+                    select(Txn.category_primary, func.count().label("cnt"))
+                    .where(and_(
+                        Txn.organization_id == organization_id,
+                        Txn.account_id == pattern.account_id,
+                        Txn.merchant_name == pattern.merchant_name,
+                        Txn.category_primary.isnot(None),
+                        Txn.category_primary != "",
+                    ))
+                    .group_by(Txn.category_primary)
+                    .order_by(func.count().desc())
+                    .limit(1)
+                )
+                row = cat_result.first()
+                if row:
+                    key = f"{pattern.merchant_name}:{pattern.account_id}"
+                    pattern_category_fallback[key] = row.category_primary
+
         # Project future occurrences from recurring transactions
         future_transactions = []
         for pattern in recurring:
-            occurrences = ForecastService._calculate_future_occurrences(pattern, days_ahead)
+            occurrences = ForecastService._calculate_future_occurrences(
+                pattern, days_ahead, pattern_category_fallback
+            )
             future_transactions.extend(occurrences)
 
         # Add future vesting events for private equity accounts
@@ -371,13 +399,18 @@ class ForecastService:
         return total
 
     @staticmethod
-    def _calculate_future_occurrences(pattern: RecurringTransaction, days_ahead: int) -> List[Dict]:
+    def _calculate_future_occurrences(
+        pattern: RecurringTransaction,
+        days_ahead: int,
+        category_fallback: Optional[Dict[str, str]] = None,
+    ) -> List[Dict]:
         """
         Generate future transaction occurrences based on frequency.
 
         Args:
             pattern: Recurring transaction pattern
             days_ahead: Number of days to project
+            category_fallback: Map of "merchant:account_id" → provider category name
 
         Returns:
             List of projected transactions
@@ -397,6 +430,15 @@ class ForecastService:
 
         delta = frequency_deltas.get(pattern.frequency, relativedelta(months=1))
 
+        # Resolve category: custom category > provider category > None
+        if pattern.category:
+            category_name = pattern.category.name
+        elif category_fallback:
+            key = f"{pattern.merchant_name}:{pattern.account_id}"
+            category_name = category_fallback.get(key)
+        else:
+            category_name = None
+
         # Generate occurrences until end_date
         while current_date <= end_date:
             occurrences.append(
@@ -404,7 +446,7 @@ class ForecastService:
                     "date": current_date,
                     "amount": pattern.average_amount,
                     "merchant": pattern.merchant_name,
-                    "category": pattern.category.name if pattern.category else None,
+                    "category": category_name,
                     "label": pattern.label.name if pattern.label else None,
                     "account_id": str(pattern.account_id) if pattern.account_id else None,
                     "account_name": pattern.account.name if pattern.account else None,
