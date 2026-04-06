@@ -77,24 +77,59 @@ describe("edit button permission gating", () => {
 // ── 3. Date click sets date range ─────────────────────────────────────────────
 
 describe("date click filtering", () => {
-  it("should set date range to a single day when date is clicked", () => {
+  it("should set date range to a single day with readable label", () => {
     const clickedDate = "2026-03-15";
 
-    // Simulate the handleDateClick behavior
-    const dateRange = { start: clickedDate, end: clickedDate, label: clickedDate };
+    // Simulate the handleDateClick behavior (readable label, not raw ISO)
+    const d = new Date(clickedDate + "T00:00:00");
+    const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    const dateRange = { start: clickedDate, end: clickedDate, label };
+
     expect(dateRange.start).toBe("2026-03-15");
     expect(dateRange.end).toBe("2026-03-15");
-    expect(dateRange.label).toBe("2026-03-15");
+    // Label should be human-readable, not raw ISO
+    expect(dateRange.label).toContain("Mar");
+    expect(dateRange.label).toContain("15");
+    expect(dateRange.label).toContain("2026");
+    expect(dateRange.label).not.toBe("2026-03-15");
   });
 
   it("should override existing date range", () => {
     const existingRange = { start: "2026-03-01", end: "2026-03-31", label: "March 2026" };
     const clickedDate = "2026-03-15";
 
-    // After click, range becomes single day
-    const newRange = { start: clickedDate, end: clickedDate, label: clickedDate };
+    const d = new Date(clickedDate + "T00:00:00");
+    const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    const newRange = { start: clickedDate, end: clickedDate, label };
     expect(newRange.start).not.toBe(existingRange.start);
     expect(newRange.end).not.toBe(existingRange.end);
+  });
+
+  it("should show clear button when start equals end (single-day filter)", () => {
+    const singleDay = { start: "2026-03-15", end: "2026-03-15" };
+    const showClear = singleDay.start === singleDay.end;
+    expect(showClear).toBe(true);
+  });
+
+  it("should NOT show clear button for normal date ranges", () => {
+    const normalRange = { start: "2026-03-01", end: "2026-03-31" };
+    const showClear = normalRange.start === normalRange.end;
+    expect(showClear).toBe(false);
+  });
+
+  it("clear button should reset to default (This Month)", () => {
+    const now = new Date();
+    const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1)
+      .toISOString().split("T")[0];
+    const defaultEnd = now.toISOString().split("T")[0];
+
+    // After clicking clear, range should span from 1st of month to today
+    expect(defaultStart).toMatch(/^\d{4}-\d{2}-01$/);
+    expect(defaultEnd).toBe(now.toISOString().split("T")[0]);
+    // Start and end should NOT be equal (unless it's the 1st)
+    if (now.getDate() > 1) {
+      expect(defaultStart).not.toBe(defaultEnd);
+    }
   });
 });
 

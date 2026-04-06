@@ -1649,8 +1649,10 @@ export const TransactionsPage = () => {
 
   const handleDateClick = (dateStr: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    // Set the date range to the clicked date (single day)
-    setDateRange({ start: dateStr, end: dateStr, label: dateStr });
+    // Set the date range to the clicked date (single day) with a readable label
+    const d = new Date(dateStr + "T00:00:00");
+    const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    setDateRange({ start: dateStr, end: dateStr, label });
   };
 
   const handleMerchantClick = (name: string, e: React.MouseEvent) => {
@@ -2156,6 +2158,17 @@ export const TransactionsPage = () => {
               onChange={setDateRange}
               customMonthStartDay={monthlyStartDay}
             />
+            {dateRange.start === dateRange.end && (
+              <Tooltip label="Clear date filter and return to This Month" hasArrow>
+                <IconButton
+                  aria-label="Clear date filter"
+                  icon={<CloseIcon />}
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setDateRange(getDefaultDateRange())}
+                />
+              </Tooltip>
+            )}
 
             {/* Columns Menu */}
             <Menu closeOnSelect={false}>
