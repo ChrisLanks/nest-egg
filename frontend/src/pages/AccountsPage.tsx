@@ -1248,7 +1248,7 @@ export const AccountsPage = () => {
                 : "this account"}{" "}
               and all associated data (transactions, holdings, history). This action cannot be undone.
               {deleteTarget === "selected" && selectedAccounts.size > 0 && (
-                <Box mt={3} p={2} bg="red.50" borderRadius="md" fontSize="sm">
+                <Box mt={3} p={2} bg="red.50" _dark={{ bg: "red.900" }} borderRadius="md" fontSize="sm">
                   {Array.from(selectedAccounts)
                     .map((id) => accounts?.find((a) => a.id === id)?.name)
                     .filter(Boolean)

@@ -470,7 +470,7 @@ function CustomReportsTab() {
                       </Card>
                     )}
                     {reportResult.metrics.total_items !== undefined && (
-                      <Card bg="purple.50">
+                      <Card bg="purple.50" _dark={{ bg: "purple.900" }}>
                         <CardBody>
                           <Text fontSize="sm" color="text.secondary">
                             Items

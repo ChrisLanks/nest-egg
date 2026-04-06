@@ -872,7 +872,7 @@ export default function RecurringTransactionsPage() {
                     />
                   )}
 
-                  <Box p={4} bg="purple.50" borderRadius="md">
+                  <Box p={4} bg="purple.50" _dark={{ bg: "purple.900" }} borderRadius="md">
                     <Text fontSize="sm" color="text.heading">
                       💡 <strong>Subscriptions</strong> are recurring charges
                       that happen monthly or yearly with high confidence (70%+).
