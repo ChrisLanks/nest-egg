@@ -1438,7 +1438,8 @@ async def get_year_over_year_comparison(
     - Multi-year performance comparison
     """
     years_key = ",".join(str(y) for y in sorted(years))
-    cache_key = f"ie:yoy:{current_user.organization_id}:{user_id or 'household'}:{years_key}"
+    _uids_key = ",".join(sorted(str(u) for u in user_ids)) if user_ids else ""
+    cache_key = f"ie:yoy:{current_user.organization_id}:{user_id or 'household'}:{years_key}:{_uids_key}"
     cached = await cache_get(cache_key)
     if cached is not None:
         return cached
@@ -1482,7 +1483,8 @@ async def get_quarterly_summary(
     - Net income per quarter
     """
     years_key = ",".join(str(y) for y in sorted(years))
-    cache_key = f"ie:quarterly:{current_user.organization_id}:{user_id or 'household'}:{years_key}"
+    _uids_q = ",".join(sorted(str(u) for u in user_ids)) if user_ids else ""
+    cache_key = f"ie:quarterly:{current_user.organization_id}:{user_id or 'household'}:{years_key}:{_uids_q}"
     cached = await cache_get(cache_key)
     if cached is not None:
         return cached
@@ -1568,7 +1570,8 @@ async def get_annual_summary(
     - Average monthly values
     - Peak expense month
     """
-    cache_key = f"ie:annual:{current_user.organization_id}:{user_id or 'household'}:{year}"
+    _uids_a = ",".join(sorted(str(u) for u in user_ids)) if user_ids else ""
+    cache_key = f"ie:annual:{current_user.organization_id}:{user_id or 'household'}:{year}:{_uids_a}"
     cached = await cache_get(cache_key)
     if cached is not None:
         return cached

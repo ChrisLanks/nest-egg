@@ -105,10 +105,11 @@ async def get_portfolio_summary(
 
     logger.info(f"Portfolio request from user {current_user.id}, filter user_id={user_id}")
 
-    # Check cache
+    # Check cache — include user_ids in key so multi-member filter gets its own cache entry
+    user_ids_key = ",".join(sorted(str(u) for u in user_ids)) if user_ids else ""
     cache_key = (
         f"portfolio:summary:{current_user.organization_id}"
-        f":{user_id or 'household'}:{detail_level}"
+        f":{user_id or 'household'}:{detail_level}:{user_ids_key}"
     )
     cached = await cache_get(cache_key)
     if cached is not None:
@@ -2310,7 +2311,8 @@ async def get_fee_analysis(
     logger.info(f"Fee analysis request from user {current_user.id}, filter user_id={user_id}")
 
     # Check cache
-    cache_key = f"fee-analysis:{current_user.organization_id}:{user_id or 'household'}"
+    _uids = ",".join(sorted(str(u) for u in user_ids)) if user_ids else ""
+    cache_key = f"fee-analysis:{current_user.organization_id}:{user_id or 'household'}:{_uids}"
     cached = await cache_get(cache_key)
     if cached is not None:
         return cached
@@ -2436,7 +2438,8 @@ async def get_fund_overlap(
     logger.info(f"Fund overlap request from user {current_user.id}, filter user_id={user_id}")
 
     # Check cache
-    cache_key = f"fund-overlap:{current_user.organization_id}:{user_id or 'household'}"
+    _uids2 = ",".join(sorted(str(u) for u in user_ids)) if user_ids else ""
+    cache_key = f"fund-overlap:{current_user.organization_id}:{user_id or 'household'}:{_uids2}"
     cached = await cache_get(cache_key)
     if cached is not None:
         return cached
