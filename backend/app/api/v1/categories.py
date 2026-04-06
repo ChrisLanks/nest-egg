@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.cache import delete_pattern as cache_delete_pattern
 from app.core.database import get_db
 from app.dependencies import (
     get_current_user,
@@ -155,6 +156,7 @@ async def create_category(
     db.add(category)
     await db.commit()
     await db.refresh(category)
+    await cache_delete_pattern(f"dashboard:*:{current_user.organization_id}:*")
     return category
 
 
@@ -227,6 +229,7 @@ async def update_category(
 
     await db.commit()
     await db.refresh(category)
+    await cache_delete_pattern(f"dashboard:*:{current_user.organization_id}:*")
     return category
 
 
@@ -254,3 +257,4 @@ async def delete_category(
 
     await db.delete(category)
     await db.commit()
+    await cache_delete_pattern(f"dashboard:*:{current_user.organization_id}:*")

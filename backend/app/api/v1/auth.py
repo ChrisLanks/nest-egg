@@ -186,12 +186,12 @@ async def register(
     Register a new user and organization.
 
     Creates both an organization and the first user (admin) in a single transaction.
-    Rate limited to 3 registrations per 10 minutes per IP to prevent abuse.
+    Rate limited to 5 registrations per 10 minutes per IP to prevent abuse.
     """
-    # Rate limit: 10 registration attempts per 10 minutes per IP
+    # Rate limit: 5 registration attempts per 10 minutes per IP
     await rate_limit_service.check_rate_limit(
         request=request,
-        max_requests=10,
+        max_requests=5,
         window_seconds=600,  # 10 minutes
     )
 
@@ -305,10 +305,10 @@ async def login(
     Returns access and refresh tokens.
     Rate limited to 5 attempts per minute per IP to prevent brute force attacks.
     """
-    # Rate limit: 10 login attempts per minute per IP
+    # Rate limit: 5 login attempts per minute per IP
     await rate_limit_service.check_rate_limit(
         request=request,
-        max_requests=10,
+        max_requests=5,
         window_seconds=60,
     )
 

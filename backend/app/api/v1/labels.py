@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.cache import delete_pattern as cache_delete_pattern
 from app.core.database import get_db
 from app.dependencies import get_current_user, get_filtered_accounts, verify_household_member
 from app.models.transaction import Label
@@ -254,6 +255,7 @@ async def create_label(
     db.add(label)
     await db.commit()
     await db.refresh(label)
+    await cache_delete_pattern(f"dashboard:*:{current_user.organization_id}:*")
     return label
 
 
@@ -330,6 +332,7 @@ async def update_label(
 
     await db.commit()
     await db.refresh(label)
+    await cache_delete_pattern(f"dashboard:*:{current_user.organization_id}:*")
     return label
 
 
@@ -361,3 +364,4 @@ async def delete_label(
 
     await db.delete(label)
     await db.commit()
+    await cache_delete_pattern(f"dashboard:*:{current_user.organization_id}:*")

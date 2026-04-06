@@ -207,7 +207,7 @@ async def create_transaction(
 
 @router.get("/flagged", response_model=TransactionListResponse)
 async def list_flagged_transactions(
-    page_size: int = Query(50, ge=1, le=1000),
+    page_size: int = Query(50, ge=1, le=200),
     cursor: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -314,7 +314,7 @@ async def list_flagged_transactions(
 
 @router.get("/", response_model=TransactionListResponse)
 async def list_transactions(
-    page_size: int = Query(50, ge=1, le=1000),
+    page_size: int = Query(50, ge=1, le=200),
     cursor: Optional[str] = None,
     account_id: Optional[UUID] = None,
     user_id: Optional[UUID] = Query(
