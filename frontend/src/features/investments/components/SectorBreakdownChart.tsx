@@ -6,7 +6,7 @@
  * Phase 2: Will use real sector data from Alpha Vantage API
  */
 
-import { Box, Text, HStack } from "@chakra-ui/react";
+import { Box, Text, HStack, useColorModeValue } from "@chakra-ui/react";
 import { useMemo } from "react";
 import {
   ResponsiveContainer,
@@ -89,6 +89,13 @@ export const SectorBreakdownChart = ({
     }
   }, [holdings, sectorBreakdown, isRealData]);
 
+  // Dark-mode-aware colors for the table and chart grid
+  const rowEvenBg = useColorModeValue("#f7fafc", "#1a202c");
+  const rowOddBg = useColorModeValue("white", "#171923");
+  const borderColor = useColorModeValue("#e2e8f0", "#2d3748");
+  const gridStroke = useColorModeValue("#e0e0e0", "#2d3748");
+  const mutedText = useColorModeValue("#718096", "#a0aec0");
+
   // Format currency
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -157,7 +164,7 @@ export const SectorBreakdownChart = ({
                 layout="vertical"
                 margin={{ top: 5, right: 30, left: 150, bottom: 5 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+                <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
                 <XAxis
                   type="number"
                   tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
@@ -184,7 +191,7 @@ export const SectorBreakdownChart = ({
           <Box mt={6} overflowX="auto">
             <table style={{ width: "100%", fontSize: "14px" }}>
               <thead>
-                <tr style={{ borderBottom: "2px solid #e2e8f0" }}>
+                <tr style={{ borderBottom: `2px solid ${borderColor}` }}>
                   <th style={{ textAlign: "left", padding: "8px" }}>Sector</th>
                   <th style={{ textAlign: "right", padding: "8px" }}>Value</th>
                   <th style={{ textAlign: "right", padding: "8px" }}>
@@ -200,8 +207,8 @@ export const SectorBreakdownChart = ({
                   <tr
                     key={index}
                     style={{
-                      borderBottom: "1px solid #e2e8f0",
-                      backgroundColor: index % 2 === 0 ? "#f7fafc" : "white",
+                      borderBottom: `1px solid ${borderColor}`,
+                      backgroundColor: index % 2 === 0 ? rowEvenBg : rowOddBg,
                     }}
                   >
                     <td style={{ padding: "8px" }}>
@@ -234,7 +241,7 @@ export const SectorBreakdownChart = ({
                       style={{
                         textAlign: "right",
                         padding: "8px",
-                        color: "#718096",
+                        color: mutedText,
                       }}
                     >
                       {sector.count}
