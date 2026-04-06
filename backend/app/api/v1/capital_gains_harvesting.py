@@ -34,7 +34,7 @@ router = APIRouter(dependencies=[Depends(_rate_limit)])
         "Returns how much long-term capital gain can be realized at 0% federal rate "
         "given the user's current taxable income and filing status."
     ),
-    response_model=List[Dict[str, Any]],
+    response_model=Dict[str, Any],
 )
 async def get_ltcg_bracket_fill(
     current_income: float = Query(..., description="Current taxable income (USD)"),
@@ -60,7 +60,7 @@ async def get_ltcg_bracket_fill(
         "Returns open tax lots held > 365 days with unrealized gains above min_gain, "
         "sorted by largest gain first."
     ),
-    response_model=Dict[str, Any],
+    response_model=List[Dict[str, Any]],
 )
 async def get_harvest_candidates(
     min_gain: float = Query(500.0, description="Minimum unrealized gain threshold (USD)"),
