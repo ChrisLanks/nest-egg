@@ -46,6 +46,7 @@ import {
   FiUsers,
 } from "react-icons/fi";
 import api from "../services/api";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 interface TopAction {
   message: string;
@@ -101,7 +102,7 @@ interface FinancialPlanSummary {
 }
 
 const fmt = (n: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
+  new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(n);
 
 const SummaryCard = ({
   title,

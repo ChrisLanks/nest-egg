@@ -80,6 +80,7 @@ import {
 } from "../constants/accountTypeGroups";
 import { HelpHint } from "../components/HelpHint";
 import { helpContent } from "../constants/helpContent";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 interface Account {
   id: string;
@@ -138,6 +139,7 @@ const LOAN_ACCOUNT_TYPES = ["mortgage", "loan", "student_loan"];
 const CASH_ACCOUNT_TYPES = ["checking", "savings", "money_market"];
 
 export const AccountDetailPage = () => {
+  const { currency } = useCurrency();
   const { accountId } = useParams<{ accountId: string }>();
   const navigate = useNavigate();
   const toast = useToast();
@@ -504,7 +506,7 @@ export const AccountDetailPage = () => {
       const fmt = (v: number) =>
         new Intl.NumberFormat("en-US", {
           style: "currency",
-          currency: "USD",
+          currency,
           maximumFractionDigits: 0,
         }).format(v);
       const rangeStr =
@@ -551,7 +553,7 @@ export const AccountDetailPage = () => {
       const fmt = (v: number) =>
         new Intl.NumberFormat("en-US", {
           style: "currency",
-          currency: "USD",
+          currency,
           maximumFractionDigits: 2,
         }).format(v);
       toast({
@@ -671,7 +673,7 @@ export const AccountDetailPage = () => {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "USD",
+      currency,
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(amount);

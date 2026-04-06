@@ -37,6 +37,7 @@ import { useState } from "react";
 import { FiCheckCircle, FiAlertTriangle, FiArrowRight } from "react-icons/fi";
 import api from "../services/api";
 import { useUserView } from "../contexts/UserViewContext";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 interface IraAccountDetail {
   account_id: string;
@@ -84,7 +85,7 @@ interface BackdoorRothResponse {
 const fmt = (v: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(v);

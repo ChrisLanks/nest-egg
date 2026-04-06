@@ -91,14 +91,14 @@ const gradeColor = (grade: string): string => {
 const fmtCompact = (v: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     notation: "compact",
     maximumFractionDigits: 1,
   }).format(v);
 
 
 export const FinancialRatiosTab = () => {
-  const { formatCurrency } = useCurrency();
+  const { formatCurrency , currency } = useCurrency();
   const { selectedUserId, effectiveUserId } = useUserView();
   const [monthlyIncome, setMonthlyIncome] = useState<number | undefined>(undefined);
   const [monthlySpending, setMonthlySpending] = useState<number | undefined>(undefined);

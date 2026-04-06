@@ -43,6 +43,7 @@ import {
 import { useUserView } from "../contexts/UserViewContext";
 import { EmptyState } from "../components/EmptyState";
 import { FiHome } from "react-icons/fi";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 const MONTH_NAMES = [
   "Jan",
@@ -62,7 +63,7 @@ const MONTH_NAMES = [
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
@@ -70,7 +71,7 @@ const formatCurrency = (amount: number) =>
 const formatCurrencyDetailed = (amount: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount);

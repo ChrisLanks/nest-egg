@@ -59,6 +59,7 @@ import { useEffect, useRef, useState } from "react";
 import { FiInfo, FiPaperclip, FiPlus } from "react-icons/fi";
 import api from "../services/api";
 import { useUserView } from "../contexts/UserViewContext";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -119,7 +120,7 @@ interface Receipt {
 const fmt = (v: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     maximumFractionDigits: 0,
   }).format(v);
 

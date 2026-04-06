@@ -33,6 +33,7 @@ import {
 import { FiInfo } from "react-icons/fi";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import api from "../services/api";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 function InfoTip({ label }: { label: string }) {
   return (
@@ -78,7 +79,7 @@ interface LadderResult {
 }
 
 const fmt = (n: number) =>
-  n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+  n.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 });
 
 export default function BondLadderPage() {
   const [totalInvestment, setTotalInvestment] = useState("500000");

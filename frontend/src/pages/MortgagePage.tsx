@@ -54,6 +54,7 @@ import {
 } from "../api/financialPlanning";
 import { useUserView } from "../contexts/UserViewContext";
 import { useLocalStorage } from "../hooks/useLocalStorage";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 function useDebounce<T>(value: T, delayMs: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -69,7 +70,7 @@ function useDebounce<T>(value: T, delayMs: number): T {
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(n);

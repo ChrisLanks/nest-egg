@@ -34,6 +34,7 @@ import { useState } from "react";
 import api from "../services/api";
 import { ACCOUNT_TYPE_LABELS } from "../constants/accountTypeGroups";
 import { useUserView } from "../contexts/UserViewContext";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 interface AccountHeadroom {
   account_id: string;
@@ -66,7 +67,7 @@ interface HeadroomResponse {
 const fmt = (v: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(v);

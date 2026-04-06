@@ -51,11 +51,12 @@ import {
 import { useUserView } from "../contexts/UserViewContext";
 import { EmptyState } from "../components/EmptyState";
 import { FiBookOpen } from "react-icons/fi";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);

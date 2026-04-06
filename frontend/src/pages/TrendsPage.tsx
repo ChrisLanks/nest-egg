@@ -47,6 +47,7 @@ import {
 } from "recharts";
 import api from "../services/api";
 import { useUserView } from "../contexts/UserViewContext";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 interface YearOverYearData {
   month: number;
@@ -84,6 +85,7 @@ interface AnnualSummary {
 }
 
 export default function TrendsPage() {
+  const { currency } = useCurrency();
   const {
     selectedUserId, effectiveUserId,
     isCombinedView,
@@ -233,7 +235,7 @@ export default function TrendsPage() {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "USD",
+      currency,
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);

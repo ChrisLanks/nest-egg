@@ -71,6 +71,7 @@ import { accountsApi } from "../api/accounts";
 import api from "../services/api";
 import { HelpHint } from "../components/HelpHint";
 import { helpContent } from "../constants/helpContent";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 /** Merchant autocomplete dropdown */
 function MerchantSuggestions({
@@ -119,6 +120,7 @@ function MerchantSuggestions({
 }
 
 export default function RecurringTransactionsPage() {
+  const { currency } = useCurrency();
   const toast = useToast();
   const queryClient = useQueryClient();
   const { canWriteResource, isOtherUserView } = useUserView();
@@ -428,7 +430,7 @@ export default function RecurringTransactionsPage() {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "USD",
+      currency,
     }).format(amount);
   };
 

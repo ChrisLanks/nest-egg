@@ -70,25 +70,25 @@ const recommendationStatus = (rec: string): "success" | "warning" | "info" => {
   return "info";
 };
 
-const fmt = (v: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(v);
-
-const fmtCompact = (v: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(v);
-
 export const PensionModelerTab = () => {
-  const { formatCurrency } = useCurrency();
+  const { formatCurrency , currency } = useCurrency();
   const { selectedUserId, effectiveUserId } = useUserView();
+  const fmt = (v: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(v);
+  
+  const fmtCompact = (v: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(v);
+  
 
   const { data, isLoading, error } = useQuery<PensionModelerResponse>({
     queryKey: ["pension-modeler", effectiveUserId],

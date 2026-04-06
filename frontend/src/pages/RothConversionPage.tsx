@@ -46,13 +46,14 @@ import {
 } from "../api/smartInsights";
 import api from "../services/api";
 import { useUserView } from "../contexts/UserViewContext";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(n);

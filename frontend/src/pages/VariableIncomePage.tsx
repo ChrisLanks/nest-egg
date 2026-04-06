@@ -50,6 +50,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import api from "../services/api";
 import { useUserView } from "../contexts/UserViewContext";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 interface MonthlyTrend {
   month: string; // "YYYY-MM"
@@ -129,7 +130,7 @@ function InfoTip({ label }: { label: string }) {
 function fmt(value: number): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     maximumFractionDigits: 0,
   }).format(value);
 }

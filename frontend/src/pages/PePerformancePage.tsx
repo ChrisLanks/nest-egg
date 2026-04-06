@@ -20,6 +20,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import api from "../services/api";
 import { useUserView } from "../contexts/UserViewContext";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 interface PeAccount {
   account_id: string;
@@ -36,7 +37,7 @@ interface PeAccount {
 }
 
 const fmt = (n: number) =>
-  n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+  n.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 });
 
 
 export default function PePerformancePage() {

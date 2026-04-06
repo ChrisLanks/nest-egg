@@ -27,9 +27,10 @@ import {
 } from "@chakra-ui/react";
 import { useMutation } from "@tanstack/react-query";
 import api from "../services/api";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 const fmt = (n: number) =>
-  n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+  n.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 });
 
 interface ScenarioCardProps {
   title: string;

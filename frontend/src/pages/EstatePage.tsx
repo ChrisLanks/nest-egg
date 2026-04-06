@@ -54,6 +54,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import api from "../services/api";
 import { useUserView } from "../contexts/UserViewContext";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 function InfoTip({ label }: { label: string }) {
   return (
@@ -66,7 +67,7 @@ function InfoTip({ label }: { label: string }) {
 }
 
 function fmt(n: number) {
-  return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+  return n.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 });
 }
 
 interface Beneficiary {

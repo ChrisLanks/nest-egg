@@ -85,7 +85,7 @@ const monthsColor = (months: number): string => {
 const fmt = (v: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(v);
@@ -93,13 +93,13 @@ const fmt = (v: number) =>
 const fmtCompact = (v: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     notation: "compact",
     maximumFractionDigits: 1,
   }).format(v);
 
 export const LiquidityDashboardTab = () => {
-  const { formatCurrency } = useCurrency();
+  const { formatCurrency , currency } = useCurrency();
   const { selectedUserId, effectiveUserId } = useUserView();
   const [monthlySpending, setMonthlySpending] = useState<number | undefined>(undefined);
 

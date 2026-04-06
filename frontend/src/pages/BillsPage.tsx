@@ -69,6 +69,7 @@ import { labelsApi } from "../api/labels";
 import type { Label } from "../types/transaction";
 import api from "../services/api";
 import { useUserView } from "../contexts/UserViewContext";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 interface Account {
   id: string;
@@ -141,6 +142,7 @@ UpcomingBillCard.displayName = "UpcomingBillCard";
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 const BillsPage: React.FC = () => {
+  const { currency } = useCurrency();
   const toast = useToast();
   const queryClient = useQueryClient();
   const { canWriteResource } = useUserView();
@@ -359,7 +361,7 @@ const BillsPage: React.FC = () => {
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "USD",
+      currency,
     }).format(amount);
 
   const formatDate = (dateString: string) =>

@@ -41,6 +41,7 @@ import api from "../services/api";
 import { useUserView } from "../contexts/UserViewContext";
 import HelpHint from "../components/HelpHint";
 import { helpContent } from "../constants/helpContent";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 interface TaxTransaction {
   id: string;
@@ -68,6 +69,7 @@ interface TaxLabel {
 }
 
 export default function TaxDeductiblePage() {
+  const { currency } = useCurrency();
   const queryClient = useQueryClient();
   const toast = useToast();
   const { selectedUserId, effectiveUserId, canWriteResource } = useUserView();
@@ -216,7 +218,7 @@ export default function TaxDeductiblePage() {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "USD",
+      currency,
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(amount);

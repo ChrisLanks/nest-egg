@@ -55,7 +55,7 @@ interface EmployerMatchResponse {
 const fmt = (v: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(v);
@@ -63,7 +63,7 @@ const fmt = (v: number) =>
 const fmtCompact = (v: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     notation: "compact",
     maximumFractionDigits: 1,
   }).format(v);
@@ -81,7 +81,7 @@ const matchAlertStatus = (isCapturing: boolean | undefined): "success" | "warnin
 };
 
 export const EmployerMatchTab = () => {
-  const { formatCurrency } = useCurrency();
+  const { formatCurrency , currency } = useCurrency();
   const { selectedUserId, effectiveUserId } = useUserView();
 
   const { data, isLoading, error } = useQuery<EmployerMatchResponse>({

@@ -39,6 +39,7 @@ import {
   type FinancialCalendarResponse,
   type FinancialCalendarEvent,
 } from "../api/recurring-transactions";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 // ─── Local extended event type (adds "dividend" to the API's union) ───────────
 
@@ -76,7 +77,7 @@ const DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const formatCurrencyShort = (amount: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);

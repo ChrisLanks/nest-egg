@@ -34,6 +34,7 @@ import api from "../services/api";
 import { useUserView } from "../contexts/UserViewContext";
 import HelpHint from "../components/HelpHint";
 import { helpContent } from "../constants/helpContent";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 const STORAGE_KEY = "fire-assumptions";
 
@@ -56,7 +57,7 @@ function loadAssumptions(): {
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);

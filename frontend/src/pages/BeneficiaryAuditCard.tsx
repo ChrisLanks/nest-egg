@@ -28,6 +28,7 @@ import { useQuery } from "@tanstack/react-query";
 import { FiChevronDown, FiChevronUp } from "react-icons/fi";
 import api from "../services/api";
 import { useUserView } from "../contexts/UserViewContext";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 interface AuditAccount {
   account_id: string;
@@ -67,7 +68,7 @@ const SEVERITY_COLOR: Record<string, string> = {
 const fmt = (v: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     notation: "compact",
     maximumFractionDigits: 1,
   }).format(v);

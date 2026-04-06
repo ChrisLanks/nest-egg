@@ -75,6 +75,7 @@ import { EmptyState } from "../components/EmptyState";
 import { useUserView } from "../contexts/UserViewContext";
 import { AccountsSkeleton } from "../components/LoadingSkeleton";
 import { AddAccountModal } from "../features/accounts/components/AddAccountModal";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 interface Account {
   id: string;
@@ -106,6 +107,7 @@ interface User {
 }
 
 export const AccountsPage = () => {
+  const { currency } = useCurrency();
   const [selectedAccounts, setSelectedAccounts] = useState<Set<string>>(
     new Set(),
   );
@@ -493,7 +495,7 @@ export const AccountsPage = () => {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "USD",
+      currency,
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(amount);

@@ -45,6 +45,7 @@ import {
 } from "recharts";
 import api from "../services/api";
 import { useUserView } from "../contexts/UserViewContext";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 interface YearInReviewData {
   year: number;
@@ -89,7 +90,7 @@ interface YearInReviewData {
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);

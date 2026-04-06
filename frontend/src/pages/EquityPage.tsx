@@ -42,6 +42,7 @@ import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import { useUserView } from "../contexts/UserViewContext";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -88,7 +89,7 @@ const AMT_UPPER_THRESHOLD = 220_700; // AMTI where 28% kicks in (approx 2026)
 function fmt(v: number) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     maximumFractionDigits: 0,
   }).format(v);
 }

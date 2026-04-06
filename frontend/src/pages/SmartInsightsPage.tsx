@@ -35,13 +35,14 @@ import { useNavigate } from "react-router-dom";
 import { smartInsightsApi, type InsightItem } from "../api/smartInsights";
 import { useUserView } from "../contexts/UserViewContext";
 import api from "../services/api";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);

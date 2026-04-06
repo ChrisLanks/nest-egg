@@ -61,7 +61,7 @@ interface ForecastResponse {
 const fmt = (v: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     notation: "compact",
     maximumFractionDigits: 1,
   }).format(v);
@@ -74,7 +74,7 @@ interface FinancialDefaults {
 
 export const NetWorthForecastTab = () => {
   const { selectedUserId, effectiveUserId } = useUserView();
-  const { formatCurrency } = useCurrency();
+  const { formatCurrency , currency } = useCurrency();
 
   const { data: defaults } = useQuery<FinancialDefaults>({
     queryKey: ["financial-defaults"],
