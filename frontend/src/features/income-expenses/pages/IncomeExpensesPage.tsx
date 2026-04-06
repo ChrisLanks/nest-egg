@@ -804,7 +804,7 @@ export const IncomeExpensesPage = ({ embedded = false }: { embedded?: boolean })
           const params = new URLSearchParams({
             start_date: dateRange.start,
             end_date: dateRange.end,
-            page_size: "500", // Fetch in batches of 500
+            page_size: "200", // Fetch in batches (max 200 per API limit)
           });
           if (activeUserId) {
             params.append("user_id", activeUserId);
