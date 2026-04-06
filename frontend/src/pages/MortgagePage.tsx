@@ -67,14 +67,6 @@ function useDebounce<T>(value: T, delayMs: number): T {
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(n);
-
 const fmtPct = (n: number) => `${(n * 100).toFixed(2)}%`;
 
 function InfoTip({ label }: { label: string }) {
@@ -95,7 +87,7 @@ function InfoTip({ label }: { label: string }) {
 
 // ── Sub-components ────────────────────────────────────────────────────────
 
-function SummaryCards({ data }: { data: MortgageAnalysisResponse }) {
+function SummaryCards({ data, fmt }: { data: MortgageAnalysisResponse; fmt: (n: number) => string }) {
   return (
     <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4}>
       <Card variant="outline">
@@ -146,7 +138,7 @@ function SummaryCards({ data }: { data: MortgageAnalysisResponse }) {
   );
 }
 
-function RefinanceSection({ data }: { data: MortgageAnalysisResponse }) {
+function RefinanceSection({ data, fmt }: { data: MortgageAnalysisResponse; fmt: (n: number) => string }) {
   if (!data.refinance) return null;
   const rf = data.refinance;
   const savingsPositive = rf.monthly_savings > 0;
@@ -272,7 +264,7 @@ function ExtraPaymentSection({ data }: { data: MortgageAnalysisResponse }) {
   );
 }
 
-function EquityMilestones({ data }: { data: MortgageAnalysisResponse }) {
+function EquityMilestones({ data, fmt }: { data: MortgageAnalysisResponse; fmt: (n: number) => string }) {
   if (!data.equity_milestones.length) return null;
 
   return (
@@ -304,7 +296,7 @@ function EquityMilestones({ data }: { data: MortgageAnalysisResponse }) {
   );
 }
 
-function AmortizationPreview({ data }: { data: MortgageAnalysisResponse }) {
+function AmortizationPreview({ data, fmt }: { data: MortgageAnalysisResponse; fmt: (n: number) => string }) {
   const preview = data.amortization.slice(0, 24);
   if (!preview.length) return null;
 
@@ -364,6 +356,15 @@ function AmortizationPreview({ data }: { data: MortgageAnalysisResponse }) {
 // ── Page ──────────────────────────────────────────────────────────────────
 
 export const MortgagePage = () => {
+  const { currency } = useCurrency();
+
+  const fmt = (n: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(n);
   const { selectedUserId, effectiveUserId } = useUserView();
   const [refinanceRate, setRefinanceRate] = useLocalStorage(
     "mortgage-refinance-rate",
@@ -449,7 +450,7 @@ export const MortgagePage = () => {
         </Box>
 
         {/* Summary */}
-        <SummaryCards data={data} />
+        <SummaryCards data={data} fmt={fmt} />
 
         {/* Scenario inputs */}
         <Card variant="outline" w="full">
@@ -527,10 +528,10 @@ export const MortgagePage = () => {
         <Divider />
 
         {/* Results */}
-        <RefinanceSection data={data} />
+        <RefinanceSection data={data} fmt={fmt} />
         <ExtraPaymentSection data={data} />
-        <EquityMilestones data={data} />
-        <AmortizationPreview data={data} />
+        <EquityMilestones data={data} fmt={fmt} />
+        <AmortizationPreview data={data} fmt={fmt} />
       </VStack>
     </Container>
   );
