@@ -576,6 +576,7 @@ async def get_income_expense_trend(
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = combined household view"
     ),
+    user_ids: Optional[List[UUID]] = Query(None, description="Multi-user filter"),
     label_name: Optional[str] = Query(
         None,
         description="When provided, only income transactions carrying this label are counted. "
