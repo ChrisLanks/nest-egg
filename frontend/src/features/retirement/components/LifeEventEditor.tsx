@@ -21,7 +21,7 @@ import {
   Switch,
   VStack,
 } from '@chakra-ui/react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { LifeEvent, LifeEventCategory, LifeEventCreate } from '../types/retirement';
 
 const CATEGORY_OPTIONS: { value: LifeEventCategory; label: string }[] = [
@@ -98,8 +98,10 @@ export function LifeEventEditor({
     onSave(event);
   }, [name, category, startAge, endAge, annualCost, oneTimeCost, incomeChange, useMedicalInflation, onSave]);
 
+  const initialFocusRef = useRef<HTMLInputElement>(null);
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="md">
+    <Modal isOpen={isOpen} onClose={onClose} size="md" initialFocusRef={initialFocusRef}>
       <ModalOverlay />
       <ModalContent>
         <ModalHeader>{existingEvent ? 'Edit Life Event' : 'Add Life Event'}</ModalHeader>
@@ -109,6 +111,7 @@ export function LifeEventEditor({
             <FormControl isRequired>
               <FormLabel fontSize="sm">Name</FormLabel>
               <Input
+                ref={initialFocusRef}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g., Kids' College"

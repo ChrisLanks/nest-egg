@@ -52,6 +52,7 @@ import {
 } from "react-icons/fi";
 import api from "../services/api";
 import { useUserView } from "../contexts/UserViewContext";
+import { ScrollableTable } from "../components/ScrollableTable";
 import { AssetAllocationTreemap } from "../features/investments/components/AssetAllocationTreemap";
 import { HoldingsDetailTable } from "../features/investments/components/HoldingsDetailTable";
 import { GrowthProjectionsChart } from "../features/investments/components/GrowthProjectionsChart";
@@ -205,7 +206,7 @@ const AccountHoldingsCard = memo(
         </HStack>
 
         <Collapse in={isExpanded}>
-          <Box mt={4} overflowX="auto">
+          <ScrollableTable><Box mt={4}>
             {account.holdings.length === 0 ? (
               <VStack spacing={2} py={4} align="center">
                 <Text fontSize="sm" color="text.secondary">
@@ -269,7 +270,7 @@ const AccountHoldingsCard = memo(
                 </Tbody>
               </Table>
             )}
-          </Box>
+          </Box></ScrollableTable>
         </Collapse>
       </CardBody>
     </Card>
@@ -737,11 +738,16 @@ export const InvestmentsPage = () => {
   }
 
   if (isError) {
+    const errMsg = (error as any)?.response?.status === 503
+      ? "Market data service is temporarily unavailable. Your portfolio will update automatically when the service recovers."
+      : (error as any)?.response?.status === 401
+      ? "Your session has expired. Please log in again to view your portfolio."
+      : "Unable to load portfolio data. This may be due to a sync issue with your connected accounts — try refreshing in a few moments.";
     return (
       <Container maxW="container.lg" py={8}>
         <Alert status="error" borderRadius="md">
           <AlertIcon />
-          Unable to load portfolio data. Please try again.
+          {errMsg}
         </Alert>
       </Container>
     );

@@ -35,7 +35,7 @@ import {
   Stack,
   ButtonGroup,
 } from "@chakra-ui/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getErrorMessage } from "../../../utils/errorHandling";
 import { permissionsApi } from "../api/permissionsApi";
@@ -192,8 +192,10 @@ export const GrantModal = ({ isOpen, onClose, editGrant }: GrantModalProps) => {
   const rawError = createMutation.error || updateMutation.error;
   const serverError = rawError ? getErrorMessage(rawError) : null;
 
+  const initialFocusRef = useRef<HTMLSelectElement>(null);
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="md">
+    <Modal isOpen={isOpen} onClose={onClose} size="md" initialFocusRef={initialFocusRef}>
       <ModalOverlay />
       <ModalContent>
         <ModalHeader>{editGrant ? "Edit Grant" : "Grant Access"}</ModalHeader>
@@ -210,6 +212,7 @@ export const GrantModal = ({ isOpen, onClose, editGrant }: GrantModalProps) => {
               <FormControl isRequired isInvalid={!!errors.granteeId}>
                 <FormLabel>Household member</FormLabel>
                 <Select
+                  ref={initialFocusRef}
                   placeholder="Select a member…"
                   value={granteeId}
                   onChange={(e) => setGranteeId(e.target.value)}

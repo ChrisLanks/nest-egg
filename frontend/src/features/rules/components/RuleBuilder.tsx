@@ -27,7 +27,7 @@ import {
   useToast,
 } from '@chakra-ui/react';
 import { AddIcon, DeleteIcon } from '@chakra-ui/icons';
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import api from '../../../services/api';
 import {
@@ -271,8 +271,10 @@ export const RuleBuilder = ({ isOpen, onClose, rule, prefillMerchant }: RuleBuil
     return [ConditionOperator.EQUALS, ConditionOperator.CONTAINS, ConditionOperator.STARTS_WITH, ConditionOperator.ENDS_WITH, ConditionOperator.REGEX];
   };
 
+  const initialFocusRef = useRef<HTMLInputElement>(null);
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="2xl">
+    <Modal isOpen={isOpen} onClose={onClose} size="2xl" initialFocusRef={initialFocusRef}>
       <ModalOverlay />
       <ModalContent>
         <ModalHeader>{rule ? 'Edit Rule' : 'Create Rule'}</ModalHeader>
@@ -283,6 +285,7 @@ export const RuleBuilder = ({ isOpen, onClose, rule, prefillMerchant }: RuleBuil
             <FormControl isRequired>
               <FormLabel>Rule Name</FormLabel>
               <Input
+                ref={initialFocusRef}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g., Categorize Starbucks purchases"

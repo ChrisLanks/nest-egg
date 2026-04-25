@@ -1797,11 +1797,16 @@ export const TransactionsPage = () => {
   }
 
   if (transactionsError) {
+    const errMsg = (transactionsError as any)?.response?.status === 422
+      ? "Invalid date range or filter. Try adjusting your search criteria."
+      : (transactionsError as any)?.response?.status === 401
+      ? "Your session has expired. Please log in again."
+      : "Failed to load transactions. This may be a temporary issue — try refreshing in a few moments.";
     return (
       <Container maxW="container.xl" py={8}>
         <Alert status="error" borderRadius="md">
           <AlertIcon />
-          Failed to load transactions. Please refresh and try again.
+          {errMsg}
         </Alert>
       </Container>
     );

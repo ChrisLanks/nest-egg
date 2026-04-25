@@ -18,7 +18,7 @@ import {
   VStack,
   useToast,
 } from '@chakra-ui/react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../../services/api';
 
@@ -84,8 +84,10 @@ export const AddTransactionModal = ({
     },
   });
 
+  const initialFocusRef = useRef<HTMLInputElement>(null);
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
+    <Modal isOpen={isOpen} onClose={onClose} initialFocusRef={initialFocusRef}>
       <ModalOverlay />
       <ModalContent>
         <ModalHeader>Add Transaction — {accountName}</ModalHeader>
@@ -117,6 +119,7 @@ export const AddTransactionModal = ({
             <FormControl isRequired>
               <FormLabel fontSize="sm">Date</FormLabel>
               <Input
+                ref={initialFocusRef}
                 type="date"
                 size="sm"
                 value={date}

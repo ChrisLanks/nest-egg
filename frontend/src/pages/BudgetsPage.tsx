@@ -295,7 +295,9 @@ export default function BudgetsPage() {
         {isError && !isLoading && (
           <Alert status="error" borderRadius="md">
             <AlertIcon />
-            Unable to load budgets. Please try again.
+            {(error as any)?.response?.status === 401
+              ? "Your session has expired. Please log in again."
+              : "Unable to load budgets. This may be a temporary issue — try refreshing the page."}
           </Alert>
         )}
 

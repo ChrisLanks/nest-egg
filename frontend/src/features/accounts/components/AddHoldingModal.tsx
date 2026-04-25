@@ -18,7 +18,7 @@ import {
   VStack,
   useToast,
 } from '@chakra-ui/react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../../services/api';
 
@@ -83,8 +83,10 @@ export const AddHoldingModal = ({
     },
   });
 
+  const initialFocusRef = useRef<HTMLInputElement>(null);
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
+    <Modal isOpen={isOpen} onClose={onClose} initialFocusRef={initialFocusRef}>
       <ModalOverlay />
       <ModalContent>
         <ModalHeader>{isCrypto ? 'Add Coin' : 'Add Holding'} — {accountName}</ModalHeader>
@@ -96,6 +98,7 @@ export const AddHoldingModal = ({
                 {isCrypto ? 'Symbol (e.g. BTC-USD)' : 'Ticker Symbol'}
               </FormLabel>
               <Input
+                ref={initialFocusRef}
                 size="sm"
                 value={ticker}
                 onChange={(e) => setTicker(e.target.value.toUpperCase())}

@@ -33,7 +33,7 @@ import {
   Stack,
   Box,
 } from "@chakra-ui/react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Budget, BudgetCreate } from "../../../types/budget";
@@ -347,9 +347,10 @@ export default function BudgetForm({
   };
 
   const alertThreshold = watch("alert_threshold");
+  const initialFocusRef = useRef<HTMLInputElement>(null);
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} size="lg" initialFocusRef={initialFocusRef}>
       <ModalOverlay />
       <ModalContent>
         <ModalHeader>{isEditing ? "Edit Budget" : "Create Budget"}</ModalHeader>
@@ -363,6 +364,7 @@ export default function BudgetForm({
                 <FormLabel>Budget Name</FormLabel>
                 <Input
                   {...register("name", { required: "Name is required" })}
+                  ref={(el) => { register("name").ref(el); initialFocusRef.current = el; }}
                   placeholder="e.g., Groceries, Entertainment"
                 />
               </FormControl>

@@ -2,7 +2,7 @@
  * Savings goal form for creating/editing goals
  */
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import {
   Modal,
   ModalOverlay,
@@ -154,8 +154,10 @@ export default function GoalForm({ isOpen, onClose, goal }: GoalFormProps) {
     });
   };
 
+  const initialFocusRef = useRef<HTMLInputElement>(null);
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} size="lg" initialFocusRef={initialFocusRef}>
       <ModalOverlay />
       <ModalContent>
         <ModalHeader>{isEditing ? 'Edit Goal' : 'Create Savings Goal'}</ModalHeader>
@@ -169,6 +171,7 @@ export default function GoalForm({ isOpen, onClose, goal }: GoalFormProps) {
                 <FormLabel>Goal Name</FormLabel>
                 <Input
                   {...register('name', { required: 'Name is required' })}
+                  ref={(el) => { register('name').ref(el); initialFocusRef.current = el; }}
                   placeholder="e.g., Emergency Fund, New Car, Vacation"
                 />
               </FormControl>
