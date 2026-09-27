@@ -58,14 +58,19 @@ function ScenarioCard({ title, description, children }: ScenarioCardProps) {
 }
 
 function MortgageVsInvest() {
+  const { currency } = useCurrency();
+  const fmt = (n: number) =>
+    n.toLocaleString("en-US", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0,
+    });
   const [form, setForm] = useState({
     remaining_balance: "300000",
     interest_rate: "0.065",
     monthly_payment: "1900",
     extra_monthly_payment: "500",
     expected_investment_return: "0.08",
-  const { currency } = useCurrency();
-  const fmt = (n: number) => n.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 });
     tax_bracket: "0.22",
   });
 
@@ -88,22 +93,51 @@ function MortgageVsInvest() {
       <SimpleGrid columns={2} spacing={3}>
         <FormControl size="sm">
           <FormLabel fontSize="sm">Balance</FormLabel>
-          <Input size="sm" value={form.remaining_balance} onChange={(e) => setForm({ ...form, remaining_balance: e.target.value })} />
+          <Input
+            size="sm"
+            value={form.remaining_balance}
+            onChange={(e) =>
+              setForm({ ...form, remaining_balance: e.target.value })
+            }
+          />
         </FormControl>
         <FormControl>
           <FormLabel fontSize="sm">Rate</FormLabel>
-          <Input size="sm" value={form.interest_rate} onChange={(e) => setForm({ ...form, interest_rate: e.target.value })} />
+          <Input
+            size="sm"
+            value={form.interest_rate}
+            onChange={(e) =>
+              setForm({ ...form, interest_rate: e.target.value })
+            }
+          />
         </FormControl>
         <FormControl>
           <FormLabel fontSize="sm">Monthly Payment</FormLabel>
-          <Input size="sm" value={form.monthly_payment} onChange={(e) => setForm({ ...form, monthly_payment: e.target.value })} />
+          <Input
+            size="sm"
+            value={form.monthly_payment}
+            onChange={(e) =>
+              setForm({ ...form, monthly_payment: e.target.value })
+            }
+          />
         </FormControl>
         <FormControl>
           <FormLabel fontSize="sm">Extra/mo</FormLabel>
-          <Input size="sm" value={form.extra_monthly_payment} onChange={(e) => setForm({ ...form, extra_monthly_payment: e.target.value })} />
+          <Input
+            size="sm"
+            value={form.extra_monthly_payment}
+            onChange={(e) =>
+              setForm({ ...form, extra_monthly_payment: e.target.value })
+            }
+          />
         </FormControl>
       </SimpleGrid>
-      <Button size="sm" colorScheme="blue" onClick={() => mutation.mutate()} isLoading={mutation.isPending}>
+      <Button
+        size="sm"
+        colorScheme="blue"
+        onClick={() => mutation.mutate()}
+        isLoading={mutation.isPending}
+      >
         Calculate
       </Button>
       {mutation.data && (
@@ -112,11 +146,17 @@ function MortgageVsInvest() {
           <SimpleGrid columns={2} spacing={2} mt={2}>
             <Stat size="sm">
               <StatLabel>Interest Saved</StatLabel>
-              <StatNumber fontSize="sm">{fmt(mutation.data.pay_off_early?.interest_saved ?? 0)}</StatNumber>
+              <StatNumber fontSize="sm">
+                {fmt(mutation.data.pay_off_early?.interest_saved ?? 0)}
+              </StatNumber>
             </Stat>
             <Stat size="sm">
               <StatLabel>Portfolio Value</StatLabel>
-              <StatNumber fontSize="sm">{fmt(mutation.data.invest_extra?.portfolio_value_at_payoff ?? 0)}</StatNumber>
+              <StatNumber fontSize="sm">
+                {fmt(
+                  mutation.data.invest_extra?.portfolio_value_at_payoff ?? 0,
+                )}
+              </StatNumber>
             </Stat>
           </SimpleGrid>
         </Box>
@@ -126,12 +166,17 @@ function MortgageVsInvest() {
 }
 
 function SalaryChange() {
+  const { currency } = useCurrency();
+  const fmt = (n: number) =>
+    n.toLocaleString("en-US", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0,
+    });
   const [form, setForm] = useState({
     current_salary: "100000",
     new_salary: "120000",
     current_state: "CA",
-  const { currency } = useCurrency();
-  const fmt = (n: number) => n.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 });
     new_state: "TX",
     filing_status: "single",
   });
@@ -154,22 +199,47 @@ function SalaryChange() {
       <SimpleGrid columns={2} spacing={3}>
         <FormControl>
           <FormLabel fontSize="sm">Current Salary</FormLabel>
-          <Input size="sm" value={form.current_salary} onChange={(e) => setForm({ ...form, current_salary: e.target.value })} />
+          <Input
+            size="sm"
+            value={form.current_salary}
+            onChange={(e) =>
+              setForm({ ...form, current_salary: e.target.value })
+            }
+          />
         </FormControl>
         <FormControl>
           <FormLabel fontSize="sm">New Salary</FormLabel>
-          <Input size="sm" value={form.new_salary} onChange={(e) => setForm({ ...form, new_salary: e.target.value })} />
+          <Input
+            size="sm"
+            value={form.new_salary}
+            onChange={(e) => setForm({ ...form, new_salary: e.target.value })}
+          />
         </FormControl>
         <FormControl>
           <FormLabel fontSize="sm">Current State</FormLabel>
-          <Input size="sm" value={form.current_state} onChange={(e) => setForm({ ...form, current_state: e.target.value })} />
+          <Input
+            size="sm"
+            value={form.current_state}
+            onChange={(e) =>
+              setForm({ ...form, current_state: e.target.value })
+            }
+          />
         </FormControl>
         <FormControl>
           <FormLabel fontSize="sm">New State</FormLabel>
-          <Input size="sm" value={form.new_state} onChange={(e) => setForm({ ...form, new_state: e.target.value })} />
+          <Input
+            size="sm"
+            value={form.new_state}
+            onChange={(e) => setForm({ ...form, new_state: e.target.value })}
+          />
         </FormControl>
       </SimpleGrid>
-      <Button size="sm" colorScheme="blue" onClick={() => mutation.mutate()} isLoading={mutation.isPending}>
+      <Button
+        size="sm"
+        colorScheme="blue"
+        onClick={() => mutation.mutate()}
+        isLoading={mutation.isPending}
+      >
         Compare
       </Button>
       {mutation.data && (
@@ -177,7 +247,14 @@ function SalaryChange() {
           <Text fontWeight="bold">{mutation.data.recommendation}</Text>
           <Stat size="sm" mt={2}>
             <StatLabel>Net Take-Home Change</StatLabel>
-            <StatNumber fontSize="sm" color={mutation.data.net_take_home_change >= 0 ? "green.500" : "red.500"}>
+            <StatNumber
+              fontSize="sm"
+              color={
+                mutation.data.net_take_home_change >= 0
+                  ? "green.500"
+                  : "red.500"
+              }
+            >
               {fmt(mutation.data.net_take_home_change)}/yr
             </StatNumber>
           </Stat>
@@ -188,10 +265,15 @@ function SalaryChange() {
 }
 
 function RelocationTax() {
+  const { currency } = useCurrency();
+  const fmt = (n: number) =>
+    n.toLocaleString("en-US", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0,
+    });
   const [form, setForm] = useState({
     current_state: "CA",
-  const { currency } = useCurrency();
-  const fmt = (n: number) => n.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 });
     target_state: "TX",
     annual_income: "150000",
   });
@@ -212,31 +294,59 @@ function RelocationTax() {
       <SimpleGrid columns={3} spacing={3}>
         <FormControl>
           <FormLabel fontSize="sm">Current State</FormLabel>
-          <Input size="sm" value={form.current_state} onChange={(e) => setForm({ ...form, current_state: e.target.value })} />
+          <Input
+            size="sm"
+            value={form.current_state}
+            onChange={(e) =>
+              setForm({ ...form, current_state: e.target.value })
+            }
+          />
         </FormControl>
         <FormControl>
           <FormLabel fontSize="sm">Target State</FormLabel>
-          <Input size="sm" value={form.target_state} onChange={(e) => setForm({ ...form, target_state: e.target.value })} />
+          <Input
+            size="sm"
+            value={form.target_state}
+            onChange={(e) => setForm({ ...form, target_state: e.target.value })}
+          />
         </FormControl>
         <FormControl>
           <FormLabel fontSize="sm">Annual Income</FormLabel>
-          <Input size="sm" value={form.annual_income} onChange={(e) => setForm({ ...form, annual_income: e.target.value })} />
+          <Input
+            size="sm"
+            value={form.annual_income}
+            onChange={(e) =>
+              setForm({ ...form, annual_income: e.target.value })
+            }
+          />
         </FormControl>
       </SimpleGrid>
-      <Button size="sm" colorScheme="blue" onClick={() => mutation.mutate()} isLoading={mutation.isPending}>
+      <Button
+        size="sm"
+        colorScheme="blue"
+        onClick={() => mutation.mutate()}
+        isLoading={mutation.isPending}
+      >
         Compare
       </Button>
       {mutation.data && (
         <SimpleGrid columns={2} spacing={2} mt={2}>
           <Stat size="sm">
             <StatLabel>Annual Savings</StatLabel>
-            <StatNumber fontSize="sm" color={mutation.data.annual_savings >= 0 ? "green.500" : "red.500"}>
+            <StatNumber
+              fontSize="sm"
+              color={
+                mutation.data.annual_savings >= 0 ? "green.500" : "red.500"
+              }
+            >
               {fmt(mutation.data.annual_savings)}
             </StatNumber>
           </Stat>
           <Stat size="sm">
             <StatLabel>5-Year Savings</StatLabel>
-            <StatNumber fontSize="sm">{fmt(mutation.data.five_year_savings)}</StatNumber>
+            <StatNumber fontSize="sm">
+              {fmt(mutation.data.five_year_savings)}
+            </StatNumber>
           </Stat>
         </SimpleGrid>
       )}
@@ -246,7 +356,12 @@ function RelocationTax() {
 
 function EarlyRetirement() {
   const { currency } = useCurrency();
-  const fmt = (n: number) => n.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 0 });
+  const fmt = (n: number) =>
+    n.toLocaleString("en-US", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0,
+    });
   const [form, setForm] = useState({
     current_age: "35",
     target_retirement_age: "50",
@@ -273,22 +388,49 @@ function EarlyRetirement() {
       <SimpleGrid columns={2} spacing={3}>
         <FormControl>
           <FormLabel fontSize="sm">Current Age</FormLabel>
-          <Input size="sm" value={form.current_age} onChange={(e) => setForm({ ...form, current_age: e.target.value })} />
+          <Input
+            size="sm"
+            value={form.current_age}
+            onChange={(e) => setForm({ ...form, current_age: e.target.value })}
+          />
         </FormControl>
         <FormControl>
           <FormLabel fontSize="sm">Target Age</FormLabel>
-          <Input size="sm" value={form.target_retirement_age} onChange={(e) => setForm({ ...form, target_retirement_age: e.target.value })} />
+          <Input
+            size="sm"
+            value={form.target_retirement_age}
+            onChange={(e) =>
+              setForm({ ...form, target_retirement_age: e.target.value })
+            }
+          />
         </FormControl>
         <FormControl>
           <FormLabel fontSize="sm">Current Savings</FormLabel>
-          <Input size="sm" value={form.current_savings} onChange={(e) => setForm({ ...form, current_savings: e.target.value })} />
+          <Input
+            size="sm"
+            value={form.current_savings}
+            onChange={(e) =>
+              setForm({ ...form, current_savings: e.target.value })
+            }
+          />
         </FormControl>
         <FormControl>
           <FormLabel fontSize="sm">Annual Expenses</FormLabel>
-          <Input size="sm" value={form.annual_expenses} onChange={(e) => setForm({ ...form, annual_expenses: e.target.value })} />
+          <Input
+            size="sm"
+            value={form.annual_expenses}
+            onChange={(e) =>
+              setForm({ ...form, annual_expenses: e.target.value })
+            }
+          />
         </FormControl>
       </SimpleGrid>
-      <Button size="sm" colorScheme="blue" onClick={() => mutation.mutate()} isLoading={mutation.isPending}>
+      <Button
+        size="sm"
+        colorScheme="blue"
+        onClick={() => mutation.mutate()}
+        isLoading={mutation.isPending}
+      >
         Analyze
       </Button>
       {mutation.data && (
@@ -297,12 +439,18 @@ function EarlyRetirement() {
           <SimpleGrid columns={2} spacing={2} mt={2}>
             <Stat size="sm">
               <StatLabel>FIRE Number</StatLabel>
-              <StatNumber fontSize="sm">{fmt(mutation.data.fire_number)}</StatNumber>
+              <StatNumber fontSize="sm">
+                {fmt(mutation.data.fire_number)}
+              </StatNumber>
             </Stat>
             <Stat size="sm">
               <StatLabel>Projected at Target</StatLabel>
-              <StatNumber fontSize="sm">{fmt(mutation.data.projected_at_target)}</StatNumber>
-              <StatHelpText>{mutation.data.on_track ? "On track" : "Gap exists"}</StatHelpText>
+              <StatNumber fontSize="sm">
+                {fmt(mutation.data.projected_at_target)}
+              </StatNumber>
+              <StatHelpText>
+                {mutation.data.on_track ? "On track" : "Gap exists"}
+              </StatHelpText>
             </Stat>
           </SimpleGrid>
         </Box>

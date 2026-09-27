@@ -16,6 +16,8 @@ from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.constants.financial import CASH_FLOW_TIMING, FIRE, RETIREMENT, TAX, VARIABLE_INCOME
+from app.constants.state_tax_rates import STATE_NAMES, STATE_TAX_RATES
 from app.core.database import get_db
 from app.core.security import hash_password, verify_password
 from app.dependencies import get_current_user
@@ -28,8 +30,6 @@ from app.models.rule import Rule
 from app.models.transaction import Transaction, TransactionLabel
 from app.models.user import Organization, RefreshToken, User
 from app.schemas.user import OrganizationUpdate, UserUpdate
-from app.constants.financial import CASH_FLOW_TIMING, FIRE, RETIREMENT, TAX, VARIABLE_INCOME
-from app.constants.state_tax_rates import STATE_NAMES, STATE_TAX_RATES
 from app.services.email_service import create_verification_token, email_service
 from app.services.fx_service import SUPPORTED_CURRENCIES
 from app.services.input_sanitization_service import input_sanitization_service
@@ -186,8 +186,12 @@ async def get_user_profile(
         default_currency=org.default_currency if org else None,
         dashboard_layout=current_user.dashboard_layout,
         onboarding_goal=current_user.onboarding_goal,
-        state_of_residence=v if isinstance(v := getattr(current_user, "state_of_residence", None), str) else None,
-        target_retirement_state=v if isinstance(v := getattr(current_user, "target_retirement_state", None), str) else None,
+        state_of_residence=v
+        if isinstance(v := getattr(current_user, "state_of_residence", None), str)
+        else None,
+        target_retirement_state=v
+        if isinstance(v := getattr(current_user, "target_retirement_state", None), str)
+        else None,
         show_advanced_nav=current_user.show_advanced_nav,
     )
 
@@ -227,7 +231,9 @@ async def update_user_profile(
 
     # State of residence — per-user; each household member sets their own.
     # Validated as uppercase 2-char code by the UserUpdate schema.
-    if update_data.state_of_residence is not None and isinstance(update_data.state_of_residence, str):
+    if update_data.state_of_residence is not None and isinstance(
+        update_data.state_of_residence, str
+    ):
         code = update_data.state_of_residence
         if code and code not in STATE_TAX_RATES:
             raise HTTPException(
@@ -236,7 +242,9 @@ async def update_user_profile(
             )
         current_user.state_of_residence = code or None
 
-    if update_data.target_retirement_state is not None and isinstance(update_data.target_retirement_state, str):
+    if update_data.target_retirement_state is not None and isinstance(
+        update_data.target_retirement_state, str
+    ):
         code = update_data.target_retirement_state
         if code and code not in STATE_TAX_RATES:
             raise HTTPException(
@@ -345,8 +353,12 @@ async def update_user_profile(
         default_currency=org.default_currency if org else None,
         dashboard_layout=current_user.dashboard_layout,
         onboarding_goal=current_user.onboarding_goal,
-        state_of_residence=v if isinstance(v := getattr(current_user, "state_of_residence", None), str) else None,
-        target_retirement_state=v if isinstance(v := getattr(current_user, "target_retirement_state", None), str) else None,
+        state_of_residence=v
+        if isinstance(v := getattr(current_user, "state_of_residence", None), str)
+        else None,
+        target_retirement_state=v
+        if isinstance(v := getattr(current_user, "target_retirement_state", None), str)
+        else None,
         show_advanced_nav=current_user.show_advanced_nav,
     )
 
@@ -358,7 +370,7 @@ async def update_dashboard_layout(
     db: AsyncSession = Depends(get_db),
 ):
     """Save the user's customized dashboard widget layout."""
-    current_user.dashboard_layout = body.layout
+    current_user.dashboard_layout = [w.model_dump() for w in body.layout]
     await db.commit()
     return Response(status_code=204)
 
@@ -580,9 +592,7 @@ async def export_data(
             batch_result = await db.execute(
                 select(Transaction)
                 .where(Transaction.organization_id == org_id)
-                .options(
-                    selectinload(Transaction.labels).selectinload(TransactionLabel.label)
-                )
+                .options(selectinload(Transaction.labels).selectinload(TransactionLabel.label))
                 .order_by(Transaction.date.desc())
                 .offset(txn_offset)
                 .limit(EXPORT_BATCH_SIZE)
@@ -608,7 +618,9 @@ async def export_data(
                         labels = ",".join(label_names)
                 except Exception:
                     logger.debug(
-                        "Failed to resolve labels for transaction %s in CSV export", t.id, exc_info=True
+                        "Failed to resolve labels for transaction %s in CSV export",
+                        t.id,
+                        exc_info=True,
                     )
                 txn_writer.writerow(
                     [
@@ -1004,12 +1016,14 @@ async def get_state_list():
     states = []
     for code in sorted(STATE_NAMES.keys()):
         rate = STATE_TAX_RATES.get(code, 0.0)
-        states.append({
-            "code": code,
-            "name": STATE_NAMES[code],
-            "income_tax_rate": rate,
-            "no_income_tax": rate == 0.0,
-        })
+        states.append(
+            {
+                "code": code,
+                "name": STATE_NAMES[code],
+                "income_tax_rate": rate,
+                "no_income_tax": rate == 0.0,
+            }
+        )
     return {"states": states}
 
 

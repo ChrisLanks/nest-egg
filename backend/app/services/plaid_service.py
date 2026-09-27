@@ -44,7 +44,7 @@ _PLAID_BASE_URLS = {
 # Map settings.PLAID_ENV to plaid.Environment
 _PLAID_ENVIRONMENTS = {
     "sandbox": plaid.Environment.Sandbox,
-    "development": plaid.Environment.Development,
+    "development": "https://development.plaid.com",
     "production": plaid.Environment.Production,
 }
 

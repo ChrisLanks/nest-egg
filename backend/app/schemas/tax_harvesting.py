@@ -17,7 +17,7 @@ class TaxLossOpportunityResponse(BaseModel):
     unrealized_loss: Decimal
     loss_percentage: Decimal
     estimated_tax_savings: Decimal
-    wash_sale_risk: bool
+    wash_sale_risk: Optional[bool] = False
     wash_sale_reason: Optional[str]
     sector: Optional[str]
     suggested_replacements: List[str]

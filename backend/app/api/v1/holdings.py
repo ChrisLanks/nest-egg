@@ -15,19 +15,18 @@ from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.constants.financial import FIRE
 from app.core.cache import delete_pattern as cache_delete_pattern
 from app.core.cache import get as cache_get
 from app.core.cache import setex as cache_setex
 from app.core.database import AsyncSessionLocal, get_db
 from app.dependencies import (
-    get_all_household_accounts,
     get_current_user,
     get_filtered_accounts,
     get_user_accounts,
     get_verified_account,
     verify_household_member,
 )
-from app.constants.financial import FIRE
 from app.models.account import Account, AccountType, TaxTreatment
 from app.models.holding import Holding
 from app.models.user import User
@@ -54,13 +53,12 @@ from app.schemas.holding import (
     Holding as HoldingSchema,
 )
 from app.schemas.rmd import AccountRMD, RMDSummary
-from app.services.deduplication_service import deduplication_service
 from app.services.financial_data_service import financial_data_service
 from app.services.fund_fee_analyzer_service import resolve_expense_ratio
 from app.services.input_sanitization_service import input_sanitization_service
 from app.services.market_data import get_market_data_provider
-from app.services.snapshot_service import snapshot_service
 from app.services.rate_limit_service import rate_limit_service
+from app.services.snapshot_service import snapshot_service
 from app.utils.account_type_groups import (
     ALL_RETIREMENT_TYPES,
     CASH_ACCOUNT_TYPES,
@@ -117,8 +115,11 @@ async def get_portfolio_summary(
 
     # Get accounts based on filter
     accounts = await get_filtered_accounts(
-        db, current_user.organization_id, current_user.id,
-        user_id=user_id, user_ids=user_ids,
+        db,
+        current_user.organization_id,
+        current_user.id,
+        user_id=user_id,
+        user_ids=user_ids,
     )
 
     # Filter accounts for investment accounts only
@@ -562,16 +563,15 @@ async def get_portfolio_summary(
 
     # Pre-resolve asset types for holdings that have none (manual holdings not from Plaid).
     # Batch the Polygon lookups so we don't block per-holding inside the loop.
-    untyped_tickers = list({
-        h.ticker.upper()
-        for h in all_investment_holdings
-        if not h.asset_type
-    })
+    untyped_tickers = list({h.ticker.upper() for h in all_investment_holdings if not h.asset_type})
     resolved_asset_types: dict[str, tuple[str, bool]] = {}  # ticker -> (asset_type, estimated)
     for untyped_ticker in untyped_tickers:
         result = await financial_data_service.get_asset_type(untyped_ticker)
         if result.get("asset_type"):
-            resolved_asset_types[untyped_ticker] = (result["asset_type"], result.get("estimated", True))
+            resolved_asset_types[untyped_ticker] = (
+                result["asset_type"],
+                result.get("estimated", True),
+            )
         else:
             resolved_asset_types[untyped_ticker] = ("", True)  # will fall through to heuristics
 
@@ -733,7 +733,9 @@ async def get_portfolio_summary(
                     TreemapNode(
                         name=cap_size,
                         value=cap_value,
-                        percent=(cap_value / domestic_stocks_value * 100) if domestic_stocks_value > 0 else Decimal("0"),
+                        percent=(cap_value / domestic_stocks_value * 100)
+                        if domestic_stocks_value > 0
+                        else Decimal("0"),
                         children=ticker_nodes,
                         color=cap_colors.get(cap_size, "#4299E1"),
                     )
@@ -1974,6 +1976,8 @@ async def get_rmd_summary(
         oldest_age = 0  # Track oldest member for response
 
         for member in household_members:
+            if member.birthdate is None:
+                continue
             member_age = calculate_age(member.birthdate)
             oldest_age = max(oldest_age, member_age)
 
@@ -2063,12 +2067,17 @@ async def get_roth_analysis(
     retirement_types = ROTH_CONVERSION_ELIGIBLE_TYPES
 
     accounts = await get_filtered_accounts(
-        db, current_user.organization_id, current_user.id,
-        user_id=user_id, user_ids=user_ids,
+        db,
+        current_user.organization_id,
+        current_user.id,
+        user_id=user_id,
+        user_ids=user_ids,
     )
     if user_id:
         user_result = await db.execute(
-            select(User).where(User.id == user_id, User.organization_id == current_user.organization_id)
+            select(User).where(
+                User.id == user_id, User.organization_id == current_user.organization_id
+            )
         )
         target_user = user_result.scalar_one_or_none()
     else:
@@ -2273,8 +2282,11 @@ async def _get_holdings_for_user(
 ) -> list:
     """Shared helper to fetch investment holdings for fee analysis endpoints."""
     accounts = await get_filtered_accounts(
-        db, current_user.organization_id, current_user.id,
-        user_id=user_id, user_ids=user_ids,
+        db,
+        current_user.organization_id,
+        current_user.id,
+        user_id=user_id,
+        user_ids=user_ids,
     )
 
     investment_account_ids = [
@@ -2362,7 +2374,7 @@ async def get_fee_analysis(
             high_fee_holdings=[],
             low_cost_alternatives=[],
         )
-        await cache_setex(cache_key, result, 300)
+        await cache_setex(cache_key, 300, result.model_dump(mode="json"))
         return result
 
     # Calculate weighted average ER
@@ -2416,7 +2428,7 @@ async def get_fee_analysis(
         low_cost_alternatives=alternatives,
     )
 
-    await cache_setex(cache_key, result, 300)
+    await cache_setex(cache_key, 300, result.model_dump(mode="json"))
     return result
 
 
@@ -2492,7 +2504,7 @@ async def get_fund_overlap(
         total_overlap_value=round(total_overlap_value, 2),
     )
 
-    await cache_setex(cache_key, result, 300)
+    await cache_setex(cache_key, 300, result.model_dump(mode="json"))
     return result
 
 

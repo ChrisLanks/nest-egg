@@ -20,19 +20,19 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'equity_amt_warning'")
-    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'hsa_contribution_limit'")
-    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'bond_maturity_upcoming'")
-    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'beneficiary_missing'")
-    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'tax_bucket_imbalance'")
-    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'harvest_opportunity'")
-    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'pro_rata_warning'")
-    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'rmd_tax_bomb_warning'")
-    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'bill_due_before_paycheck'")
-    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'pension_election_deadline'")
-    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'rebalance_drift_alert'")
-    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'qcd_opportunity'")
-    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'nav_feature_unlocked'")
+    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'EQUITY_AMT_WARNING'")
+    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'HSA_CONTRIBUTION_LIMIT'")
+    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'BOND_MATURITY_UPCOMING'")
+    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'BENEFICIARY_MISSING'")
+    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'TAX_BUCKET_IMBALANCE'")
+    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'HARVEST_OPPORTUNITY'")
+    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'PRO_RATA_WARNING'")
+    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'RMD_TAX_BOMB_WARNING'")
+    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'BILL_DUE_BEFORE_PAYCHECK'")
+    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'PENSION_ELECTION_DEADLINE'")
+    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'REBALANCE_DRIFT_ALERT'")
+    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'QCD_OPPORTUNITY'")
+    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'NAV_FEATURE_UNLOCKED'")
 
 
 def downgrade() -> None:
